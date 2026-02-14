@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PosDelay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#1A1A2E</item>
+        <item name="colorPrimaryVariant">#16213E</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:statusBarColor">#1A1A2E</item>
+        <item name="android:navigationBarColor">#1A1A2E</item>
+    </style>
+</resources>
