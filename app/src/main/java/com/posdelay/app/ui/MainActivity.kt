@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.posdelay.app.data.NotificationLog
 import com.posdelay.app.data.OrderTracker
 import com.posdelay.app.databinding.ActivityMainBinding
 import com.posdelay.app.service.DelayAccessibilityService
@@ -24,6 +25,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         OrderTracker.init(this)
+        NotificationLog.init(this)
         observeData()
         setupButtons()
         checkPermissions()
@@ -154,6 +156,28 @@ class MainActivity : AppCompatActivity() {
 
         // 권한 설정
         binding.btnPermissions.setOnClickListener { showPermissionMenu() }
+
+        // 알림 로그 보기
+        binding.btnViewLog.setOnClickListener { showNotificationLog() }
+    }
+
+    private fun showNotificationLog() {
+        val logs = NotificationLog.getLogs()
+        val message = if (logs.isEmpty()) {
+            "아직 감지된 MATE 알림이 없습니다.\n\n알림 접근 권한이 활성화되어 있는지 확인하세요."
+        } else {
+            logs.take(20).joinToString("\n\n")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("MATE 알림 로그 (최근 ${minOf(logs.size, 20)}건)")
+            .setMessage(message)
+            .setPositiveButton("확인", null)
+            .setNeutralButton("로그 삭제") { _, _ ->
+                NotificationLog.clear()
+                Toast.makeText(this, "로그 삭제됨", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
     private fun showPermissionMenu() {
@@ -177,14 +201,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkPermissions() {
-        // 알림 리스너 확인
         val notificationEnabled = isNotificationListenerEnabled()
         binding.tvNotificationStatus.text = "알림 접근: ${if (notificationEnabled) "활성화" else "비활성화"}"
         binding.tvNotificationStatus.setTextColor(
             if (notificationEnabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
         )
 
-        // 접근성 서비스 확인
         val accessibilityEnabled = isAccessibilityEnabled()
         binding.tvAccessibilityStatus.text = "접근성 서비스: ${if (accessibilityEnabled) "활성화" else "비활성화"}"
         binding.tvAccessibilityStatus.setTextColor(

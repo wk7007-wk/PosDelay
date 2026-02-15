@@ -10,13 +10,13 @@ import com.posdelay.app.data.OrderTracker
 class DelayAccessibilityService : AccessibilityService() {
 
     companion object {
+        const val MATE_PACKAGE = "com.foodtechkorea.posboss"
         const val COUPANG_EATS_PACKAGE = "com.coupang.mobile.eats.merchant"
         private var instance: DelayAccessibilityService? = null
         private var pendingDelay = false
 
         fun triggerDelay(context: Context) {
             pendingDelay = true
-            // 쿠팡이츠 앱 실행
             val launchIntent = context.packageManager.getLaunchIntentForPackage(COUPANG_EATS_PACKAGE)
             if (launchIntent != null) {
                 launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -34,42 +34,160 @@ class DelayAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        if (!pendingDelay) return
-        if (event.packageName?.toString() != COUPANG_EATS_PACKAGE) return
+        val pkg = event.packageName?.toString() ?: return
 
-        // 쿠팡이츠 UI에서 지연 설정 버튼 탐색
-        val rootNode = rootInActiveWindow ?: return
-
-        // 지연 관련 버튼/텍스트 탐색
-        val delayNode = findNodeByText(rootNode, "지연")
-            ?: findNodeByText(rootNode, "주문 일시중지")
-            ?: findNodeByText(rootNode, "일시정지")
-            ?: findNodeByText(rootNode, "운영중지")
-
-        if (delayNode != null) {
-            delayNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            // 지연 시간 설정 시도
-            val minutes = OrderTracker.getDelayMinutes()
-            setDelayTime(rootNode, minutes)
-            pendingDelay = false
+        when (pkg) {
+            MATE_PACKAGE -> readMateOrderCount()
+            COUPANG_EATS_PACKAGE -> if (pendingDelay) handleCoupangDelay()
         }
-
-        rootNode.recycle()
     }
 
-    private fun setDelayTime(root: AccessibilityNodeInfo, minutes: Int) {
-        // 지연 시간 텍스트 찾기 (쿠팡이츠 UI에 따라 조정 필요)
-        val minuteText = "${minutes}분"
-        val timeNode = findNodeByText(root, minuteText)
-        if (timeNode != null) {
-            timeNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    // ===== MATE 사장님: 처리중 건수 읽기 =====
+
+    private fun readMateOrderCount() {
+        val rootNode = rootInActiveWindow ?: return
+
+        try {
+            // "처리중" 탭 텍스트에서 숫자 추출
+            // 탭 형태: "처리중 1" 또는 "처리중\n1"
+            val count = findProcessingCount(rootNode)
+            if (count != null) {
+                val current = OrderTracker.getOrderCount()
+                if (count != current) {
+                    OrderTracker.setOrderCount(count)
+                    DelayNotificationHelper.update(applicationContext)
+
+                    // 임계값 체크
+                    if (OrderTracker.shouldDelayCoupang()) {
+                        DelayNotificationHelper.notifyDelayTriggered(
+                            applicationContext, "쿠팡이츠"
+                        )
+                    }
+                    if (OrderTracker.shouldDelayBaemin()) {
+                        DelayNotificationHelper.notifyDelayTriggered(
+                            applicationContext, "배달의민족"
+                        )
+                    }
+                }
+            }
+        } finally {
+            rootNode.recycle()
+        }
+    }
+
+    private fun findProcessingCount(root: AccessibilityNodeInfo): Int? {
+        // 방법 1: "처리중" 텍스트가 포함된 노드 찾기
+        val nodes = root.findAccessibilityNodeInfosByText("처리중")
+        if (nodes != null) {
+            for (node in nodes) {
+                val text = node.text?.toString() ?: continue
+                // "처리중 1" or "처리중1" 형태
+                val match = Regex("""처리중\s*(\d+)""").find(text)
+                if (match != null) {
+                    return match.groupValues[1].toIntOrNull()
+                }
+            }
         }
 
-        // 확인/적용 버튼 클릭
-        val confirmNode = findNodeByText(root, "확인")
-            ?: findNodeByText(root, "적용")
-            ?: findNodeByText(root, "저장")
-        confirmNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        // 방법 2: 전체 노드 트리에서 탐색
+        return findCountInTree(root)
+    }
+
+    private fun findCountInTree(node: AccessibilityNodeInfo): Int? {
+        val text = node.text?.toString() ?: ""
+        if (text.contains("처리중")) {
+            val match = Regex("""처리중\s*(\d+)""").find(text)
+            if (match != null) {
+                return match.groupValues[1].toIntOrNull()
+            }
+
+            // "처리중" 텍스트 옆의 숫자 노드 확인 (탭 레이아웃)
+            val parent = node.parent
+            if (parent != null) {
+                for (i in 0 until parent.childCount) {
+                    val sibling = parent.getChild(i) ?: continue
+                    val sibText = sibling.text?.toString() ?: ""
+                    val num = sibText.trim().toIntOrNull()
+                    if (num != null) {
+                        return num
+                    }
+                }
+            }
+        }
+
+        // 자식 노드 재귀 탐색
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findCountInTree(child)
+            if (result != null) return result
+        }
+
+        return null
+    }
+
+    // ===== 쿠팡이츠: 자동 지연 처리 =====
+    // UI: "준비 지연" 클릭 → 팝업 (-5/-1/+0분/+1/+5) → 녹색 "준비 지연" 확인
+
+    private var delayStep = 0       // 0: 준비지연 클릭, 1: +버튼으로 시간 설정, 2: 확인
+    private var clicksRemaining = 0 // +5/+1 남은 클릭 수
+
+    private fun handleCoupangDelay() {
+        val rootNode = rootInActiveWindow ?: return
+
+        try {
+            when (delayStep) {
+                0 -> {
+                    // Step 1: "준비 지연" 버튼 클릭 (주문 상세 하단)
+                    val delayNode = findNodeByText(rootNode, "준비 지연")
+                        ?: findNodeByText(rootNode, "준비지연")
+                    if (delayNode != null) {
+                        delayNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        // 목표 시간 계산: +5 몇번, +1 몇번
+                        val minutes = OrderTracker.getDelayMinutes()
+                        clicksRemaining = minutes // 총 분 (나중에 +5/+1로 분배)
+                        delayStep = 1
+                    }
+                }
+                1 -> {
+                    // Step 2: +5/+1 버튼으로 시간 설정
+                    if (clicksRemaining <= 0) {
+                        delayStep = 2
+                        return
+                    }
+
+                    if (clicksRemaining >= 5) {
+                        val plus5 = findNodeByText(rootNode, "+5")
+                        if (plus5 != null) {
+                            plus5.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            clicksRemaining -= 5
+                        }
+                    } else {
+                        val plus1 = findNodeByText(rootNode, "+1")
+                        if (plus1 != null) {
+                            plus1.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            clicksRemaining -= 1
+                        }
+                    }
+
+                    if (clicksRemaining <= 0) {
+                        delayStep = 2
+                    }
+                }
+                2 -> {
+                    // Step 3: 하단 녹색 "준비 지연" 확인 버튼
+                    val confirmNode = findNodeByText(rootNode, "준비 지연")
+                        ?: findNodeByText(rootNode, "준비지연")
+                    if (confirmNode != null) {
+                        confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        pendingDelay = false
+                        delayStep = 0
+                        clicksRemaining = 0
+                    }
+                }
+            }
+        } finally {
+            rootNode.recycle()
+        }
     }
 
     private fun findNodeByText(root: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
