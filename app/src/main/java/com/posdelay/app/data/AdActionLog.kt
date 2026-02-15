@@ -82,6 +82,7 @@ object AdActionLog {
 
         prefs.edit().putString(KEY_LOG, current.joinToString("\n===\n")).apply()
         _logs.postValue(current)
+        LogFileWriter.append("AD", entry)
     }
 
     /** HTML 스냅샷 저장 (디버깅용, 최대 500자) */

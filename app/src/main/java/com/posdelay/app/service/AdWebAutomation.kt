@@ -437,7 +437,12 @@ class AdWebAutomation(private val activity: Activity) {
             log(Code.INFO_JS_RESULT, "우리가게클릭 탐색 결과: $result")
             if (result?.contains("CLICKED") == true) {
                 changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ performBaeminAmountChange() }, 2500)
+                // 우리가게클릭 페이지 로딩 대기 6초
+                log(Code.INFO_STATE, "우리가게클릭 클릭 성공, 페이지 로딩 대기 6초...")
+                handler.postDelayed({
+                    webView?.let { captureHtmlSnapshot(it, "after-click-ad") }
+                    performBaeminAmountChange()
+                }, 6000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateBaeminClickAd(retries - 1) }, RETRY_DELAY)
             } else {
@@ -454,30 +459,71 @@ class AdWebAutomation(private val activity: Activity) {
 
         val js = """
             (function() {
-                var inputs = document.querySelectorAll('input[type="number"], input[type="text"], input[inputmode="numeric"]');
+                // 모든 input 검색 (type 제한 없이)
+                var inputs = document.querySelectorAll('input');
                 var debugInfo = 'totalInputs=' + inputs.length;
                 var found = false;
+                var foundEl = null;
+
                 for (var i = 0; i < inputs.length; i++) {
                     var el = inputs[i];
-                    var parent = el.closest('label, .form-group, div, tr, li, section');
-                    var text = parent ? parent.textContent.substring(0, 150) : '(no parent)';
-                    debugInfo += '|input[' + i + ']=' + el.type + ',val=' + el.value + ',ctx=' + text.replace(/\s+/g,' ').trim().substring(0, 60);
-                    if (text.indexOf('클릭 당') >= 0 || text.indexOf('클릭당') >= 0 ||
-                        text.indexOf('희망 광고금액') >= 0 || text.indexOf('희망광고금액') >= 0 ||
-                        text.indexOf('입찰') >= 0 || text.indexOf('단가') >= 0 ||
-                        text.indexOf('CPC') >= 0 || text.indexOf('cpc') >= 0 ||
-                        (text.indexOf('원') >= 0 && text.indexOf('금액') >= 0)) {
-                        var nativeSetter = Object.getOwnPropertyDescriptor(
-                            window.HTMLInputElement.prototype, 'value').set;
-                        nativeSetter.call(el, '$targetAmount');
-                        el.dispatchEvent(new Event('input', {bubbles: true}));
-                        el.dispatchEvent(new Event('change', {bubbles: true}));
-                        found = true;
+                    if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio') continue;
+
+                    // 부모를 여러 레벨로 올라가며 컨텍스트 텍스트 수집
+                    var ctx = '';
+                    var p = el.parentElement;
+                    for (var lv = 0; lv < 5 && p; lv++) {
+                        ctx = (p.innerText || p.textContent || '').replace(/\s+/g, ' ').trim();
+                        if (ctx.length > 5) break;
+                        p = p.parentElement;
+                    }
+                    ctx = ctx.substring(0, 100);
+
+                    debugInfo += '|in[' + i + ']=' + el.type + ',val=' + (el.value || '').substring(0, 20) +
+                                 ',ph=' + (el.placeholder || '') + ',ctx=' + ctx.substring(0, 60);
+
+                    if (ctx.indexOf('클릭 당') >= 0 || ctx.indexOf('클릭당') >= 0 ||
+                        ctx.indexOf('희망') >= 0 || ctx.indexOf('광고금액') >= 0 ||
+                        ctx.indexOf('입찰') >= 0 || ctx.indexOf('단가') >= 0 ||
+                        ctx.indexOf('CPC') >= 0 || ctx.indexOf('cpc') >= 0 ||
+                        (ctx.indexOf('원') >= 0 && ctx.indexOf('금액') >= 0) ||
+                        el.placeholder.indexOf('원') >= 0 || el.placeholder.indexOf('금액') >= 0) {
+                        foundEl = el;
                         debugInfo += '|MATCHED[' + i + ']';
                         break;
                     }
                 }
-                if (found) {
+
+                // 페이지 내 텍스트 디버그 (못찾았을 때)
+                if (!foundEl) {
+                    var allTexts = [];
+                    var allEls = document.querySelectorAll('span, div, label, h3, h4, p, td, th, button');
+                    for (var k = 0; k < allEls.length; k++) {
+                        var ch = allEls[k].childNodes;
+                        var directText = '';
+                        for (var c = 0; c < ch.length; c++) {
+                            if (ch[c].nodeType === 3) directText += ch[c].textContent.trim();
+                        }
+                        if (directText.length > 1 && directText.length < 40) {
+                            var isDup = false;
+                            for (var d = 0; d < allTexts.length; d++) {
+                                if (allTexts[d] === directText) { isDup = true; break; }
+                            }
+                            if (!isDup) allTexts.push(directText);
+                        }
+                        if (allTexts.length >= 40) break;
+                    }
+                    debugInfo += '|pageTexts=[' + allTexts.join('|') + ']';
+                }
+
+                if (foundEl) {
+                    var nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype, 'value').set;
+                    nativeSetter.call(foundEl, '$targetAmount');
+                    foundEl.dispatchEvent(new Event('input', {bubbles: true}));
+                    foundEl.dispatchEvent(new Event('change', {bubbles: true}));
+                    foundEl.dispatchEvent(new Event('blur', {bubbles: true}));
+
                     setTimeout(function() {
                         var btns = document.querySelectorAll('button');
                         for (var j = 0; j < btns.length; j++) {
@@ -640,47 +686,65 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡 광고 관리 페이지 탐색 */
+    /** 쿠팡 광고 관리 페이지 탐색 - 메뉴 클릭 + href 추출 + URL 직접 이동 */
     private fun navigateCoupangAdPage(retries: Int = MAX_RETRIES) {
         if (state != State.NAVIGATING_TO_AD) return
         log(Code.INFO_STATE, "쿠팡 광고관리 페이지 탐색 (시도 ${MAX_RETRIES - retries + 1}/$MAX_RETRIES)")
 
+        // 메뉴에서 "광고 관리" 링크의 href를 찾아서 직접 이동
         val js = """
             (function() {
-                var items = document.querySelectorAll(
-                    'a, button, [role="menuitem"], nav *, [class*="menu"] *, [class*="sidebar"] *, [class*="Menu"] *'
-                );
+                var items = document.querySelectorAll('a, [role="menuitem"]');
                 var debug = 'total=' + items.length;
+                var adLink = null;
+                var adHref = '';
+
                 for (var i = 0; i < items.length; i++) {
                     var el = items[i];
-                    var text = el.textContent.trim();
-                    if (text.length > 0 && text.length < 15 &&
-                        (text.indexOf('광고') >= 0 || text.indexOf('마케팅') >= 0)) {
-                        if (el.href) debug += '|clickLink=' + el.href;
-                        el.click();
-                        return 'CLICKED|' + text;
+                    var text = (el.innerText || el.textContent || '').trim();
+                    if (text.length > 0 && text.length < 20 &&
+                        text.indexOf('광고') >= 0 && text.indexOf('약관') < 0) {
+                        adLink = el;
+                        adHref = el.href || el.getAttribute('href') || '';
+                        debug += '|found=' + text + ',href=' + adHref + ',tag=' + el.tagName;
+                        break;
                     }
                 }
-                var menuItems = [];
-                var navEls = document.querySelectorAll('nav a, [class*="menu"] a, [class*="sidebar"] a, [class*="Menu"] a');
-                for (var j = 0; j < Math.min(navEls.length, 15); j++) {
-                    var t = navEls[j].textContent.trim();
-                    if (t.length > 0 && t.length < 25) menuItems.push(t);
+
+                if (adLink) {
+                    // href가 있으면 직접 이동 (SPA 라우터 우회)
+                    if (adHref && adHref.indexOf('#') < 0 && adHref.length > 1) {
+                        window.location.href = adHref;
+                        return 'NAVIGATING|' + debug;
+                    }
+                    // href 없으면 클릭
+                    adLink.click();
+                    return 'CLICKED|' + debug;
                 }
-                return 'NOT_FOUND|' + debug + '|menus=[' + menuItems.join(',') + ']';
+
+                // 메뉴 항목 수집 (디버그)
+                var menuItems = [];
+                var navEls = document.querySelectorAll('a');
+                for (var j = 0; j < navEls.length; j++) {
+                    var t = (navEls[j].innerText || navEls[j].textContent || '').trim();
+                    var h = navEls[j].href || '';
+                    if (t.length > 0 && t.length < 25) menuItems.push(t + '→' + h.substring(h.lastIndexOf('/')));
+                    if (menuItems.length >= 20) break;
+                }
+                return 'NOT_FOUND|' + debug + '|links=[' + menuItems.join(',') + ']';
             })();
         """.trimIndent()
 
         webView?.evaluateJavascript(js) { result ->
             log(Code.INFO_JS_RESULT, "쿠팡 광고관리 탐색: $result")
-            if (result?.contains("CLICKED") == true) {
+            if (result?.contains("NAVIGATING") == true || result?.contains("CLICKED") == true) {
                 changeState(State.PERFORMING_ACTION)
-                // 광고 관리 클릭 후 wujie 로딩 대기 (5초)
-                log(Code.INFO_STATE, "광고 관리 클릭 성공, 페이지 로딩 대기 5초...")
+                // 광고 페이지 로딩 대기 (8초 - URL 이동은 더 오래 걸림)
+                log(Code.INFO_STATE, "광고 관리 이동 성공, 페이지 로딩 대기 8초...")
                 handler.postDelayed({
                     webView?.let { captureHtmlSnapshot(it, "after-coupang-ad-click") }
                     performCoupangToggle()
-                }, 5000)
+                }, 8000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
             } else {

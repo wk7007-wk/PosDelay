@@ -86,6 +86,7 @@ object DelayActionLog {
 
         prefs.edit().putString(KEY_LOG, current.joinToString("\n===\n")).apply()
         _logs.postValue(current)
+        LogFileWriter.append("DELAY", entry)
     }
 
     fun getLogs(): List<String> {
