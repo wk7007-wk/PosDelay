@@ -411,5 +411,508 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- ══════════ 광고 관리 섹션 ══════════ -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#333333"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 광고 관리 헤더 + ON/OFF -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="광고 관리"
+            android:textColor="#FFD700"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <Switch
+            android:id="@+id/switchAdEnable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="false" />
+    </LinearLayout>
+
+    <!-- 배민 광고 금액 -->
+    <LinearLayout
+        android:id="@+id/layoutAdSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="배민 광고 금액"
+                    android:textColor="#2AC1BC"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="우리가게클릭 CPC"
+                    android:textColor="#888888"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnBaeminAmountMinus"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:text="-"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#555555" />
+
+            <TextView
+                android:id="@+id/tvBaeminAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="200원"
+                android:textColor="#2AC1BC"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:minWidth="70dp"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/btnBaeminAmountPlus"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:text="+"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#555555" />
+        </LinearLayout>
+
+        <!-- 배민 축소 금액 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="배민 축소 금액"
+                    android:textColor="#E67E22"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="밀릴 때 자동 변경"
+                    android:textColor="#888888"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnBaeminReducedMinus"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:text="-"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#555555" />
+
+            <TextView
+                android:id="@+id/tvBaeminReducedAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="50원"
+                android:textColor="#E67E22"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:minWidth="70dp"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/btnBaeminReducedPlus"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:text="+"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#555555" />
+        </LinearLayout>
+
+        <!-- 쿠팡 광고 상태 + 토글 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="쿠팡이츠 광고"
+                    android:textColor="#00C4B4"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvCoupangAdStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="상태: 켜짐"
+                    android:textColor="#2ECC71"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnCoupangAdOn"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:text="켜기"
+                android:textSize="13sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#2ECC71"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btnCoupangAdOff"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:text="끄기"
+                android:textSize="13sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#E74C3C" />
+        </LinearLayout>
+
+        <!-- 스케줄 설정 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="시간 스케줄"
+                    android:textColor="#CCCCCC"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <Switch
+                    android:id="@+id/switchSchedule"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="광고 끄기"
+                    android:textColor="#E74C3C"
+                    android:textSize="13sp"
+                    android:minWidth="60dp" />
+
+                <Button
+                    android:id="@+id/btnAdOffTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="22:00"
+                    android:textSize="14sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#444444"
+                    android:layout_marginStart="8dp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="광고 켜기"
+                    android:textColor="#2ECC71"
+                    android:textSize="13sp"
+                    android:minWidth="60dp" />
+
+                <Button
+                    android:id="@+id/btnAdOnTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="08:00"
+                    android:textSize="14sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#444444"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 주문 밀림 자동 끄기 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="주문 밀림시 자동 끄기"
+                    android:textColor="#CCCCCC"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <Switch
+                    android:id="@+id/switchOrderAutoOff"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="처리중"
+                    android:textColor="#AAAAAA"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnThresholdMinus"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:text="-"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#555555"
+                    android:layout_marginStart="8dp" />
+
+                <TextView
+                    android:id="@+id/tvAutoOffThreshold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5건"
+                    android:textColor="#FFD700"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:minWidth="50dp"
+                    android:gravity="center" />
+
+                <Button
+                    android:id="@+id/btnThresholdPlus"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:text="+"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#555555" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="건 이상시"
+                    android:textColor="#AAAAAA"
+                    android:textSize="13sp"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 직접 열기 (WebView 브라우저) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btnOpenBaemin"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="배민 직접열기"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#06B6AA"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnOpenCoupang"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="쿠팡 직접열기"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#1A73E8"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <!-- 수동 실행 + 로그인 설정 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnAdManualBaemin"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="배민 자동실행"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#2AC1BC"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnAdManualCoupangOff"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="쿠팡 자동실행"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#E74C3C"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnBaeminLogin"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:text="배민 로그인 설정"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#444444"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnCoupangLogin"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:text="쿠팡 로그인 설정"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#444444"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <!-- 광고 로그 버튼 -->
+        <Button
+            android:id="@+id/btnAdLog"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:text="광고 자동화 로그 보기"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#1A6B8A"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 마지막 동작 로그 -->
+        <TextView
+            android:id="@+id/tvLastAdAction"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="마지막 동작: --"
+            android:textColor="#666666"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+    </LinearLayout>
+
 </LinearLayout>
 </ScrollView>

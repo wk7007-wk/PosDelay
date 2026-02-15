@@ -98,6 +98,30 @@ object DelayNotificationHelper {
         manager.notify(NOTIFICATION_ALERT_ID, notification)
     }
 
+    private const val NOTIFICATION_AD_ALERT_ID = 2003
+
+    fun showAdAlert(context: Context, message: String) {
+        createChannels(context)
+
+        val openIntent = Intent(context, MainActivity::class.java)
+        val openPendingIntent = PendingIntent.getActivity(
+            context, 0, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("PosDelay 광고 관리")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openPendingIntent)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_AD_ALERT_ID, notification)
+    }
+
     fun dismiss(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(NOTIFICATION_STATUS_ID)
