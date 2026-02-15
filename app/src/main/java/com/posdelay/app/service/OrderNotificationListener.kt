@@ -35,25 +35,21 @@ class OrderNotificationListener : NotificationListenerService() {
         if (countMatch != null) {
             val count = countMatch.groupValues[1].toIntOrNull()
             if (count != null) {
-                OrderTracker.setOrderCount(count)
+                OrderTracker.syncOrderCount(count)
                 DelayNotificationHelper.update(applicationContext)
                 return
             }
         }
 
-        // 직접 건수를 못 읽으면 키워드 기반 증감
+        // 새 주문 알림 → +1 (배차/배달 키워드로는 감소하지 않음 — 부정확하므로)
+        // 정확한 건수는 MATE 화면 열 때 AccessibilityService가 동기화
         if (isNewOrderNotification(content)) {
             OrderTracker.incrementOrder()
             DelayNotificationHelper.update(applicationContext)
-            // 새 주문이 들어온 시점에 임계값 초과면 → 이 새 주문에 지연
             checkDelayForNewOrder()
-        } else if (isDeliveryNotification(content)) {
-            OrderTracker.decrementOrder()
-            DelayNotificationHelper.update(applicationContext)
         }
     }
 
-    // 새 주문이 들어온 시점에만 지연 체크 (해당 새 주문에 지연)
     private fun checkDelayForNewOrder() {
         if (OrderTracker.shouldDelayCoupang()) {
             if (OrderTracker.isAutoMode()) {
@@ -84,11 +80,6 @@ class OrderNotificationListener : NotificationListenerService() {
 
     private fun isNewOrderNotification(content: String): Boolean {
         val keywords = listOf("새로운 주문이 도착", "새 주문", "신규 주문", "주문 접수", "주문이 들어왔", "새주문", "신규주문")
-        return keywords.any { content.contains(it) }
-    }
-
-    private fun isDeliveryNotification(content: String): Boolean {
-        val keywords = listOf("배달대행 배차", "배달중", "배달 시작", "픽업", "배차되었")
         return keywords.any { content.contains(it) }
     }
 }

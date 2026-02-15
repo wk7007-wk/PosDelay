@@ -78,7 +78,7 @@ class DelayAccessibilityService : AccessibilityService() {
             if (count != null) {
                 val current = OrderTracker.getOrderCount()
                 if (count != current) {
-                    OrderTracker.setOrderCount(count)
+                    OrderTracker.syncOrderCount(count)
                     DelayNotificationHelper.update(applicationContext)
 
                     if (OrderTracker.shouldDelayCoupang()) {
@@ -150,13 +150,15 @@ class DelayAccessibilityService : AccessibilityService() {
     private var baeminStep = 0
     private var baeminStartTime = 0L
     private var baeminRetryCount = 0
-    private val BAEMIN_TIMEOUT = 10000L // 10초 타임아웃
-    private val BAEMIN_MAX_RETRIES = 5 // step 0에서 버튼 못 찾으면 5회 시도 후 포기
+    private var baeminScrolled = false
+    private val BAEMIN_TIMEOUT = 15000L // 15초 타임아웃
+    private val BAEMIN_MAX_RETRIES = 8
 
     private fun resetBaeminState() {
         baeminStep = 0
         baeminStartTime = System.currentTimeMillis()
         baeminRetryCount = 0
+        baeminScrolled = false
         stepBusy = false
     }
 
@@ -169,7 +171,6 @@ class DelayAccessibilityService : AccessibilityService() {
     }
 
     private fun handleBaeminDelay() {
-        // 타임아웃 체크
         if (baeminStartTime > 0 && System.currentTimeMillis() - baeminStartTime > BAEMIN_TIMEOUT) {
             cancelBaeminDelay("시간 초과")
             return
@@ -180,24 +181,31 @@ class DelayAccessibilityService : AccessibilityService() {
         try {
             when (baeminStep) {
                 0 -> {
-                    // Step 1: "조리시간 추가" 버튼 찾기
+                    // 먼저 목록 맨 아래로 스크롤 (최신 주문이 맨 밑)
+                    if (!baeminScrolled) {
+                        scrollToBottom(rootNode)
+                        baeminScrolled = true
+                        stepBusy = true
+                        handler.postDelayed({ stepBusy = false }, 500)
+                        return
+                    }
+
                     val found = hasNodeWithText(rootNode, "조리시간 추가")
                     if (!found) {
                         baeminRetryCount++
                         if (baeminRetryCount >= BAEMIN_MAX_RETRIES) {
-                            // 버튼이 없음 → 기사 확정 등으로 지연 불가 상태
                             cancelBaeminDelay("조리시간 추가 버튼 없음 (지연 불가)")
                         }
                         return
                     }
-                    // 버튼이 비활성화(enabled=false)인지 체크
                     val nodes = rootNode.findAccessibilityNodeInfosByText("조리시간 추가")
-                    val enabledNode = nodes?.firstOrNull { it.isEnabled }
+                    val enabledNode = nodes?.lastOrNull { it.isEnabled }
                     if (enabledNode == null) {
                         cancelBaeminDelay("조리시간 추가 버튼 비활성화")
                         return
                     }
-                    if (clickNodeByText(rootNode, "조리시간 추가")) {
+                    // 맨 아래(최신) 주문의 버튼 클릭
+                    if (clickLastNodeByText(rootNode, "조리시간 추가")) {
                         stepBusy = true
                         baeminStep = 1
                         handler.postDelayed({ stepBusy = false }, 800)
@@ -230,13 +238,14 @@ class DelayAccessibilityService : AccessibilityService() {
     }
 
     // ===== 쿠팡이츠: 자동 지연 처리 =====
+    // 흐름: 홈 → "주문 관리" 탭 → 주문 목록 스크롤 → 최신 주문 클릭 → "준비 지연" → 시간 조절 → 확인
 
     private var coupangStep = 0
     private var clicksRemaining = 0
     private var coupangStartTime = 0L
     private var coupangRetryCount = 0
-    private val COUPANG_TIMEOUT = 15000L // 15초 타임아웃
-    private val COUPANG_MAX_RETRIES = 5
+    private val COUPANG_TIMEOUT = 25000L // 25초 타임아웃
+    private val COUPANG_MAX_RETRIES = 8
 
     private fun resetCoupangState() {
         coupangStep = 0
@@ -265,25 +274,83 @@ class DelayAccessibilityService : AccessibilityService() {
         try {
             when (coupangStep) {
                 0 -> {
+                    // Step 0: "주문 관리" 탭 클릭 (하단 네비게이션)
+                    // 이미 주문 관리 화면이면 바로 다음 step
+                    if (hasNodeWithText(rootNode, "주문 관리") && hasNodeWithText(rootNode, "처리 중")) {
+                        // 이미 주문 관리 화면
+                        coupangStep = 1
+                        return
+                    }
+                    if (clickNodeByText(rootNode, "주문 관리")) {
+                        stepBusy = true
+                        coupangStep = 1
+                        handler.postDelayed({ stepBusy = false }, 1000)
+                    } else {
+                        coupangRetryCount++
+                        if (coupangRetryCount >= COUPANG_MAX_RETRIES) {
+                            cancelCoupangDelay("주문 관리 탭을 찾을 수 없음")
+                        }
+                    }
+                }
+                1 -> {
+                    // Step 1: "처리 중" 탭이 보이는지 확인 + 목록 맨 아래로 스크롤
+                    if (!hasNodeWithText(rootNode, "처리 중")) return // 아직 로딩 중
+
+                    scrollToBottom(rootNode)
+                    stepBusy = true
+                    coupangStep = 2
+                    handler.postDelayed({ stepBusy = false }, 800)
+                }
+                2 -> {
+                    // Step 2: 최신(맨 아래) 주문 카드 클릭 → 주문 상세로 이동
+                    // 주문 상세 화면인지 체크 (이미 상세면 skip)
+                    if (hasNodeWithText(rootNode, "주문 상세")) {
+                        coupangStep = 3
+                        return
+                    }
+                    // 주문 카드의 시간 텍스트(예: "오전 09:07")나 주문번호를 클릭
+                    // 맨 마지막 "준비 완료" 버튼 근처의 카드를 클릭
+                    // 카드 자체를 클릭하기 위해 주문번호 또는 시간 텍스트를 찾아 클릭
+                    val orderCards = rootNode.findAccessibilityNodeInfosByText("오전")
+                        ?: rootNode.findAccessibilityNodeInfosByText("오후")
+                    if (orderCards != null && orderCards.isNotEmpty()) {
+                        val lastCard = orderCards.lastOrNull()
+                        if (lastCard != null && clickNodeOrParent(lastCard)) {
+                            stepBusy = true
+                            coupangStep = 3
+                            handler.postDelayed({ stepBusy = false }, 1000)
+                            return
+                        }
+                    }
+                    // 시간 텍스트 못 찾으면 "처리 중" 아래의 카드 영역 클릭 시도
+                    coupangRetryCount++
+                    if (coupangRetryCount >= COUPANG_MAX_RETRIES) {
+                        cancelCoupangDelay("주문 카드를 클릭할 수 없음")
+                    }
+                }
+                3 -> {
+                    // Step 3: 주문 상세에서 "준비 지연" 버튼 클릭
                     val found = hasNodeWithText(rootNode, "준비 지연") || hasNodeWithText(rootNode, "준비지연")
                     if (!found) {
                         coupangRetryCount++
                         if (coupangRetryCount >= COUPANG_MAX_RETRIES) {
-                            cancelCoupangDelay("준비 지연 버튼 없음 (이미 지연 설정됨 또는 불가)")
+                            cancelCoupangDelay("준비 지연 버튼 없음 (이미 지연됨 또는 불가)")
                         }
                         return
                     }
-                    if (clickNodeByText(rootNode, "준비 지연") || clickNodeByText(rootNode, "준비지연")) {
+                    if (clickLastNodeByText(rootNode, "준비 지연") || clickLastNodeByText(rootNode, "준비지연")) {
                         val minutes = OrderTracker.getDelayMinutes()
                         clicksRemaining = minutes
+                        coupangRetryCount = 0
                         stepBusy = true
-                        coupangStep = 1
+                        coupangStep = 4
                         handler.postDelayed({ stepBusy = false }, 800)
                     }
                 }
-                1 -> {
+                4 -> {
+                    // Step 4: 시간 조절 (+5/+1)
                     if (clicksRemaining <= 0) {
-                        coupangStep = 2
+                        coupangStep = 5
                         return
                     }
                     if (clicksRemaining >= 5) {
@@ -299,10 +366,10 @@ class DelayAccessibilityService : AccessibilityService() {
                             handler.postDelayed({ stepBusy = false }, 300)
                         }
                     }
-                    if (clicksRemaining <= 0) coupangStep = 2
+                    if (clicksRemaining <= 0) coupangStep = 5
                 }
-                2 -> {
-                    // 확인 버튼 — 팝업 내 마지막 "준비 지연" 버튼
+                5 -> {
+                    // Step 5: 확인 버튼 "준비 지연" 클릭
                     if (clickLastNodeByText(rootNode, "준비 지연") || clickLastNodeByText(rootNode, "준비지연")) {
                         pendingCoupangDelay = false
                         resetCoupangState()
@@ -315,6 +382,27 @@ class DelayAccessibilityService : AccessibilityService() {
     }
 
     // ===== 유틸리티 =====
+
+    /** 스크롤 가능한 뷰를 찾아 맨 아래로 스크롤 (최신 주문 표시) */
+    private fun scrollToBottom(root: AccessibilityNodeInfo) {
+        val scrollable = findScrollableNode(root)
+        if (scrollable != null) {
+            // 여러 번 스크롤해서 맨 아래까지
+            for (i in 0 until 10) {
+                if (!scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) break
+            }
+        }
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findScrollableNode(child)
+            if (result != null) return result
+        }
+        return null
+    }
 
     /** 텍스트로 노드를 찾아 클릭. 클릭 가능한 노드 우선, 안 되면 부모까지 탐색 */
     private fun clickNodeByText(root: AccessibilityNodeInfo, text: String): Boolean {

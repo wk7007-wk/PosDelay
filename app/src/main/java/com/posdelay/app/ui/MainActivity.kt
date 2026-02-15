@@ -6,9 +6,16 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import android.net.Uri
+import android.os.Environment
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.posdelay.app.data.NotificationLog
 import com.posdelay.app.data.OrderTracker
 import com.posdelay.app.databinding.ActivityMainBinding
@@ -66,6 +73,32 @@ class MainActivity : AppCompatActivity() {
         OrderTracker.autoMode.observe(this) { auto ->
             updateModeButtons(auto)
         }
+
+        OrderTracker.lastSyncTime.observe(this) { time ->
+            updateSyncTime(time)
+        }
+    }
+
+    private fun updateSyncTime(time: Long) {
+        if (time == 0L) {
+            binding.tvLastSync.text = "MATE 동기화: 아직 안됨"
+            binding.tvLastSync.setTextColor(0xFFE74C3C.toInt())
+            return
+        }
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val elapsed = (System.currentTimeMillis() - time) / 1000
+        val timeStr = sdf.format(Date(time))
+        val agoStr = when {
+            elapsed < 60 -> "${elapsed}초 전"
+            elapsed < 3600 -> "${elapsed / 60}분 전"
+            else -> "${elapsed / 3600}시간 전"
+        }
+        binding.tvLastSync.text = "MATE 동기화: $timeStr ($agoStr)"
+        binding.tvLastSync.setTextColor(
+            if (elapsed < 300) 0xFF2ECC71.toInt() // 5분 이내 → 녹색
+            else if (elapsed < 600) 0xFFE67E22.toInt() // 10분 이내 → 주황
+            else 0xFFE74C3C.toInt() // 10분 초과 → 빨강
+        )
     }
 
     private fun updateModeButtons(auto: Boolean) {
@@ -138,7 +171,7 @@ class MainActivity : AppCompatActivity() {
 
         // 처리 중 건수 +/-
         binding.btnCountPlus.setOnClickListener { OrderTracker.incrementOrder() }
-        binding.btnCountMinus.setOnClickListener { OrderTracker.decrementOrder() }
+        binding.btnCountMinus.setOnClickListener { OrderTracker.setOrderCount(OrderTracker.getOrderCount() - 1) }
 
         // 쿠팡 임계값 +/-
         binding.btnCoupangPlus.setOnClickListener {
@@ -194,6 +227,27 @@ class MainActivity : AppCompatActivity() {
 
         // 알림 로그 보기
         binding.btnViewLog.setOnClickListener { showNotificationLog() }
+
+        // 앱 업데이트
+        binding.btnUpdate.setOnClickListener { installUpdate() }
+    }
+
+    private fun installUpdate() {
+        val apkFile = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "PosDelay.apk"
+        )
+        if (!apkFile.exists()) {
+            Toast.makeText(this, "APK 파일 없음: ${apkFile.absolutePath}", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        }
+        startActivity(intent)
     }
 
     private fun showNotificationLog() {

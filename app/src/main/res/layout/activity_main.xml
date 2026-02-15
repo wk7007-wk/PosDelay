@@ -131,6 +131,15 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/tvLastSync"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="동기화: --"
+            android:textColor="#666666"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp" />
     </LinearLayout>
 
     <!-- 쿠팡이츠 기준 건수 -->
@@ -388,6 +397,16 @@
                 android:text="알림 로그"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#1A6B8A"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnUpdate"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="앱 업데이트"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#8E44AD"
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>

@@ -14,6 +14,7 @@ object OrderTracker {
     private const val KEY_DELAY_MINUTES = "delay_minutes"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_AUTO_MODE = "auto_mode"
+    private const val KEY_LAST_SYNC_TIME = "last_sync_time"
 
     private lateinit var prefs: SharedPreferences
 
@@ -35,6 +36,9 @@ object OrderTracker {
     private val _autoMode = MutableLiveData(false)
     val autoMode: LiveData<Boolean> = _autoMode
 
+    private val _lastSyncTime = MutableLiveData(0L)
+    val lastSyncTime: LiveData<Long> = _lastSyncTime
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _orderCount.postValue(prefs.getInt(KEY_ORDER_COUNT, 0))
@@ -43,6 +47,7 @@ object OrderTracker {
         _delayMinutes.postValue(prefs.getInt(KEY_DELAY_MINUTES, 10))
         _enabled.postValue(prefs.getBoolean(KEY_ENABLED, true))
         _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
+        _lastSyncTime.postValue(prefs.getLong(KEY_LAST_SYNC_TIME, 0L))
     }
 
     fun getOrderCount(): Int = prefs.getInt(KEY_ORDER_COUNT, 0)
@@ -51,6 +56,7 @@ object OrderTracker {
     fun getDelayMinutes(): Int = prefs.getInt(KEY_DELAY_MINUTES, 10)
     fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, true)
     fun isAutoMode(): Boolean = prefs.getBoolean(KEY_AUTO_MODE, false)
+    fun getLastSyncTime(): Long = prefs.getLong(KEY_LAST_SYNC_TIME, 0L)
 
     fun setOrderCount(count: Int) {
         val value = maxOf(0, count)
@@ -58,12 +64,16 @@ object OrderTracker {
         _orderCount.postValue(value)
     }
 
-    fun incrementOrder() {
-        setOrderCount(getOrderCount() + 1)
+    /** MATE 화면에서 읽은 정확한 건수로 동기화 (시간 기록) */
+    fun syncOrderCount(count: Int) {
+        setOrderCount(count)
+        val now = System.currentTimeMillis()
+        prefs.edit().putLong(KEY_LAST_SYNC_TIME, now).apply()
+        _lastSyncTime.postValue(now)
     }
 
-    fun decrementOrder() {
-        setOrderCount(getOrderCount() - 1)
+    fun incrementOrder() {
+        setOrderCount(getOrderCount() + 1)
     }
 
     fun setCoupangThreshold(value: Int) {
@@ -95,7 +105,7 @@ object OrderTracker {
     }
 
     fun resetCount() {
-        setOrderCount(0)
+        syncOrderCount(0)
     }
 
     fun shouldDelayCoupang(): Boolean {
