@@ -156,7 +156,8 @@ class GitHubUpdater(private val activity: Activity) {
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
                         activity.runOnUiThread {
                             Toast.makeText(activity, "다운로드 완료! 설치 시작...", Toast.LENGTH_SHORT).show()
-                            installApk(destFile)
+                            val dmUri = dm.getUriForDownloadedFile(downloadId)
+                            installApk(dmUri)
                         }
                     } else {
                         activity.runOnUiThread {
@@ -174,11 +175,20 @@ class GitHubUpdater(private val activity: Activity) {
         }
     }
 
-    /** APK 설치 실행 */
-    private fun installApk(apkFile: File) {
+    /** APK 설치 실행 (DownloadManager URI 사용) */
+    private fun installApk(dmUri: Uri?) {
+        if (dmUri == null) {
+            Toast.makeText(activity, "다운로드 URI를 가져올 수 없습니다", Toast.LENGTH_LONG).show()
+            return
+        }
         try {
+            // ContentResolver로 캐시에 복사 (권한 문제 우회)
             val cacheApk = File(activity.cacheDir, APK_NAME)
-            apkFile.copyTo(cacheApk, overwrite = true)
+            activity.contentResolver.openInputStream(dmUri)?.use { input ->
+                cacheApk.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
 
             val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", cacheApk)
             val intent = Intent(Intent.ACTION_VIEW).apply {
