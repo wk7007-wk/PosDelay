@@ -132,6 +132,40 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
+    private var testMode = false
+
+    /** 테스트 모드: 로컬 모의 페이지로 자동화 로직 테스트 */
+    fun executeTest(action: Action, amount: Int = 200, callback: (Boolean, String) -> Unit) {
+        testMode = true
+        if (isRunning()) {
+            callback(false, "이미 작업 진행 중")
+            return
+        }
+        currentAction = action
+        targetAmount = amount
+        onComplete = callback
+
+        log(Code.INFO_STATE, "[테스트] 작업 시작: ${action.name}, 금액=$amount")
+        changeState(State.NAVIGATING_TO_AD)
+
+        handler.post {
+            try {
+                webView = createWebView()
+                (activity.window.decorView as ViewGroup).addView(webView)
+                startTimeout()
+
+                val mockUrl = when (action) {
+                    Action.BAEMIN_SET_AMOUNT -> "file:///sdcard/Download/mock_baemin.html"
+                    Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> "file:///sdcard/Download/mock_coupang.html"
+                }
+                log(Code.INFO_STATE, "[테스트] 모의 페이지 로드: $mockUrl")
+                webView?.loadUrl(mockUrl)
+            } catch (e: Exception) {
+                finishWithError(Code.ERR_WEBVIEW, "[테스트] WebView 오류: ${e.message}")
+            }
+        }
+    }
+
     fun execute(action: Action, amount: Int = 200, callback: (Boolean, String) -> Unit) {
         if (isRunning()) {
             log(Code.ERR_ALREADY_RUNNING, "이미 진행 중: state=$state, action=$currentAction")
@@ -183,6 +217,21 @@ class AdWebAutomation(private val activity: Activity) {
     }
 
     private fun handlePageLoaded(url: String) {
+        // 테스트 모드: 로그인 건너뛰고 바로 광고 메뉴 탐색
+        if (testMode && url.startsWith("file://")) {
+            if (state == State.NAVIGATING_TO_AD) {
+                log(Code.INFO_STATE, "[테스트] 모의 페이지 로드 완료, 3초 후 광고 메뉴 탐색")
+                handler.postDelayed({
+                    when (currentAction) {
+                        Action.BAEMIN_SET_AMOUNT -> navigateBaeminAdMenu()
+                        Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> navigateCoupangAdPage()
+                        null -> {}
+                    }
+                }, 3000)
+            }
+            return
+        }
+
         when (currentAction) {
             Action.BAEMIN_SET_AMOUNT -> handleBaeminPage(url)
             Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> handleCoupangPage(url)

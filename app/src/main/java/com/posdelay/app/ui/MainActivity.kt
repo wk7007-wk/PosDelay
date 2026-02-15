@@ -424,6 +424,14 @@ class MainActivity : AppCompatActivity() {
         binding.btnBaeminLogin.setOnClickListener { showLoginDialog("배민") }
         binding.btnCoupangLogin.setOnClickListener { showLoginDialog("쿠팡") }
 
+        // 테스트 모드 (로컬 모의 페이지)
+        binding.btnTestBaemin.setOnClickListener {
+            executeAdTest(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+        }
+        binding.btnTestCoupang.setOnClickListener {
+            executeAdTest(AdWebAutomation.Action.COUPANG_AD_OFF)
+        }
+
         // 광고 로그 보기
         binding.btnAdLog.setOnClickListener { showAdLog() }
     }
@@ -446,11 +454,24 @@ class MainActivity : AppCompatActivity() {
         adWebAutomation = AdWebAutomation(this)
         adWebAutomation?.execute(action, amount) { success, message ->
             runOnUiThread {
-                if (success) {
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "실패: $message", Toast.LENGTH_LONG).show()
-                }
+                val icon = if (success) "OK" else "FAIL"
+                Toast.makeText(this, "[$icon] $message", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** 테스트 모드 실행 (로컬 모의 페이지) */
+    private fun executeAdTest(action: AdWebAutomation.Action, amount: Int = 200) {
+        if (adWebAutomation?.isRunning() == true) {
+            Toast.makeText(this, "이미 진행 중", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, "[테스트] ${action.name} 실행 중...", Toast.LENGTH_SHORT).show()
+        adWebAutomation = AdWebAutomation(this)
+        adWebAutomation?.executeTest(action, amount) { success, message ->
+            runOnUiThread {
+                val icon = if (success) "OK" else "FAIL"
+                Toast.makeText(this, "[테스트 $icon] $message", Toast.LENGTH_LONG).show()
             }
         }
     }
