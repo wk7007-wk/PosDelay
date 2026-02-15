@@ -350,7 +350,13 @@ class AdWebAutomation(private val activity: Activity) {
         webView?.evaluateJavascript(js) { result ->
             log(Code.INFO_JS_RESULT, "광고 메뉴 탐색 결과: $result")
             if (result?.contains("CLICKED") == true) {
-                handler.postDelayed({ navigateBaeminClickAd() }, 2500)
+                // 광고·서비스관리 클릭 후 SPA 페이지 로딩 대기 (5초)
+                log(Code.INFO_STATE, "광고 메뉴 클릭 성공, 페이지 로딩 대기 5초...")
+                handler.postDelayed({
+                    // 로딩 후 HTML 스냅샷 캡처
+                    webView?.let { captureHtmlSnapshot(it, "after-ad-menu-click") }
+                    navigateBaeminClickAd()
+                }, 5000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateBaeminAdMenu(retries - 1) }, RETRY_DELAY)
             } else {
@@ -360,37 +366,70 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 배민 우리가게클릭 서브메뉴 찾기 + 클릭 */
+    /** 배민 광고 페이지에서 "우리가게클릭" 찾기 (전체 페이지 + iframe 검색) */
     private fun navigateBaeminClickAd(retries: Int = MAX_RETRIES) {
         if (state != State.NAVIGATING_TO_AD) {
             log(Code.INFO_STATE, "우리가게클릭 탐색 중단 (state=$state)")
             return
         }
-        log(Code.INFO_STATE, "우리가게클릭 메뉴 탐색 (시도 ${MAX_RETRIES - retries + 1}/$MAX_RETRIES)")
+        log(Code.INFO_STATE, "우리가게클릭 탐색 (시도 ${MAX_RETRIES - retries + 1}/$MAX_RETRIES)")
 
+        // 페이지 전체(메뉴+본문+탭+카드)에서 검색, iframe 내부도 시도
         val js = """
             (function() {
-                var items = document.querySelectorAll(
-                    'a, button, li, [role="menuitem"], [class*="sub"] *, [class*="menu"] *, [class*="Menu"] *'
-                );
-                var debug = 'total=' + items.length;
-                for (var i = 0; i < items.length; i++) {
-                    var el = items[i];
-                    var text = el.textContent.trim();
-                    if (text.length > 0 && text.length < 20 &&
-                        (text.indexOf('우리가게') >= 0 || (text.indexOf('클릭') >= 0 && text.indexOf('광고') >= 0) ||
-                         text.indexOf('CPC') >= 0 || text.indexOf('우리가게클릭') >= 0)) {
-                        el.click();
-                        return 'CLICKED|' + text + '|tag=' + el.tagName;
+                function searchInDoc(doc, label) {
+                    // 모든 클릭 가능 요소 + 본문 요소 검색
+                    var items = doc.querySelectorAll(
+                        'a, button, li, span, div, td, h3, h4, p, label, ' +
+                        '[role="menuitem"], [role="tab"], [role="button"], ' +
+                        '[class*="card"], [class*="Card"], [class*="tab"], [class*="Tab"], ' +
+                        '[class*="item"], [class*="Item"], [class*="service"], [class*="Service"]'
+                    );
+                    for (var i = 0; i < items.length; i++) {
+                        var el = items[i];
+                        var text = (el.innerText || el.textContent || '').trim();
+                        if (text.length > 0 && text.length < 30 &&
+                            (text.indexOf('우리가게') >= 0 || text === '클릭광고' ||
+                             text.indexOf('우리가게클릭') >= 0 || text.indexOf('CPC') >= 0 ||
+                             (text.indexOf('클릭') >= 0 && text.indexOf('광고') >= 0))) {
+                            el.click();
+                            return 'CLICKED|' + label + '|' + text + '|tag=' + el.tagName;
+                        }
                     }
+                    // 디버그: 페이지 내 모든 텍스트 요소 수집
+                    var allTexts = [];
+                    var allEls = doc.querySelectorAll('a, button, span, div, h3, h4, li, [role="tab"], [role="button"]');
+                    for (var j = 0; j < allEls.length; j++) {
+                        var t = (allEls[j].innerText || allEls[j].textContent || '').trim();
+                        if (t.length > 1 && t.length < 30) {
+                            var isDup = false;
+                            for (var k = 0; k < allTexts.length; k++) {
+                                if (allTexts[k] === t) { isDup = true; break; }
+                            }
+                            if (!isDup) allTexts.push(t);
+                        }
+                        if (allTexts.length >= 30) break;
+                    }
+                    return 'NOT_FOUND|' + label + '|texts=[' + allTexts.join(',') + ']';
                 }
-                var subItems = [];
-                var subs = document.querySelectorAll('[class*="sub"] a, [class*="menu"] a, [class*="Menu"] a, li a');
-                for (var j = 0; j < Math.min(subs.length, 15); j++) {
-                    var t = subs[j].textContent.trim();
-                    if (t.length > 0 && t.length < 30) subItems.push(t);
+
+                // 1. 메인 document 검색
+                var result = searchInDoc(document, 'main');
+                if (result.indexOf('CLICKED') >= 0) return result;
+
+                // 2. iframe 내부 검색
+                var iframes = document.querySelectorAll('iframe');
+                for (var f = 0; f < iframes.length; f++) {
+                    try {
+                        var iDoc = iframes[f].contentDocument || iframes[f].contentWindow.document;
+                        if (iDoc) {
+                            var iResult = searchInDoc(iDoc, 'iframe' + f);
+                            if (iResult.indexOf('CLICKED') >= 0) return iResult;
+                        }
+                    } catch(e) {}
                 }
-                return 'NOT_FOUND|' + debug + '|subs=[' + subItems.join(',') + ']';
+
+                return result;
             })();
         """.trimIndent()
 
@@ -403,7 +442,7 @@ class AdWebAutomation(private val activity: Activity) {
                 handler.postDelayed({ navigateBaeminClickAd(retries - 1) }, RETRY_DELAY)
             } else {
                 webView?.let { captureHtmlSnapshot(it, "click-ad-not-found") }
-                finishWithError(Code.ERR_NO_AD_FIELD, "우리가게클릭 메뉴를 찾을 수 없습니다: $result")
+                finishWithError(Code.ERR_NO_AD_FIELD, "우리가게클릭을 찾을 수 없습니다: $result")
             }
         }
     }
@@ -636,7 +675,12 @@ class AdWebAutomation(private val activity: Activity) {
             log(Code.INFO_JS_RESULT, "쿠팡 광고관리 탐색: $result")
             if (result?.contains("CLICKED") == true) {
                 changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ performCoupangToggle() }, 2500)
+                // 광고 관리 클릭 후 wujie 로딩 대기 (5초)
+                log(Code.INFO_STATE, "광고 관리 클릭 성공, 페이지 로딩 대기 5초...")
+                handler.postDelayed({
+                    webView?.let { captureHtmlSnapshot(it, "after-coupang-ad-click") }
+                    performCoupangToggle()
+                }, 5000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
             } else {
@@ -646,7 +690,7 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡 광고 토글 */
+    /** 쿠팡 광고 토글 (wujie iframe 내부까지 검색) */
     private fun performCoupangToggle(retries: Int = MAX_RETRIES) {
         if (state != State.PERFORMING_ACTION) return
         val turnOn = currentAction == Action.COUPANG_AD_ON
@@ -655,55 +699,123 @@ class AdWebAutomation(private val activity: Activity) {
 
         val js = """
             (function() {
-                var debugInfo = '';
-                var toggles = document.querySelectorAll(
-                    'input[type="checkbox"], button[role="switch"], [class*="toggle"], [class*="switch"], [class*="Toggle"], [class*="Switch"]');
-                debugInfo += 'toggles=' + toggles.length;
-                var toggle = null;
+                function searchToggleInDoc(doc, label) {
+                    var debugInfo = label + ':';
 
-                for (var i = 0; i < toggles.length; i++) {
-                    var parent = toggles[i].closest('div, label, section, tr, [class*="card"], [class*="Card"]');
-                    var text = parent ? parent.textContent.substring(0, 100) : '';
-                    debugInfo += '|t[' + i + ']=' + toggles[i].tagName + ',ctx=' + text.replace(/\s+/g,' ').trim().substring(0, 40);
-                    if (text.indexOf('광고') >= 0 || text.indexOf('켜짐') >= 0 ||
-                        text.indexOf('꺼짐') >= 0 || text.indexOf('노출') >= 0 ||
-                        text.indexOf('캠페인') >= 0 || text.indexOf('상태') >= 0) {
-                        toggle = toggles[i];
-                        debugInfo += '|MATCHED[' + i + ']';
-                        break;
+                    // 1. 토글/스위치/체크박스 검색
+                    var toggles = doc.querySelectorAll(
+                        'input[type="checkbox"], button[role="switch"], ' +
+                        '[class*="toggle"], [class*="switch"], [class*="Toggle"], [class*="Switch"], ' +
+                        '[class*="ant-switch"], [class*="el-switch"], [class*="arco-switch"]');
+                    debugInfo += 'toggles=' + toggles.length;
+
+                    for (var i = 0; i < toggles.length; i++) {
+                        var parent = toggles[i].closest('div, label, section, tr, [class*="card"], [class*="Card"]');
+                        var text = parent ? parent.textContent.substring(0, 150) : '';
+                        debugInfo += '|t[' + i + ']=' + toggles[i].tagName + '.' + (toggles[i].className || '').substring(0, 30) + ',ctx=' + text.replace(/\s+/g,' ').trim().substring(0, 50);
+                        if (text.indexOf('광고') >= 0 || text.indexOf('켜짐') >= 0 ||
+                            text.indexOf('꺼짐') >= 0 || text.indexOf('노출') >= 0 ||
+                            text.indexOf('캠페인') >= 0 || text.indexOf('상태') >= 0 ||
+                            text.indexOf('활성') >= 0 || text.indexOf('진행') >= 0) {
+                            return {found: true, el: toggles[i], debug: debugInfo + '|MATCHED[' + i + ']'};
+                        }
                     }
-                }
 
-                if (!toggle) {
-                    var buttons = document.querySelectorAll('button, a');
+                    // 2. 버튼 텍스트 검색
+                    var buttons = doc.querySelectorAll('button, a, span[role="button"], div[role="button"]');
                     debugInfo += '|buttons=' + buttons.length;
                     for (var j = 0; j < buttons.length; j++) {
-                        var t = buttons[j].textContent.trim().substring(0, 30);
+                        var t = (buttons[j].innerText || buttons[j].textContent || '').trim().substring(0, 30);
                         if (${if (turnOn)
-                            "t.indexOf('켜기') >= 0 || t.indexOf('켜짐') >= 0 || t.indexOf('시작') >= 0 || t.indexOf('활성') >= 0 || t.indexOf('ON') >= 0"
+                            "t.indexOf('켜기') >= 0 || t.indexOf('켜짐') >= 0 || t.indexOf('시작') >= 0 || t.indexOf('활성') >= 0 || t === 'ON' || t.indexOf('광고 시작') >= 0 || t.indexOf('재개') >= 0"
                         else
-                            "t.indexOf('끄기') >= 0 || t.indexOf('꺼짐') >= 0 || t.indexOf('중지') >= 0 || t.indexOf('비활성') >= 0 || t.indexOf('일시정지') >= 0 || t.indexOf('OFF') >= 0"
+                            "t.indexOf('끄기') >= 0 || t.indexOf('꺼짐') >= 0 || t.indexOf('중지') >= 0 || t.indexOf('비활성') >= 0 || t.indexOf('일시정지') >= 0 || t === 'OFF' || t.indexOf('광고 중지') >= 0 || t.indexOf('정지') >= 0"
                         }) {
-                            toggle = buttons[j];
-                            debugInfo += '|btnMATCH[' + j + ']=' + t;
-                            break;
+                            return {found: true, el: buttons[j], debug: debugInfo + '|btnMATCH[' + j + ']=' + t};
                         }
+                    }
+
+                    // 3. 페이지 내 텍스트 수집 (디버그)
+                    var allTexts = [];
+                    var allEls = doc.querySelectorAll('button, a, span, div, label, h3, h4, td');
+                    for (var k = 0; k < allEls.length; k++) {
+                        var txt = (allEls[k].innerText || allEls[k].textContent || '').trim();
+                        if (txt.length > 1 && txt.length < 25) {
+                            var isDup = false;
+                            for (var d = 0; d < allTexts.length; d++) {
+                                if (allTexts[d] === txt) { isDup = true; break; }
+                            }
+                            if (!isDup) allTexts.push(txt);
+                        }
+                        if (allTexts.length >= 25) break;
+                    }
+                    debugInfo += '|texts=[' + allTexts.join(',') + ']';
+
+                    return {found: false, el: null, debug: debugInfo};
+                }
+
+                // 1. 메인 document 검색
+                var result = searchToggleInDoc(document, 'main');
+                if (result.found) {
+                    var el = result.el;
+                    if (el.type === 'checkbox') {
+                        var isOn = el.checked;
+                        if ((${turnOn} && !isOn) || (!${turnOn} && isOn)) el.click();
+                    } else {
+                        el.click();
+                    }
+                    return 'SUCCESS|' + result.debug;
+                }
+
+                // 2. iframe 내부 검색 (wujie 마이크로프론트엔드)
+                var iframes = document.querySelectorAll('iframe');
+                var iframeDebug = '|iframes=' + iframes.length;
+                for (var f = 0; f < iframes.length; f++) {
+                    try {
+                        var iDoc = iframes[f].contentDocument || iframes[f].contentWindow.document;
+                        if (iDoc) {
+                            iframeDebug += '|iframe' + f + '=' + iframes[f].src.substring(0, 50);
+                            var iResult = searchToggleInDoc(iDoc, 'iframe' + f);
+                            if (iResult.found) {
+                                var iel = iResult.el;
+                                if (iel.type === 'checkbox') {
+                                    var iOn = iel.checked;
+                                    if ((${turnOn} && !iOn) || (!${turnOn} && iOn)) iel.click();
+                                } else {
+                                    iel.click();
+                                }
+                                return 'SUCCESS|' + iResult.debug;
+                            }
+                            iframeDebug += '|' + iResult.debug;
+                        }
+                    } catch(e) {
+                        iframeDebug += '|iframe' + f + '_err=' + e.message;
                     }
                 }
 
-                if (toggle) {
-                    if (toggle.type === 'checkbox') {
-                        var isOn = toggle.checked;
-                        debugInfo += '|checkbox=' + isOn;
-                        if ((${turnOn} && !isOn) || (!${turnOn} && isOn)) {
-                            toggle.click();
-                        }
-                    } else {
-                        toggle.click();
+                // 3. shadow DOM 검색
+                var shadows = document.querySelectorAll('*');
+                var shadowCount = 0;
+                for (var s = 0; s < shadows.length; s++) {
+                    if (shadows[s].shadowRoot) {
+                        shadowCount++;
+                        try {
+                            var sResult = searchToggleInDoc(shadows[s].shadowRoot, 'shadow' + shadowCount);
+                            if (sResult.found) {
+                                var sel = sResult.el;
+                                if (sel.type === 'checkbox') {
+                                    var sOn = sel.checked;
+                                    if ((${turnOn} && !sOn) || (!${turnOn} && sOn)) sel.click();
+                                } else {
+                                    sel.click();
+                                }
+                                return 'SUCCESS|' + sResult.debug;
+                            }
+                        } catch(e) {}
                     }
-                    return 'SUCCESS|' + debugInfo;
                 }
-                return 'NOT_FOUND|' + debugInfo;
+
+                return 'NOT_FOUND|' + result.debug + iframeDebug + '|shadows=' + shadowCount;
             })();
         """.trimIndent()
 
