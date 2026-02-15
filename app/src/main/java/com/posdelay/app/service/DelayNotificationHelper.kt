@@ -72,7 +72,7 @@ object DelayNotificationHelper {
         manager.notify(NOTIFICATION_STATUS_ID, notification)
     }
 
-    fun notifyDelayTriggered(context: Context, platform: String) {
+    fun notifyDelayTriggered(context: Context, platform: String, auto: Boolean = false) {
         createChannels(context)
 
         val count = OrderTracker.getOrderCount()
@@ -80,8 +80,10 @@ object DelayNotificationHelper {
 
         val message = if (platform == "배달의민족") {
             "처리중 ${count}건 - 배민 POS에서 지연 설정 필요"
+        } else if (auto) {
+            "처리중 ${count}건 - ${platform} ${delayMin}분 자동 지연 처리 중..."
         } else {
-            "처리중 ${count}건 - ${platform} ${delayMin}분 지연 설정"
+            "처리중 ${count}건 - ${platform}에서 준비 지연 설정 필요"
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)

@@ -13,6 +13,7 @@ object OrderTracker {
     private const val KEY_BAEMIN_THRESHOLD = "baemin_threshold"
     private const val KEY_DELAY_MINUTES = "delay_minutes"
     private const val KEY_ENABLED = "enabled"
+    private const val KEY_AUTO_MODE = "auto_mode"
 
     private lateinit var prefs: SharedPreferences
 
@@ -31,6 +32,9 @@ object OrderTracker {
     private val _enabled = MutableLiveData(true)
     val enabled: LiveData<Boolean> = _enabled
 
+    private val _autoMode = MutableLiveData(false)
+    val autoMode: LiveData<Boolean> = _autoMode
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _orderCount.postValue(prefs.getInt(KEY_ORDER_COUNT, 0))
@@ -38,6 +42,7 @@ object OrderTracker {
         _baeminThreshold.postValue(prefs.getInt(KEY_BAEMIN_THRESHOLD, 15))
         _delayMinutes.postValue(prefs.getInt(KEY_DELAY_MINUTES, 10))
         _enabled.postValue(prefs.getBoolean(KEY_ENABLED, true))
+        _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
     }
 
     fun getOrderCount(): Int = prefs.getInt(KEY_ORDER_COUNT, 0)
@@ -45,6 +50,7 @@ object OrderTracker {
     fun getBaeminThreshold(): Int = prefs.getInt(KEY_BAEMIN_THRESHOLD, 15)
     fun getDelayMinutes(): Int = prefs.getInt(KEY_DELAY_MINUTES, 10)
     fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, true)
+    fun isAutoMode(): Boolean = prefs.getBoolean(KEY_AUTO_MODE, false)
 
     fun setOrderCount(count: Int) {
         val value = maxOf(0, count)
@@ -81,6 +87,11 @@ object OrderTracker {
     fun setEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_ENABLED, value).apply()
         _enabled.postValue(value)
+    }
+
+    fun setAutoMode(value: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_MODE, value).apply()
+        _autoMode.postValue(value)
     }
 
     fun resetCount() {

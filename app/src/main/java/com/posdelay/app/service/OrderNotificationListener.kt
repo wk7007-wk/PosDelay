@@ -37,7 +37,6 @@ class OrderNotificationListener : NotificationListenerService() {
             if (count != null) {
                 OrderTracker.setOrderCount(count)
                 DelayNotificationHelper.update(applicationContext)
-                checkDelayTrigger()
                 return
             }
         }
@@ -46,25 +45,40 @@ class OrderNotificationListener : NotificationListenerService() {
         if (isNewOrderNotification(content)) {
             OrderTracker.incrementOrder()
             DelayNotificationHelper.update(applicationContext)
-            checkDelayTrigger()
+            // 새 주문이 들어온 시점에 임계값 초과면 → 이 새 주문에 지연
+            checkDelayForNewOrder()
         } else if (isDeliveryNotification(content)) {
             OrderTracker.decrementOrder()
             DelayNotificationHelper.update(applicationContext)
         }
     }
 
-    private fun checkDelayTrigger() {
+    // 새 주문이 들어온 시점에만 지연 체크 (해당 새 주문에 지연)
+    private fun checkDelayForNewOrder() {
         if (OrderTracker.shouldDelayCoupang()) {
-            DelayNotificationHelper.notifyDelayTriggered(
-                applicationContext, "쿠팡이츠"
-            )
-            DelayAccessibilityService.triggerDelay(applicationContext)
+            if (OrderTracker.isAutoMode()) {
+                DelayNotificationHelper.notifyDelayTriggered(
+                    applicationContext, "쿠팡이츠", auto = true
+                )
+                DelayAccessibilityService.triggerCoupangDelay(applicationContext)
+            } else {
+                DelayNotificationHelper.notifyDelayTriggered(
+                    applicationContext, "쿠팡이츠", auto = false
+                )
+            }
         }
 
         if (OrderTracker.shouldDelayBaemin()) {
-            DelayNotificationHelper.notifyDelayTriggered(
-                applicationContext, "배달의민족"
-            )
+            if (OrderTracker.isAutoMode()) {
+                DelayNotificationHelper.notifyDelayTriggered(
+                    applicationContext, "배달의민족", auto = true
+                )
+                DelayAccessibilityService.triggerBaeminDelay(applicationContext)
+            } else {
+                DelayNotificationHelper.notifyDelayTriggered(
+                    applicationContext, "배달의민족", auto = false
+                )
+            }
         }
     }
 

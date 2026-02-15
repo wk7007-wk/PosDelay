@@ -35,6 +35,37 @@
             android:checked="true" />
     </LinearLayout>
 
+    <!-- 모드 선택: 자동/반자동 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+
+        <Button
+            android:id="@+id/btnModeSemi"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="반자동 (알림만)"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2ECC71"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btnModeAuto"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="자동 (앱 조작)"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#555555"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
     <!-- 처리 중 건수 (대형 표시) -->
     <LinearLayout
         android:layout_width="match_parent"

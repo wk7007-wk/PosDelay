@@ -62,6 +62,24 @@ class MainActivity : AppCompatActivity() {
             binding.switchEnable.isChecked = enabled
             updateStatus(OrderTracker.getOrderCount())
         }
+
+        OrderTracker.autoMode.observe(this) { auto ->
+            updateModeButtons(auto)
+        }
+    }
+
+    private fun updateModeButtons(auto: Boolean) {
+        if (auto) {
+            binding.btnModeAuto.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(0xFFE74C3C.toInt())
+            binding.btnModeSemi.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(0xFF555555.toInt())
+        } else {
+            binding.btnModeSemi.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(0xFF2ECC71.toInt())
+            binding.btnModeAuto.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(0xFF555555.toInt())
+        }
     }
 
     private fun updateStatus(count: Int) {
@@ -101,6 +119,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        // 모드 전환
+        binding.btnModeSemi.setOnClickListener {
+            OrderTracker.setAutoMode(false)
+            Toast.makeText(this, "반자동 모드: 알림으로만 안내", Toast.LENGTH_SHORT).show()
+        }
+        binding.btnModeAuto.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("자동 모드 전환")
+                .setMessage("자동 모드에서는 임계값 도달 시 쿠팡이츠 앱이 자동으로 열리고 준비 지연이 설정됩니다.\n\n화면이 전환될 수 있습니다.")
+                .setPositiveButton("전환") { _, _ ->
+                    OrderTracker.setAutoMode(true)
+                    Toast.makeText(this, "자동 모드: 쿠팡이츠 자동 조작", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("취소", null)
+                .show()
+        }
+
         // 처리 중 건수 +/-
         binding.btnCountPlus.setOnClickListener { OrderTracker.incrementOrder() }
         binding.btnCountMinus.setOnClickListener { OrderTracker.decrementOrder() }

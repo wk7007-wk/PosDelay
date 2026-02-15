@@ -13,16 +13,30 @@ class DelayAccessibilityService : AccessibilityService() {
         const val MATE_PACKAGE = "com.foodtechkorea.posboss"
         const val COUPANG_EATS_PACKAGE = "com.coupang.mobile.eats.merchant"
         private var instance: DelayAccessibilityService? = null
-        private var pendingDelay = false
+        private var pendingCoupangDelay = false
+        private var pendingBaeminDelay = false
 
-        fun triggerDelay(context: Context) {
-            pendingDelay = true
+        fun triggerCoupangDelay(context: Context) {
+            pendingCoupangDelay = true
             val launchIntent = context.packageManager.getLaunchIntentForPackage(COUPANG_EATS_PACKAGE)
             if (launchIntent != null) {
                 launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 context.startActivity(launchIntent)
             }
         }
+
+        fun triggerBaeminDelay(context: Context) {
+            pendingBaeminDelay = true
+            // 배민 지연은 MATE 앱 내에서 처리 → MATE 앱 열기
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(MATE_PACKAGE)
+            if (launchIntent != null) {
+                launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(launchIntent)
+            }
+        }
+
+        // 하위 호환
+        fun triggerDelay(context: Context) = triggerCoupangDelay(context)
 
         fun isAvailable(): Boolean = instance != null
     }
@@ -37,19 +51,24 @@ class DelayAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
 
         when (pkg) {
-            MATE_PACKAGE -> readMateOrderCount()
-            COUPANG_EATS_PACKAGE -> if (pendingDelay) handleCoupangDelay()
+            MATE_PACKAGE -> {
+                readMateOrderCount()
+                if (pendingBaeminDelay) handleBaeminDelay()
+            }
+            COUPANG_EATS_PACKAGE -> {
+                if (pendingCoupangDelay) handleCoupangDelay()
+            }
         }
     }
 
     // ===== MATE 사장님: 처리중 건수 읽기 =====
 
     private fun readMateOrderCount() {
+        if (pendingBaeminDelay) return // 지연 처리 중에는 건수 읽기 스킵
+
         val rootNode = rootInActiveWindow ?: return
 
         try {
-            // "처리중" 탭 텍스트에서 숫자 추출
-            // 탭 형태: "처리중 1" 또는 "처리중\n1"
             val count = findProcessingCount(rootNode)
             if (count != null) {
                 val current = OrderTracker.getOrderCount()
@@ -57,16 +76,21 @@ class DelayAccessibilityService : AccessibilityService() {
                     OrderTracker.setOrderCount(count)
                     DelayNotificationHelper.update(applicationContext)
 
-                    // 임계값 체크
                     if (OrderTracker.shouldDelayCoupang()) {
-                        DelayNotificationHelper.notifyDelayTriggered(
-                            applicationContext, "쿠팡이츠"
-                        )
+                        if (OrderTracker.isAutoMode()) {
+                            DelayNotificationHelper.notifyDelayTriggered(applicationContext, "쿠팡이츠", auto = true)
+                            triggerCoupangDelay(applicationContext)
+                        } else {
+                            DelayNotificationHelper.notifyDelayTriggered(applicationContext, "쿠팡이츠", auto = false)
+                        }
                     }
                     if (OrderTracker.shouldDelayBaemin()) {
-                        DelayNotificationHelper.notifyDelayTriggered(
-                            applicationContext, "배달의민족"
-                        )
+                        if (OrderTracker.isAutoMode()) {
+                            DelayNotificationHelper.notifyDelayTriggered(applicationContext, "배달의민족", auto = true)
+                            pendingBaeminDelay = true // MATE 안에서 바로 처리
+                        } else {
+                            DelayNotificationHelper.notifyDelayTriggered(applicationContext, "배달의민족", auto = false)
+                        }
                     }
                 }
             }
@@ -76,20 +100,16 @@ class DelayAccessibilityService : AccessibilityService() {
     }
 
     private fun findProcessingCount(root: AccessibilityNodeInfo): Int? {
-        // 방법 1: "처리중" 텍스트가 포함된 노드 찾기
         val nodes = root.findAccessibilityNodeInfosByText("처리중")
         if (nodes != null) {
             for (node in nodes) {
                 val text = node.text?.toString() ?: continue
-                // "처리중 1" or "처리중1" 형태
                 val match = Regex("""처리중\s*(\d+)""").find(text)
                 if (match != null) {
                     return match.groupValues[1].toIntOrNull()
                 }
             }
         }
-
-        // 방법 2: 전체 노드 트리에서 탐색
         return findCountInTree(root)
     }
 
@@ -101,60 +121,95 @@ class DelayAccessibilityService : AccessibilityService() {
                 return match.groupValues[1].toIntOrNull()
             }
 
-            // "처리중" 텍스트 옆의 숫자 노드 확인 (탭 레이아웃)
             val parent = node.parent
             if (parent != null) {
                 for (i in 0 until parent.childCount) {
                     val sibling = parent.getChild(i) ?: continue
                     val sibText = sibling.text?.toString() ?: ""
                     val num = sibText.trim().toIntOrNull()
-                    if (num != null) {
-                        return num
-                    }
+                    if (num != null) return num
                 }
             }
         }
 
-        // 자식 노드 재귀 탐색
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val result = findCountInTree(child)
             if (result != null) return result
         }
-
         return null
+    }
+
+    // ===== 배민 지연: MATE 앱 내 "조리시간 추가" =====
+    // UI: "조리시간 추가" 클릭 → 5분/10분/15분/20분/25분/30분 선택 → "조리시간 추가" 확인
+
+    private var baeminStep = 0
+
+    private fun handleBaeminDelay() {
+        val rootNode = rootInActiveWindow ?: return
+
+        try {
+            when (baeminStep) {
+                0 -> {
+                    // Step 1: "조리시간 추가" 버튼 클릭
+                    val addNode = findNodeByText(rootNode, "조리시간 추가")
+                    if (addNode != null) {
+                        addNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        baeminStep = 1
+                    }
+                }
+                1 -> {
+                    // Step 2: 시간 선택 (5분/10분/15분/20분/25분/30분)
+                    val minutes = OrderTracker.getDelayMinutes()
+                    // 가장 가까운 선택지 찾기 (5분 단위)
+                    val target = ((minutes + 2) / 5 * 5).coerceIn(5, 30)
+                    val timeNode = findNodeByText(rootNode, "${target}분")
+                    if (timeNode != null) {
+                        timeNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        baeminStep = 2
+                    }
+                }
+                2 -> {
+                    // Step 3: "조리시간 추가" 확인 버튼
+                    val confirmNode = findNodeByText(rootNode, "조리시간 추가")
+                    if (confirmNode != null) {
+                        confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        pendingBaeminDelay = false
+                        baeminStep = 0
+                    }
+                }
+            }
+        } finally {
+            rootNode.recycle()
+        }
     }
 
     // ===== 쿠팡이츠: 자동 지연 처리 =====
     // UI: "준비 지연" 클릭 → 팝업 (-5/-1/+0분/+1/+5) → 녹색 "준비 지연" 확인
 
-    private var delayStep = 0       // 0: 준비지연 클릭, 1: +버튼으로 시간 설정, 2: 확인
-    private var clicksRemaining = 0 // +5/+1 남은 클릭 수
+    private var coupangStep = 0
+    private var clicksRemaining = 0
 
     private fun handleCoupangDelay() {
         val rootNode = rootInActiveWindow ?: return
 
         try {
-            when (delayStep) {
+            when (coupangStep) {
                 0 -> {
-                    // Step 1: "준비 지연" 버튼 클릭 (주문 상세 하단)
                     val delayNode = findNodeByText(rootNode, "준비 지연")
                         ?: findNodeByText(rootNode, "준비지연")
                     if (delayNode != null) {
                         delayNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        // 목표 시간 계산: +5 몇번, +1 몇번
                         val minutes = OrderTracker.getDelayMinutes()
-                        clicksRemaining = minutes // 총 분 (나중에 +5/+1로 분배)
-                        delayStep = 1
+                        clicksRemaining = minutes
+                        coupangStep = 1
                     }
                 }
                 1 -> {
-                    // Step 2: +5/+1 버튼으로 시간 설정
                     if (clicksRemaining <= 0) {
-                        delayStep = 2
+                        coupangStep = 2
                         return
                     }
-
                     if (clicksRemaining >= 5) {
                         val plus5 = findNodeByText(rootNode, "+5")
                         if (plus5 != null) {
@@ -168,19 +223,15 @@ class DelayAccessibilityService : AccessibilityService() {
                             clicksRemaining -= 1
                         }
                     }
-
-                    if (clicksRemaining <= 0) {
-                        delayStep = 2
-                    }
+                    if (clicksRemaining <= 0) coupangStep = 2
                 }
                 2 -> {
-                    // Step 3: 하단 녹색 "준비 지연" 확인 버튼
                     val confirmNode = findNodeByText(rootNode, "준비 지연")
                         ?: findNodeByText(rootNode, "준비지연")
                     if (confirmNode != null) {
                         confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        pendingDelay = false
-                        delayStep = 0
+                        pendingCoupangDelay = false
+                        coupangStep = 0
                         clicksRemaining = 0
                     }
                 }
@@ -197,7 +248,8 @@ class DelayAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        pendingDelay = false
+        pendingCoupangDelay = false
+        pendingBaeminDelay = false
     }
 
     override fun onDestroy() {
