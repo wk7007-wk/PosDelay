@@ -462,14 +462,23 @@ class AdWebAutomation(private val activity: Activity) {
 
                 var AD_API = 'https://advertising.coupangeats.com';
 
+                function apiCall(method, path, body, callback) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open(method, AD_API + path, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.setRequestHeader('Accept', 'application/json');
+                    xhr.withCredentials = true;
+                    xhr.onload = function() { callback(null, xhr.status, xhr.responseText); };
+                    xhr.onerror = function() { callback('네트워크오류', 0, ''); };
+                    xhr.send(body ? JSON.stringify(body) : null);
+                }
+
                 // 1단계: advertising API 인증
-                var xhr1 = new XMLHttpRequest();
-                xhr1.open('POST', AD_API + '/api/v1/auth/login', true);
-                xhr1.setRequestHeader('Content-Type', 'application/json');
-                xhr1.withCredentials = true;
-                xhr1.onload = function() {
-                    if (xhr1.status !== 200) {
-                        window.__coupangApiResult = 'ERR|인증실패|status=' + xhr1.status;
+                apiCall('POST', '/api/v1/auth/login',
+                    {deviceId:'NOT_USED', accessToken:'NOT_USED'},
+                    function(err1, s1, r1) {
+                    if (err1 || s1 !== 200) {
+                        window.__coupangApiResult = 'ERR|인증실패|status=' + s1 + '|' + (r1||err1).substring(0, 200);
                         return;
                     }
 
@@ -479,19 +488,17 @@ class AdWebAutomation(private val activity: Activity) {
                     var m = String(today.getMonth() + 1).padStart(2, '0');
                     var d = String(today.getDate()).padStart(2, '0');
 
-                    var xhr2 = new XMLHttpRequest();
-                    xhr2.open('POST', AD_API + '/api/v1/campaign/list', true);
-                    xhr2.setRequestHeader('Content-Type', 'application/json');
-                    xhr2.withCredentials = true;
-                    xhr2.onload = function() {
-                        if (xhr2.status !== 200) {
-                            window.__coupangApiResult = 'ERR|캠페인조회실패|status=' + xhr2.status;
+                    apiCall('POST', '/api/v1/campaign/list',
+                        {size:10, page:0, dateRange:{startDate:y+'-'+m+'-01', endDate:y+'-'+m+'-'+d}},
+                        function(err2, s2, r2) {
+                        if (err2 || s2 !== 200) {
+                            window.__coupangApiResult = 'ERR|캠페인조회실패|status=' + s2 + '|' + (r2||err2).substring(0, 200);
                             return;
                         }
-                        var data = JSON.parse(xhr2.responseText);
+                        var data = JSON.parse(r2);
                         var campaigns = data.campaigns || data.content || [];
                         if (!Array.isArray(campaigns) || campaigns.length === 0) {
-                            window.__coupangApiResult = 'ERR|캠페인없음|' + xhr2.responseText.substring(0, 200);
+                            window.__coupangApiResult = 'ERR|캠페인없음|' + r2.substring(0, 200);
                             return;
                         }
 
@@ -510,29 +517,18 @@ class AdWebAutomation(private val activity: Activity) {
                         }
 
                         // 3단계: 토글 API 호출
-                        var xhr3 = new XMLHttpRequest();
-                        xhr3.open('POST', AD_API + '/api/v1/campaign/toggle', true);
-                        xhr3.setRequestHeader('Content-Type', 'application/json');
-                        xhr3.withCredentials = true;
-                        xhr3.onload = function() {
-                            if (xhr3.status === 200) {
-                                var res = JSON.parse(xhr3.responseText);
-                                window.__coupangApiResult = 'OK|id=' + campaignId + '|isActive=' + res.isActive;
-                            } else {
-                                window.__coupangApiResult = 'FAIL|토글실패|status=' + xhr3.status + '|' + xhr3.responseText.substring(0, 200);
+                        apiCall('POST', '/api/v1/campaign/toggle',
+                            {id: campaignId, isActive: $turnOn},
+                            function(err3, s3, r3) {
+                            if (err3 || s3 !== 200) {
+                                window.__coupangApiResult = 'FAIL|토글실패|status=' + s3 + '|' + (r3||err3).substring(0, 200);
+                                return;
                             }
-                        };
-                        xhr3.onerror = function() { window.__coupangApiResult = 'ERR|토글요청실패'; };
-                        xhr3.send(JSON.stringify({id: campaignId, isActive: $turnOn}));
-                    };
-                    xhr2.onerror = function() { window.__coupangApiResult = 'ERR|캠페인조회실패'; };
-                    xhr2.send(JSON.stringify({
-                        size: 10, page: 0,
-                        dateRange: { startDate: y+'-'+m+'-01', endDate: y+'-'+m+'-'+d }
-                    }));
-                };
-                xhr1.onerror = function() { window.__coupangApiResult = 'ERR|인증요청실패'; };
-                xhr1.send(JSON.stringify({deviceId: 'NOT_USED', accessToken: 'NOT_USED'}));
+                            var res = JSON.parse(r3);
+                            window.__coupangApiResult = 'OK|id=' + campaignId + '|isActive=' + res.isActive;
+                        });
+                    });
+                });
 
                 return 'STARTED';
             })();
