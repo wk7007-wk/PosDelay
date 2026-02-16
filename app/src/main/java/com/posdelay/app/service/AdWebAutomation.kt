@@ -260,16 +260,16 @@ class AdWebAutomation(private val activity: Activity) {
     private fun callBaeminBidApi() {
         if (state != State.PERFORMING_ACTION) return
 
-        // 1단계: URL에서 shopNumber 추출 → 2단계: 캠페인 조회 → 3단계: 입찰가 변경
-        // evaluateJavascript는 Promise를 기다리지 않으므로 전역변수에 결과 저장
+        // 1단계: URL에서 shopNumber 추출
+        // 2단계: 캠페인 목록 API로 CPC 캠페인 ID 조회
+        // 3단계: 입찰가 변경 PUT
         val js = """
             (function() {
                 window.__baeminApiResult = null;
-                // shopNumber 추출 (URL: /shops/10545801/...)
+                var shopNo = null;
                 var m = window.location.href.match(/shops\/(\d+)/);
-                var shopNo = m ? m[1] : null;
+                if (m) shopNo = m[1];
                 if (!shopNo) {
-                    // URL에 없으면 페이지 내 링크에서 탐색
                     var links = document.querySelectorAll('a[href*="/shops/"]');
                     for (var i=0;i<links.length;i++) {
                         var mm = links[i].href.match(/shops\/(\d+)/);
@@ -278,43 +278,53 @@ class AdWebAutomation(private val activity: Activity) {
                 }
                 if (!shopNo) { window.__baeminApiResult = 'ERR|shopNumber없음'; return 'NO_SHOP'; }
 
-                // 캠페인 조회 → 입찰가 변경
-                fetch('https://self-api.baemin.com/v4/cpc/bookings/by-shop-number?shopNumber=' + shopNo, {
+                // 1단계: 캠페인 목록에서 CPC(우리가게클릭) 캠페인 ID 찾기
+                fetch('https://self-api.baemin.com/v2/ad-center/ad-campaigns/operating-ad-campaign/by-shop-number?shopNumber=' + shopNo, {
                     method: 'GET', credentials: 'include',
                     headers: {'Accept':'application/json','service-channel':'SELF_SERVICE_PC'}
                 })
                 .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (!data || !data.bid) {
-                        window.__baeminApiResult = 'ERR|데이터없음|shop=' + shopNo + '|keys=' + Object.keys(data||{}).join(',');
+                .then(function(campaigns) {
+                    if (!Array.isArray(campaigns) || campaigns.length === 0) {
+                        window.__baeminApiResult = 'ERR|캠페인없음|type=' + typeof campaigns;
                         return;
                     }
-                    // campaignId를 여러 필드명에서 탐색
-                    var cid = data.adCampaignId || data.campaignId || data.id || data.bookingId || null;
-                    if (!cid) {
-                        // 전체 키 로그 + 숫자형 ID 값 탐색
-                        var keys = Object.keys(data);
-                        for (var k=0;k<keys.length;k++) {
-                            var v = data[keys[k]];
-                            if (typeof v === 'number' && v > 10000000 && keys[k].toLowerCase().indexOf('id') >= 0) {
-                                cid = v; break;
-                            }
-                        }
-                        if (!cid) {
-                            window.__baeminApiResult = 'ERR|캠페인ID없음|keys=' + keys.join(',') + '|data=' + JSON.stringify(data).substring(0,200);
-                            return;
+                    // CPC 캠페인 찾기: adInventoryKey=CENTRAL_CPC 또는 adKind.adType=CPC
+                    var cpcCampaign = null;
+                    for (var i=0;i<campaigns.length;i++) {
+                        var c = campaigns[i];
+                        if (c.adInventoryKey === 'CENTRAL_CPC' ||
+                            (c.adKind && c.adKind.adType === 'CPC') ||
+                            (c.adKind && c.adKind.adKindKey === 'WOORI_SHOP_CLICK')) {
+                            cpcCampaign = c; break;
                         }
                     }
-                    var curBid = data.bid || 0;
-                    return fetch('https://self-api.baemin.com/v4/cpc/bookings/' + cid + '/bid-budget', {
-                        method: 'PUT', credentials: 'include',
-                        headers: {'Accept':'application/json','Content-Type':'application/json;charset=UTF-8','service-channel':'SELF_SERVICE_PC'},
-                        body: JSON.stringify({adCampaignId:cid, newBid:$targetAmount, newBudget:null, isAutoBidding:false})
+                    if (!cpcCampaign) {
+                        var keys = campaigns.map(function(c){return (c.adInventoryKey||'?')+'(id='+c.id+')'});
+                        window.__baeminApiResult = 'ERR|CPC캠페인없음|목록=' + keys.join(',');
+                        return;
+                    }
+                    var cid = cpcCampaign.id;
+
+                    // 2단계: 현재 입찰가 조회
+                    return fetch('https://self-api.baemin.com/v4/cpc/bookings/by-shop-number?shopNumber=' + shopNo + '&adCampaignId=' + cid, {
+                        method: 'GET', credentials: 'include',
+                        headers: {'Accept':'application/json','service-channel':'SELF_SERVICE_PC'}
                     })
                     .then(function(r2) { return r2.json(); })
-                    .then(function(res) {
-                        if (res && res.isSuccess) window.__baeminApiResult = 'OK|cid=' + cid + '|' + curBid + '→$targetAmount';
-                        else window.__baeminApiResult = 'FAIL|' + JSON.stringify(res).substring(0,100);
+                    .then(function(booking) {
+                        var curBid = (booking && booking.bid) || 0;
+                        // 3단계: 입찰가 변경
+                        return fetch('https://self-api.baemin.com/v4/cpc/bookings/' + cid + '/bid-budget', {
+                            method: 'PUT', credentials: 'include',
+                            headers: {'Accept':'application/json','Content-Type':'application/json;charset=UTF-8','service-channel':'SELF_SERVICE_PC'},
+                            body: JSON.stringify({adCampaignId:cid, newBid:$targetAmount, newBudget:null, isAutoBidding:false})
+                        })
+                        .then(function(r3) { return r3.json(); })
+                        .then(function(res) {
+                            if (res && res.isSuccess) window.__baeminApiResult = 'OK|cid=' + cid + '|' + curBid + '→$targetAmount';
+                            else window.__baeminApiResult = 'FAIL|' + JSON.stringify(res).substring(0,100);
+                        });
                     });
                 })
                 .catch(function(e) { window.__baeminApiResult = 'ERR|' + e.message; });
@@ -352,6 +362,11 @@ class AdWebAutomation(private val activity: Activity) {
     // ───────── 쿠팡이츠 ─────────
 
     private fun handleCoupangPage(url: String) {
+        // advertising.coupangeats.com 페이지 처리
+        if (url.contains("advertising.coupangeats.com")) {
+            handleAdvertisingPage(url)
+            return
+        }
         when {
             url.contains("/login") || url.contains("/merchant/login") -> {
                 if (state == State.WAITING_LOGIN_RESULT) {
@@ -446,8 +461,9 @@ class AdWebAutomation(private val activity: Activity) {
             } else if (retries > 0) {
                 handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
             } else {
-                captureHtmlOnError("coupang-ad-menu")
-                finishWithError(Code.ERR_NO_AD_FIELD, "쿠팡 광고관리 메뉴 없음")
+                // store 포털에서 광고 메뉴 못 찾음 → advertising 포털 직접 로드
+                log(Code.INFO_STATE, "store 포털에서 광고 메뉴 없음 → advertising 포털 시도")
+                extractCoupangIframeAndNavigate()
             }
         }
     }
@@ -511,9 +527,8 @@ class AdWebAutomation(private val activity: Activity) {
                 if (retries > 0) {
                     handler.postDelayed({ performCoupangToggle(retries - 1) }, RETRY_DELAY)
                 } else {
-                    // 폴링 실패 → iframe src 추출 후 직접 이동 시도
-                    log(Code.INFO_STATE, "폴링 실패, iframe 직접 이동 시도")
-                    extractCoupangIframeAndNavigate()
+                    captureHtmlOnError("coupang-toggle")
+                    finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 광고 토글 없음")
                 }
             } else {
                 handler.postDelayed({
@@ -524,76 +539,34 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡: CMG 렌더링 실패 → advertising API 직접 호출로 캠페인 토글 */
+    /** 쿠팡: CMG 렌더링 실패 → advertising 포털 직접 로드 */
     private fun extractCoupangIframeAndNavigate() {
         if (state != State.PERFORMING_ACTION) return
         val turnOn = currentAction == Action.COUPANG_AD_ON
-        val onOff = if (turnOn) "켜기" else "끄기"
 
-        // advertising.coupangeats.com은 리다이렉트됨
-        // → store 포털의 WebView에서 advertising API를 fetch로 직접 호출
-        log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising API 직접 호출")
+        // store 포털에서 CORS 차단됨 → advertising 포털을 직접 WebView에 로드
+        log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising 포털 직접 로드")
 
-        val js = """
-            (function() {
-                window.__coupangApiResult = null;
-                // 1단계: advertising 포털 로그인
-                fetch('https://advertising.coupangeats.com/api/v1/auth/login', {
-                    method: 'POST', credentials: 'include',
-                    headers: {'Accept':'application/json','Content-Type':'application/json'},
-                    body: JSON.stringify({deviceId:'NOT_USED', accessToken:'NOT_USED'})
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(auth) {
-                    if (!auth || !auth.advertiserId) {
-                        window.__coupangApiResult = 'ERR|로그인실패|' + JSON.stringify(auth).substring(0,100);
-                        return;
-                    }
-                    var advId = auth.advertiserId;
-                    // 2단계: 캠페인 목록 조회 시도
-                    return fetch('https://advertising.coupangeats.com/api/v1/campaigns?advertiserId=' + advId, {
-                        method: 'GET', credentials: 'include',
-                        headers: {'Accept':'application/json'}
-                    })
-                    .then(function(r2) { return r2.json(); })
-                    .then(function(campaigns) {
-                        window.__coupangApiResult = 'DATA|advId=' + advId + '|campaigns=' + JSON.stringify(campaigns).substring(0,300);
-                    });
-                })
-                .catch(function(e) { window.__coupangApiResult = 'ERR|' + e.message; });
-                return 'STARTED';
-            })();
-        """.trimIndent()
-
-        webView?.evaluateJavascript(js) { result ->
-            log(Code.INFO_JS_RESULT, "쿠팡API시작: $result")
-            handler.postDelayed({ pollCoupangApiResult(5, turnOn, onOff) }, 3000)
-        }
+        // advertising 포털의 광고 관리 페이지를 직접 로드
+        // 로그인 세션은 store.coupangeats.com 쿠키 공유 기대
+        changeState(State.NAVIGATING_TO_AD)
+        webView?.loadUrl("https://advertising.coupangeats.com")
     }
 
-    /** 쿠팡: API 비동기 결과 폴링 */
-    private fun pollCoupangApiResult(retries: Int, turnOn: Boolean, onOff: String) {
-        if (state != State.PERFORMING_ACTION) return
-
-        webView?.evaluateJavascript(
-            "(function(){ return window.__coupangApiResult || 'PENDING'; })()"
-        ) { result ->
-            val r = result?.removeSurrounding("\"") ?: "PENDING"
-            log(Code.INFO_JS_RESULT, "쿠팡API폴링($retries): $r")
-            when {
-                r == "PENDING" -> {
-                    if (retries > 0) handler.postDelayed({ pollCoupangApiResult(retries - 1, turnOn, onOff) }, 3000)
-                    else finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API 응답 없음")
-                }
-                r.startsWith("DATA") -> {
-                    // 캠페인 데이터 확보 — 로그에 기록 (다음 버전에서 토글 구현)
-                    finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API 탐색 완료 (데이터 수집): $r")
-                }
-                r.startsWith("OK") -> {
-                    AdManager.setCoupangAdOn(turnOn)
-                    finishWithSuccess("쿠팡 광고 $onOff 완료")
-                }
-                else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API: $r")
+    /** 쿠팡: advertising 포털 로드 후 토글 찾기 */
+    private fun handleAdvertisingPage(url: String) {
+        when {
+            url.contains("/login") -> {
+                // advertising 포털 로그인 필요 — store 세션이 공유 안됨
+                log(Code.INFO_STATE, "advertising 포털 로그인 필요")
+                changeState(State.SUBMITTING_LOGIN)
+                handler.postDelayed({ submitCoupangLogin() }, 2000)
+            }
+            else -> {
+                // advertising 포털 로드 완료 — 토글 탐색
+                log(Code.INFO_STATE, "advertising 포털 로드됨: $url")
+                changeState(State.PERFORMING_ACTION)
+                handler.postDelayed({ performCoupangToggle(8) }, 3000)
             }
         }
     }
