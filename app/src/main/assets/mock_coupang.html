@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+<head><meta charset="UTF-8"><title>쿠팡이츠 사장님 포털 (모의)</title>
+<style>
+body { font-family: sans-serif; background: #f5f5f5; margin: 0; }
+.sidebar { width: 200px; background: #1a73e8; color: white; position: fixed; height: 100%; padding: 10px; }
+.sidebar a { display: block; color: white; padding: 10px; text-decoration: none; }
+.sidebar a:hover { background: rgba(255,255,255,0.2); }
+.content { margin-left: 220px; padding: 20px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="sidebar">
+    <h3>쿠팡이츠</h3>
+    <a href="#">공지사항</a>
+    <a href="#">매출 관리</a>
+    <a href="#">정산 관리</a>
+    <a href="mock_coupang_cmg.html" id="adMenuLink" onclick="showAd(); return false;">광고 관리<span style="color:#ff6b6b;font-size:11px;margin-left:4px">NEW</span></a>
+    <a href="#">쿠폰 관리</a>
+    <a href="#">리뷰</a>
+    <a href="#">품절 · 숨김</a>
+    <a href="#">메뉴 편집 ・ 추가</a>
+    <a href="#">매장 정보</a>
+    <a href="#">영업시간 · 휴무 관리</a>
+    <a href="#">계약 관리</a>
+    <a href="#">계정 관리</a>
+    <a href="#">사장님 이용가이드</a>
+    <a href="#">약관 및 정책</a>
+</div>
+<div class="content">
+    <div id="home-section">
+        <h2>매장 관리</h2>
+        <p>쿠팡이츠 사장님 포털 대시보드입니다.</p>
+    </div>
+    <!-- 광고관리: iframe (CMG 마이크로프론트엔드, 지연 로딩) -->
+    <div id="ad-section" class="hidden">
+        <h2>광고 관리</h2>
+        <div id="cmg-loading" style="color:#888;padding:20px;">로딩 중...</div>
+        <iframe id="cmgFrame" style="width:100%;height:400px;border:none;display:none;" src="about:blank"></iframe>
+    </div>
+</div>
+<script>
+function showAd() {
+    document.getElementById('home-section').className = 'hidden';
+    document.getElementById('ad-section').className = '';
+    // CMG 마이크로프론트엔드 지연 로딩 시뮬레이션 (3초)
+    setTimeout(function() {
+        document.getElementById('cmg-loading').style.display = 'none';
+        var frame = document.getElementById('cmgFrame');
+        frame.style.display = 'block';
+        frame.src = 'mock_coupang_cmg.html';
+    }, 3000);
+}
+</script>
+</body>
+</html>

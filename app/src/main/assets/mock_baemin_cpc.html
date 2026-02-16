@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>우리가게클릭 CPC</title>
+<style>
+body { font-family: sans-serif; background: #fff; padding: 20px; margin: 0; }
+.card { background: #f9f9f9; border-radius: 8px; padding: 20px; margin: 10px 0; }
+input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100px; }
+button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 4px; }
+.btn-primary { background: #2AC1BC; color: white; }
+</style>
+</head>
+<body>
+<div class="card">
+    <h3>클릭 당 희망 광고금액</h3>
+    <p>현재 설정: <span id="currentAmount">200</span>원</p>
+    <div>
+        <label>광고금액 (원): </label>
+        <input type="text" id="cpcInput" value="200" placeholder="50~1000원">
+        <span>원 (50원 단위, 50~1,000원)</span>
+    </div>
+    <div style="margin-top:15px">
+        <button class="btn-primary" onclick="saveAmount()">변경 저장</button>
+    </div>
+</div>
+<div class="card">
+    <h3>광고 현황</h3>
+    <p>이번 달 클릭 수: 152회</p>
+    <p>이번 달 광고비: 30,400원</p>
+</div>
+<script>
+function saveAmount() {
+    var val = document.getElementById('cpcInput').value;
+    document.getElementById('currentAmount').textContent = val;
+    alert('광고 금액이 ' + val + '원으로 변경되었습니다.');
+}
+</script>
+</body>
+</html>

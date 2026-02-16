@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+<head><meta charset="UTF-8"><title>CMG 광고관리</title>
+<style>
+body { font-family: sans-serif; background: #fff; padding: 20px; margin: 0; }
+.card { background: #f9f9f9; border-radius: 8px; padding: 20px; margin: 10px 0; }
+.toggle-container { display: flex; align-items: center; gap: 15px; }
+.toggle-switch { width: 50px; height: 26px; background: #ccc; border-radius: 13px; cursor: pointer; position: relative; transition: 0.3s; }
+.toggle-switch.on { background: #1a73e8; }
+.toggle-switch::after { content: ''; position: absolute; width: 22px; height: 22px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+.toggle-switch.on::after { left: 26px; }
+button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 4px; }
+.btn-primary { background: #1a73e8; color: white; }
+</style>
+</head>
+<body>
+<div class="card">
+    <h3>매장 광고</h3>
+    <div class="toggle-container">
+        <span>광고 상태:</span>
+        <div id="adToggle" class="toggle-switch on" role="switch" onclick="toggleAd()"></div>
+        <span id="adStatus">광고 켜짐</span>
+    </div>
+    <p style="margin-top:10px;color:#888">광고를 켜면 검색 결과 상단에 매장이 노출됩니다.</p>
+</div>
+<div class="card">
+    <h3>광고 설정</h3>
+    <p>광고 비율: <strong>15%</strong></p>
+    <p>이번 달 광고비: 45,200원</p>
+    <div style="margin-top:10px">
+        <button class="btn-primary" onclick="alert('저장됨')">저장</button>
+    </div>
+</div>
+<script>
+var adOn = true;
+function toggleAd() {
+    adOn = !adOn;
+    var toggle = document.getElementById('adToggle');
+    var status = document.getElementById('adStatus');
+    if (adOn) { toggle.className = 'toggle-switch on'; status.textContent = '광고 켜짐'; }
+    else { toggle.className = 'toggle-switch'; status.textContent = '광고 꺼짐'; }
+}
+</script>
+</body>
+</html>
