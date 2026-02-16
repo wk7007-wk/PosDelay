@@ -38,7 +38,20 @@ def load_config():
                 if k not in cfg:
                     cfg[k] = v
             return cfg
-    return DEFAULT_CONFIG.copy()
+    # 첫 실행: config.json 자동 생성
+    print("\n=== 첫 실행: 설정 파일 생성 ===\n")
+    print("GitHub Personal Access Token이 필요합니다.")
+    print("  1. https://github.com/settings/tokens/new 접속")
+    print("  2. Note: PosDelay")
+    print("  3. Expiration: No expiration")
+    print("  4. 체크: gist")
+    print("  5. Generate token 클릭 → 토큰 복사\n")
+    token = input("토큰 붙여넣기: ").strip()
+    cfg = DEFAULT_CONFIG.copy()
+    cfg["github_token"] = token
+    save_config(cfg)
+    print(f"\n[OK] config.json 생성 완료: {CONFIG_FILE}")
+    return cfg
 
 
 def save_config(cfg):
