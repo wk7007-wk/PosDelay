@@ -456,8 +456,8 @@ class AdWebAutomation(private val activity: Activity) {
             log(Code.INFO_JS_RESULT, "쿠팡 광고메뉴: $result")
             if (result?.contains("NAV") == true || result?.contains("CLICKED") == true) {
                 changeState(State.PERFORMING_ACTION)
-                // 폴링: 5초 후부터 3초 간격으로 토글 체크 (CMG 렌더링 대기)
-                handler.postDelayed({ performCoupangToggle(5) }, 5000)
+                // CMG wujie 마이크로프론트엔드 렌더링 대기: 8초 후 시작, 3초 간격 8회 폴링
+                handler.postDelayed({ performCoupangToggle(8) }, 8000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
             } else {
@@ -468,8 +468,8 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡: 광고 토글/스위치 찾아 클릭 (메인 + iframe, 폴링) */
-    private fun performCoupangToggle(retries: Int = 5) {
+    /** 쿠팡: 광고 토글/스위치 찾아 클릭 (메인 + iframe + shadow DOM, 폴링) */
+    private fun performCoupangToggle(retries: Int = 8) {
         if (state != State.PERFORMING_ACTION) return
         val turnOn = currentAction == Action.COUPANG_AD_ON
         val onOff = if (turnOn) "켜기" else "끄기"
@@ -477,6 +477,7 @@ class AdWebAutomation(private val activity: Activity) {
         val js = """
             (function() {
                 function findToggle(doc, label) {
+                    // 1. toggle/switch 요소 탐색
                     var toggles = doc.querySelectorAll(
                         'input[type="checkbox"], button[role="switch"], [class*="toggle"], [class*="switch"], [class*="Toggle"], [class*="Switch"]');
                     for (var i = 0; i < toggles.length; i++) {
@@ -491,32 +492,67 @@ class AdWebAutomation(private val activity: Activity) {
                             return 'OK|' + label + '|toggle|ctx=' + ctx.substring(0, 30);
                         }
                     }
+                    // 2. 버튼 탐색 (켜기/끄기/일시정지/재개)
                     var btns = doc.querySelectorAll('button');
                     for (var j = 0; j < btns.length; j++) {
                         var t = btns[j].textContent.trim();
-                        if (${if (turnOn) "t.indexOf('켜기')>=0||t.indexOf('시작')>=0||t==='ON'" else "t.indexOf('끄기')>=0||t.indexOf('중지')>=0||t.indexOf('일시정지')>=0||t==='OFF'"}) {
+                        // "새 광고 시작하기" 등 새 캠페인 생성 버튼 제외
+                        if (t.indexOf('새') >= 0 || t.indexOf('만들기') >= 0 || t.indexOf('생성') >= 0) continue;
+                        if (${if (turnOn) "t==='켜기'||t==='재개'||t==='활성화'||t==='ON'||t.indexOf('광고 켜기')>=0||t.indexOf('광고 재개')>=0" else "t==='끄기'||t==='중지'||t==='일시정지'||t==='OFF'||t.indexOf('광고 끄기')>=0||t.indexOf('광고 중지')>=0||t.indexOf('일시정지')>=0"}) {
                             btns[j].click();
                             return 'OK|' + label + '|btn|' + t.substring(0, 20);
                         }
                     }
                     return null;
                 }
+
+                // 페이지 내 모든 텍스트 + 요소 요약 (디버깅)
+                function summarize(doc, label) {
+                    var toggles = doc.querySelectorAll('input[type="checkbox"], button[role="switch"], [class*="toggle"], [class*="switch"]');
+                    var btns = doc.querySelectorAll('button');
+                    var btnTexts = [];
+                    for (var b = 0; b < btns.length && b < 15; b++) {
+                        var bt = btns[b].textContent.trim().substring(0,30);
+                        if (bt) btnTexts.push(bt);
+                    }
+                    return label + ':toggles=' + toggles.length + '|btns=' + btns.length + '|texts=[' + btnTexts.join(',') + ']';
+                }
+
                 // 1. 메인 document
                 var r = findToggle(document, 'main');
                 if (r) return r;
-                // 2. iframe 내부 (CMG 마이크로프론트엔드)
+                var debug = summarize(document, 'main');
+
+                // 2. iframe 내부 (CMG 마이크로프론트엔드) — robots.txt 제외
                 var iframes = document.querySelectorAll('iframe');
-                var debug = 'toggles=0,iframes=' + iframes.length;
+                debug += '|iframes=' + iframes.length;
                 for (var f = 0; f < iframes.length; f++) {
                     try {
+                        var src = iframes[f].src || '';
+                        if (src.indexOf('robots.txt') >= 0) { debug += '|if' + f + '=robots'; continue; }
                         var iDoc = iframes[f].contentDocument || iframes[f].contentWindow.document;
-                        if (iDoc) {
+                        if (iDoc && iDoc.body && iDoc.body.textContent.length > 10) {
                             var ir = findToggle(iDoc, 'iframe' + f);
                             if (ir) return ir;
-                            debug += '|if' + f + '=' + (iframes[f].src||'').substring(0,60);
+                            debug += '|' + summarize(iDoc, 'if' + f);
+                        } else {
+                            debug += '|if' + f + '=empty(' + src.substring(0,40) + ')';
                         }
-                    } catch(e) { debug += '|if' + f + '_x'; }
+                    } catch(e) { debug += '|if' + f + '_x=' + e.message.substring(0,30); }
                 }
+
+                // 3. shadow DOM 탐색 (wujie 프레임워크)
+                var shadows = document.querySelectorAll('*');
+                var shadowCount = 0;
+                for (var s = 0; s < shadows.length; s++) {
+                    if (shadows[s].shadowRoot) {
+                        shadowCount++;
+                        var sr = findToggle(shadows[s].shadowRoot, 'shadow' + shadowCount);
+                        if (sr) return sr;
+                    }
+                }
+                debug += '|shadows=' + shadowCount;
+
                 return 'NOT_FOUND|' + debug;
             })();
         """.trimIndent()
@@ -542,7 +578,6 @@ class AdWebAutomation(private val activity: Activity) {
     /** 쿠팡: CMG 렌더링 실패 → advertising 포털 직접 로드 */
     private fun extractCoupangIframeAndNavigate() {
         if (state != State.PERFORMING_ACTION) return
-        val turnOn = currentAction == Action.COUPANG_AD_ON
 
         // store 포털에서 CORS 차단됨 → advertising 포털을 직접 WebView에 로드
         log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising 포털 직접 로드")
