@@ -509,8 +509,10 @@ class AdWebAutomation(private val activity: Activity) {
                         // "새 광고 시작하기" 등 새 캠페인 생성 버튼 제외
                         if (t.indexOf('새') >= 0 || t.indexOf('만들기') >= 0 || t.indexOf('생성') >= 0) continue;
                         if (${if (turnOn) "t==='켜기'||t==='재개'||t==='활성화'||t==='ON'||t.indexOf('광고 켜기')>=0||t.indexOf('광고 재개')>=0" else "t==='끄기'||t==='중지'||t==='일시정지'||t==='OFF'||t.indexOf('광고 끄기')>=0||t.indexOf('광고 중지')>=0||t.indexOf('일시정지')>=0"}) {
+                            var parentCtx = (btns[j].closest('div,section,li') || btns[j].parentElement);
+                            var ctx = parentCtx ? parentCtx.textContent.substring(0,80).replace(/\n/g,' ') : '';
                             btns[j].click();
-                            return 'OK|' + label + '|btn|' + t.substring(0, 20);
+                            return 'OK|' + label + '|btn|' + t.substring(0, 20) + '|ctx=' + ctx.substring(0,60);
                         }
                     }
                     return null;
@@ -613,10 +615,69 @@ class AdWebAutomation(private val activity: Activity) {
                     finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 광고 토글 없음")
                 }
             } else {
+                // 클릭 성공 → 확인 팝업 처리 (2초 후)
+                handler.postDelayed({ handleCoupangConfirmDialog(turnOn, onOff) }, 2000)
+            }
+        }
+    }
+
+    /** 쿠팡: 클릭 후 확인/팝업 처리 + 결과 검증 */
+    private fun handleCoupangConfirmDialog(turnOn: Boolean, onOff: String) {
+        if (state != State.PERFORMING_ACTION) return
+
+        // 확인 팝업이 있으면 클릭, 없으면 바로 성공 처리
+        val js = """
+            (function() {
+                function searchAll(root) {
+                    // 메인 document
+                    var r = findConfirm(root);
+                    if (r) return r;
+                    // shadow DOM 내부
+                    var all = root.querySelectorAll('*');
+                    for (var i = 0; i < all.length; i++) {
+                        if (all[i].shadowRoot) {
+                            var sr = findConfirm(all[i].shadowRoot);
+                            if (sr) return sr;
+                        }
+                    }
+                    return null;
+                }
+                function findConfirm(doc) {
+                    // 모달/팝업/다이얼로그 내 확인 버튼 탐색
+                    var btns = doc.querySelectorAll('button');
+                    for (var i = 0; i < btns.length; i++) {
+                        var t = btns[i].textContent.trim();
+                        if (t === '확인' || t === '네' || t === 'OK' || t === '적용' || t === '완료' ||
+                            t === '켜기' || t === '끄기' || t === '일시정지' || t === '재개') {
+                            // 모달 컨텍스트인지 확인 (dialog, modal, overlay 등)
+                            var parent = btns[i].closest('[role="dialog"], [class*="modal"], [class*="Modal"], [class*="dialog"], [class*="Dialog"], [class*="popup"], [class*="Popup"], [class*="overlay"], [class*="Overlay"]');
+                            if (parent) {
+                                btns[i].click();
+                                return 'CONFIRM|' + t + '|ctx=' + parent.textContent.substring(0, 80).replace(/\\n/g,' ');
+                            }
+                        }
+                    }
+                    return null;
+                }
+                var r = searchAll(document);
+                if (r) return r;
+                return 'NO_POPUP';
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            val r = result?.removeSurrounding("\"") ?: "NO_POPUP"
+            log(Code.INFO_JS_RESULT, "쿠팡 확인팝업: $r")
+            if (r.startsWith("CONFIRM")) {
+                // 확인 팝업 클릭 후 잠시 대기
                 handler.postDelayed({
                     AdManager.setCoupangAdOn(turnOn)
-                    finishWithSuccess("쿠팡 광고 $onOff 완료")
-                }, 1500)
+                    finishWithSuccess("쿠팡 광고 $onOff 완료 (확인 팝업 처리)")
+                }, 2000)
+            } else {
+                // 팝업 없음 — 바로 완료
+                AdManager.setCoupangAdOn(turnOn)
+                finishWithSuccess("쿠팡 광고 $onOff 완료")
             }
         }
     }
