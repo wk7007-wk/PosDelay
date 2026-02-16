@@ -4,21 +4,22 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 
 사용법:
   1. Python 설치 (python.org → Add to PATH 체크)
-  2. cmd에서: pip install pywin32 requests
+  2. cmd에서: pip install pywin32 pyautogui requests
   3. 이 파일 실행: python mate_monitor.py
 
-처음 실행 시 메이트포스 창 목록이 표시됩니다.
-올바른 창 이름을 config.json에 설정하세요.
+처음 실행 시 설정 자동 안내됩니다.
 """
 
 import json
 import os
 import re
-import sys
 import time
 import ctypes
 import ctypes.wintypes
 import requests
+import pyautogui
+
+pyautogui.FAILSAFE = False  # 마우스 코너 이동 시 중단 방지
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -27,6 +28,8 @@ DEFAULT_CONFIG = {
     "gist_id": "a67e5de3271d6d0716b276dc6a8391cb",
     "window_title": "메이트",
     "poll_interval_sec": 30,
+    "delivery_tab_x": 0,
+    "delivery_tab_y": 0,
 }
 
 
@@ -66,6 +69,7 @@ EnumChildWindows = ctypes.windll.user32.EnumChildWindows
 GetWindowTextW = ctypes.windll.user32.GetWindowTextW
 GetWindowTextLengthW = ctypes.windll.user32.GetWindowTextLengthW
 IsWindowVisible = ctypes.windll.user32.IsWindowVisible
+SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
 WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
 
 
@@ -110,15 +114,48 @@ def get_child_texts(hwnd):
 def extract_order_count(texts):
     """텍스트 목록에서 처리중 건수 추출"""
     for text in texts:
-        # "처리중 3건", "처리중: 3", "처리중(3)", "진행중 3건" 등 패턴 매칭
+        # "처리중3", "처리중 3건", "처리중: 3", "처리중(3)" 등
         m = re.search(r"(?:처리중|진행중|접수|대기)[\s:：()（）]*(\d+)", text)
         if m:
             return int(m.group(1)), text
-        # 단순 숫자만 있는 경우 (창 제목에 건수 표시)
         m = re.search(r"(\d+)\s*건", text)
         if m:
             return int(m.group(1)), text
     return None, None
+
+
+def click_delivery_tab(cfg, hwnd):
+    """배달 카테고리 탭 클릭"""
+    x = cfg.get("delivery_tab_x", 0)
+    y = cfg.get("delivery_tab_y", 0)
+    if x == 0 and y == 0:
+        return
+    # 메이트포스 창을 앞으로 가져오기
+    try:
+        SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+    time.sleep(0.3)
+    pyautogui.click(x, y)
+    time.sleep(0.5)
+
+
+def setup_delivery_tab(cfg):
+    """배달 탭 위치 설정 (마우스로 클릭)"""
+    print("\n=== 배달 탭 위치 설정 ===")
+    print("메이트포스에서 '배달' 카테고리 탭 위에 마우스를 올리세요.")
+    print("5초 후 현재 마우스 위치를 저장합니다...")
+
+    for i in range(5, 0, -1):
+        print(f"  {i}초...", end="\r")
+        time.sleep(1)
+
+    x, y = pyautogui.position()
+    cfg["delivery_tab_x"] = x
+    cfg["delivery_tab_y"] = y
+    save_config(cfg)
+    print(f"\n[OK] 배달 탭 위치 저장: ({x}, {y})")
+    return cfg
 
 
 def update_gist(cfg, count):
@@ -126,7 +163,7 @@ def update_gist(cfg, count):
     gist_id = cfg["gist_id"]
     token = cfg["github_token"]
     if not token:
-        print("[!] github_token이 설정되지 않았습니다. config.json을 확인하세요.")
+        print("[!] github_token이 설정되지 않았습니다.")
         return False
 
     url = f"https://api.github.com/gists/{gist_id}"
@@ -154,7 +191,7 @@ def update_gist(cfg, count):
         if resp.status_code == 200:
             return True
         else:
-            print(f"[!] Gist 업데이트 실패: {resp.status_code} {resp.text[:100]}")
+            print(f"[!] Gist 업데이트 실패: {resp.status_code}")
             return False
     except Exception as e:
         print(f"[!] 네트워크 오류: {e}")
@@ -162,7 +199,7 @@ def update_gist(cfg, count):
 
 
 def list_all_windows():
-    """디버깅: 모든 보이는 창 목록 출력"""
+    """모든 보이는 창 목록"""
     windows = []
 
     def callback(hwnd, _):
@@ -176,23 +213,6 @@ def list_all_windows():
     return windows
 
 
-def setup_token(cfg):
-    """GitHub 토큰 설정 안내"""
-    print("\n=== GitHub Personal Access Token 설정 ===")
-    print("1. https://github.com/settings/tokens/new 접속")
-    print("2. Note: PosDelay")
-    print("3. Expiration: No expiration")
-    print("4. 체크: gist")
-    print("5. Generate token → 복사")
-    print()
-    token = input("토큰 입력: ").strip()
-    if token:
-        cfg["github_token"] = token
-        save_config(cfg)
-        print("[OK] 토큰 저장 완료")
-    return cfg
-
-
 def main():
     print("=" * 50)
     print("  메이트포스 주문 모니터 (PosDelay PC)")
@@ -202,12 +222,18 @@ def main():
 
     # 토큰 확인
     if not cfg["github_token"]:
-        cfg = setup_token(cfg)
-        if not cfg["github_token"]:
+        print("\n[!] GitHub 토큰이 없습니다.")
+        print("  1. https://github.com/settings/tokens/new 접속")
+        print("  2. gist 체크 → Generate token → 복사\n")
+        token = input("토큰 붙여넣기: ").strip()
+        if token:
+            cfg["github_token"] = token
+            save_config(cfg)
+        else:
             print("[!] 토큰 없이는 실행할 수 없습니다.")
             return
 
-    # 첫 실행: 창 목록 표시
+    # 메이트포스 창 찾기
     keyword = cfg["window_title"]
     windows = find_windows(keyword)
 
@@ -224,19 +250,33 @@ def main():
     print(f"\n[OK] 메이트포스 창 발견: {windows[0][1]}")
     hwnd = windows[0][0]
 
-    # 자식 컨트롤 텍스트 미리보기
-    texts = get_child_texts(hwnd)
-    if texts:
-        print(f"\n창 내부 텍스트 ({len(texts)}개):")
-        for t in texts[:20]:
-            print(f"  [{t}]")
+    # 배달 탭 위치 설정
+    if cfg.get("delivery_tab_x", 0) == 0:
+        print("\n배달 탭 위치가 설정되지 않았습니다.")
+        ans = input("지금 설정하시겠습니까? (y/n): ").strip().lower()
+        if ans == "y":
+            cfg = setup_delivery_tab(cfg)
+        else:
+            print("[!] 배달 탭 위치 없이 진행 (현재 보이는 텍스트만 읽음)")
 
-    count, matched = extract_order_count(texts)
+    # 초기 테스트
+    if cfg.get("delivery_tab_x", 0) != 0:
+        click_delivery_tab(cfg, hwnd)
+        time.sleep(1)
+
+    texts = get_child_texts(hwnd)
+    title = get_window_text(hwnd)
+    all_texts = [title] + texts
+
+    print(f"\n창 텍스트 ({len(all_texts)}개):")
+    for t in all_texts[:15]:
+        print(f"  [{t}]")
+
+    count, matched = extract_order_count(all_texts)
     if count is not None:
         print(f"\n[OK] 주문 건수 감지: {count}건 (매칭: {matched})")
     else:
-        print(f"\n[!] 주문 건수를 자동 감지하지 못했습니다.")
-        print("    창 텍스트를 확인하고 패턴을 알려주세요.")
+        print(f"\n[!] 주문 건수 자동 감지 실패. 텍스트 확인 후 패턴 수정 필요.")
 
     # 모니터링 루프
     print(f"\n{cfg['poll_interval_sec']}초 간격 모니터링 시작...")
@@ -245,7 +285,6 @@ def main():
     last_count = -1
     while True:
         try:
-            # 창 다시 찾기 (재시작 대응)
             windows = find_windows(keyword)
             if not windows:
                 print(f"[{time.strftime('%H:%M:%S')}] 메이트포스 창 없음, 대기중...")
@@ -253,8 +292,12 @@ def main():
                 continue
 
             hwnd = windows[0][0]
+
+            # 배달 탭 클릭 → 텍스트 읽기
+            if cfg.get("delivery_tab_x", 0) != 0:
+                click_delivery_tab(cfg, hwnd)
+
             texts = get_child_texts(hwnd)
-            # 창 제목도 포함
             title = get_window_text(hwnd)
             all_texts = [title] + texts
 
@@ -266,10 +309,6 @@ def main():
                     if ok:
                         print(f"[{time.strftime('%H:%M:%S')}] Gist 업데이트 완료")
                     last_count = count
-            else:
-                # 건수 감지 못해도 주기적으로 로그
-                if time.time() % 300 < cfg["poll_interval_sec"]:
-                    print(f"[{time.strftime('%H:%M:%S')}] 건수 감지 못함, 텍스트: {all_texts[:5]}")
 
             time.sleep(cfg["poll_interval_sec"])
 
