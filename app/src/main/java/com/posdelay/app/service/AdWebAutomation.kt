@@ -51,9 +51,13 @@ class AdWebAutomation(private val activity: Activity) {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun createWebView(): WebView {
+        // 쿠팡 CMG 모듈은 데스크톱 해상도 + UA 필요
+        val isCoupang = currentAction == Action.COUPANG_AD_ON || currentAction == Action.COUPANG_AD_OFF
+        val vpWidth = if (isCoupang) 1280 else 480
+        val vpHeight = if (isCoupang) 900 else 800
+
         return WebView(activity).apply {
-            // 0x0은 React 앱 렌더링 안됨 → 적절한 뷰포트 + 화면 밖 배치
-            layoutParams = ViewGroup.LayoutParams(480, 800)
+            layoutParams = ViewGroup.LayoutParams(vpWidth, vpHeight)
             translationX = -10000f
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -62,8 +66,14 @@ class AdWebAutomation(private val activity: Activity) {
             settings.allowFileAccessFromFileURLs = true
             @Suppress("DEPRECATION")
             settings.allowUniversalAccessFromFileURLs = true
-            settings.userAgentString =
+            settings.userAgentString = if (isCoupang)
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            else
                 "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            if (isCoupang) {
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = false
+            }
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
@@ -541,17 +551,53 @@ class AdWebAutomation(private val activity: Activity) {
                     } catch(e) { debug += '|if' + f + '_x=' + e.message.substring(0,30); }
                 }
 
-                // 3. shadow DOM 탐색 (wujie 프레임워크)
-                var shadows = document.querySelectorAll('*');
+                // 3. shadow DOM 재귀 탐색 (wujie 프레임워크)
+                function searchShadows(root, depth) {
+                    if (depth > 3) return null;
+                    var all = root.querySelectorAll('*');
+                    var found = [];
+                    for (var s = 0; s < all.length; s++) {
+                        if (all[s].shadowRoot) {
+                            found.push(all[s]);
+                            var sr = findToggle(all[s].shadowRoot, 'shadow_d' + depth);
+                            if (sr) return sr;
+                            // shadow DOM 내 iframe도 탐색
+                            var sIframes = all[s].shadowRoot.querySelectorAll('iframe');
+                            for (var si = 0; si < sIframes.length; si++) {
+                                try {
+                                    var siSrc = sIframes[si].src || '';
+                                    if (siSrc.indexOf('robots') >= 0) continue;
+                                    var siDoc = sIframes[si].contentDocument || sIframes[si].contentWindow.document;
+                                    if (siDoc && siDoc.body && siDoc.body.textContent.length > 10) {
+                                        var sir = findToggle(siDoc, 'shadow_if' + si);
+                                        if (sir) return sir;
+                                    }
+                                } catch(e) {}
+                            }
+                            // 재귀
+                            var deeper = searchShadows(all[s].shadowRoot, depth + 1);
+                            if (deeper) return deeper;
+                        }
+                    }
+                    return null;
+                }
+                var shadowResult = searchShadows(document, 0);
+                if (shadowResult) return shadowResult;
+                // shadow DOM 내부 요약
+                var shadowAll = document.querySelectorAll('*');
                 var shadowCount = 0;
-                for (var s = 0; s < shadows.length; s++) {
-                    if (shadows[s].shadowRoot) {
+                var shadowInfo = '';
+                for (var s2 = 0; s2 < shadowAll.length; s2++) {
+                    if (shadowAll[s2].shadowRoot) {
                         shadowCount++;
-                        var sr = findToggle(shadows[s].shadowRoot, 'shadow' + shadowCount);
-                        if (sr) return sr;
+                        var sBody = shadowAll[s2].shadowRoot.querySelector('body') || shadowAll[s2].shadowRoot;
+                        var sText = (sBody.textContent || '').trim().substring(0, 100);
+                        var sIfs = shadowAll[s2].shadowRoot.querySelectorAll('iframe');
+                        shadowInfo += '|sd' + shadowCount + '=text(' + sText.length + ')ifs(' + sIfs.length + ')';
+                        if (sText.length > 0) shadowInfo += '[' + sText.substring(0,50) + ']';
                     }
                 }
-                debug += '|shadows=' + shadowCount;
+                debug += '|shadows=' + shadowCount + shadowInfo;
 
                 return 'NOT_FOUND|' + debug;
             })();
