@@ -466,7 +466,8 @@ class AdWebAutomation(private val activity: Activity) {
             log(Code.INFO_JS_RESULT, "쿠팡 광고메뉴: $result")
             if (result?.contains("NAV") == true || result?.contains("CLICKED") == true) {
                 changeState(State.PERFORMING_ACTION)
-                // CMG wujie 마이크로프론트엔드 렌더링 대기: 8초 후 시작, 3초 간격 8회 폴링
+                // CMG 렌더링 대기 + 네트워크 인터셉터 주입
+                handler.postDelayed({ injectNetworkInterceptor() }, 3000)
                 handler.postDelayed({ performCoupangToggle(8) }, 8000)
             } else if (retries > 0) {
                 handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
@@ -668,16 +669,129 @@ class AdWebAutomation(private val activity: Activity) {
         webView?.evaluateJavascript(js) { result ->
             val r = result?.removeSurrounding("\"") ?: "NO_POPUP"
             log(Code.INFO_JS_RESULT, "쿠팡 확인팝업: $r")
+            // 캡처된 API 요청 출력 (토글 클릭 후 발생한 요청들)
+            dumpCapturedRequests()
+
             if (r.startsWith("CONFIRM")) {
-                // 확인 팝업 클릭 후 잠시 대기
                 handler.postDelayed({
+                    dumpCapturedRequests()  // 확인 클릭 후 추가 요청도 캡처
                     AdManager.setCoupangAdOn(turnOn)
                     finishWithSuccess("쿠팡 광고 $onOff 완료 (확인 팝업 처리)")
-                }, 2000)
+                }, 3000)
             } else {
-                // 팝업 없음 — 바로 완료
-                AdManager.setCoupangAdOn(turnOn)
-                finishWithSuccess("쿠팡 광고 $onOff 완료")
+                handler.postDelayed({
+                    dumpCapturedRequests()  // 최종 캡처
+                    AdManager.setCoupangAdOn(turnOn)
+                    finishWithSuccess("쿠팡 광고 $onOff 완료")
+                }, 2000)
+            }
+        }
+    }
+
+    /** 쿠팡: fetch/XHR 네트워크 인터셉터 주입 — API 엔드포인트 자동 발견 */
+    private fun injectNetworkInterceptor() {
+        val js = """
+            (function() {
+                if (window.__netIntercepted) return 'ALREADY';
+                window.__netIntercepted = true;
+                window.__capturedRequests = [];
+
+                // fetch 가로채기
+                var origFetch = window.fetch;
+                window.fetch = function(url, opts) {
+                    var entry = {
+                        type: 'fetch',
+                        url: (typeof url === 'string') ? url : (url.url || ''),
+                        method: (opts && opts.method) || 'GET',
+                        body: (opts && opts.body) ? String(opts.body).substring(0, 300) : null,
+                        time: Date.now()
+                    };
+                    window.__capturedRequests.push(entry);
+                    return origFetch.apply(this, arguments).then(function(resp) {
+                        entry.status = resp.status;
+                        return resp;
+                    });
+                };
+
+                // XMLHttpRequest 가로채기
+                var origOpen = XMLHttpRequest.prototype.open;
+                var origSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__captMethod = method;
+                    this.__captUrl = url;
+                    return origOpen.apply(this, arguments);
+                };
+                XMLHttpRequest.prototype.send = function(body) {
+                    var entry = {
+                        type: 'xhr',
+                        url: this.__captUrl || '',
+                        method: this.__captMethod || '?',
+                        body: body ? String(body).substring(0, 300) : null,
+                        time: Date.now()
+                    };
+                    window.__capturedRequests.push(entry);
+                    var self = this;
+                    this.addEventListener('load', function() { entry.status = self.status; });
+                    return origSend.apply(this, arguments);
+                };
+
+                // shadow DOM 내부 iframe에도 주입 시도
+                var all = document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {
+                    if (all[i].shadowRoot) {
+                        var ifs = all[i].shadowRoot.querySelectorAll('iframe');
+                        for (var j = 0; j < ifs.length; j++) {
+                            try {
+                                var w = ifs[j].contentWindow;
+                                if (w && w.fetch) {
+                                    var of2 = w.fetch;
+                                    w.fetch = function(url, opts) {
+                                        window.__capturedRequests.push({
+                                            type: 'iframe-fetch',
+                                            url: (typeof url === 'string') ? url : (url.url || ''),
+                                            method: (opts && opts.method) || 'GET',
+                                            body: (opts && opts.body) ? String(opts.body).substring(0, 300) : null,
+                                            time: Date.now()
+                                        });
+                                        return of2.apply(this, arguments);
+                                    };
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                }
+                return 'INJECTED';
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            log(Code.INFO_JS_RESULT, "네트워크 인터셉터: $result")
+        }
+    }
+
+    /** 쿠팡: 캡처된 네트워크 요청 로그 출력 */
+    private fun dumpCapturedRequests() {
+        val js = """
+            (function() {
+                var reqs = window.__capturedRequests || [];
+                if (reqs.length === 0) return 'NO_REQUESTS';
+                var out = [];
+                for (var i = 0; i < reqs.length; i++) {
+                    var r = reqs[i];
+                    var line = r.type + '|' + r.method + '|' + (r.status||'?') + '|' + r.url;
+                    if (r.body) line += '|body=' + r.body.substring(0, 150);
+                    out.push(line);
+                }
+                return 'CAPTURED(' + reqs.length + ')|' + out.join('\n');
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            val r = result?.removeSurrounding("\"") ?: "ERROR"
+            // 긴 로그를 여러 줄로 분리하여 기록
+            val lines = r.replace("\\n", "\n").split("\n")
+            for (line in lines) {
+                log(Code.INFO_JS_RESULT, "캡처API: $line")
             }
         }
     }
