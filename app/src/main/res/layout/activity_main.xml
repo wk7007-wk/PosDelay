@@ -140,6 +140,15 @@
             android:textColor="#666666"
             android:textSize="11sp"
             android:layout_marginTop="4dp" />
+
+        <TextView
+            android:id="@+id/tvPcSync"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PC: --"
+            android:textColor="#666666"
+            android:textSize="11sp"
+            android:layout_marginTop="2dp" />
     </LinearLayout>
 
     <!-- 쿠팡이츠 기준 건수 -->

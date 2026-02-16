@@ -15,6 +15,7 @@ object OrderTracker {
     private const val KEY_ENABLED = "enabled"
     private const val KEY_AUTO_MODE = "auto_mode"
     private const val KEY_LAST_SYNC_TIME = "last_sync_time"
+    private const val KEY_LAST_PC_SYNC_TIME = "last_pc_sync_time"
 
     private lateinit var prefs: SharedPreferences
 
@@ -39,6 +40,9 @@ object OrderTracker {
     private val _lastSyncTime = MutableLiveData(0L)
     val lastSyncTime: LiveData<Long> = _lastSyncTime
 
+    private val _lastPcSyncTime = MutableLiveData(0L)
+    val lastPcSyncTime: LiveData<Long> = _lastPcSyncTime
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _orderCount.postValue(prefs.getInt(KEY_ORDER_COUNT, 0))
@@ -48,6 +52,7 @@ object OrderTracker {
         _enabled.postValue(prefs.getBoolean(KEY_ENABLED, true))
         _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
         _lastSyncTime.postValue(prefs.getLong(KEY_LAST_SYNC_TIME, 0L))
+        _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
     }
 
     fun getOrderCount(): Int = prefs.getInt(KEY_ORDER_COUNT, 0)
@@ -70,6 +75,23 @@ object OrderTracker {
         val now = System.currentTimeMillis()
         prefs.edit().putLong(KEY_LAST_SYNC_TIME, now).apply()
         _lastSyncTime.postValue(now)
+    }
+
+    /** PC (Gist)에서 읽은 건수로 동기화 — PC 시간 기록 */
+    fun syncPcOrderCount(count: Int, pcTime: Long) {
+        setOrderCount(count)
+        prefs.edit()
+            .putLong(KEY_LAST_SYNC_TIME, System.currentTimeMillis())
+            .putLong(KEY_LAST_PC_SYNC_TIME, pcTime)
+            .apply()
+        _lastSyncTime.postValue(System.currentTimeMillis())
+        _lastPcSyncTime.postValue(pcTime)
+    }
+
+    /** PC 동기화 시간만 업데이트 (오래된 데이터용 — 건수는 변경 안 함) */
+    fun updatePcSyncTime(pcTime: Long) {
+        prefs.edit().putLong(KEY_LAST_PC_SYNC_TIME, pcTime).apply()
+        _lastPcSyncTime.postValue(pcTime)
     }
 
     fun incrementOrder() {

@@ -42,6 +42,7 @@ import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayAccessibilityService
 import com.posdelay.app.service.DelayNotificationHelper
+import com.posdelay.app.service.GistOrderReader
 import com.posdelay.app.service.GitHubUpdater
 
 class MainActivity : AppCompatActivity() {
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         DelayNotificationHelper.update(this)
 
         handleScheduledAction(intent)
+        GistOrderReader.start()
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -146,6 +148,10 @@ class MainActivity : AppCompatActivity() {
             updateSyncTime(time)
         }
 
+        OrderTracker.lastPcSyncTime.observe(this) { time ->
+            updatePcSyncTime(time)
+        }
+
         // 광고 관리 LiveData
         AdManager.adEnabled.observe(this) { enabled ->
             binding.switchAdEnable.isChecked = enabled
@@ -211,6 +217,28 @@ class MainActivity : AppCompatActivity() {
             if (elapsed < 300) 0xFF2ECC71.toInt()
             else if (elapsed < 600) 0xFFE67E22.toInt()
             else 0xFFE74C3C.toInt()
+        )
+    }
+
+    private fun updatePcSyncTime(pcTime: Long) {
+        if (pcTime == 0L) {
+            binding.tvPcSync.text = "PC: 데이터 없음"
+            binding.tvPcSync.setTextColor(0xFF666666.toInt())
+            return
+        }
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val elapsed = (System.currentTimeMillis() - pcTime) / 1000
+        val timeStr = sdf.format(Date(pcTime))
+        val agoStr = when {
+            elapsed < 60 -> "${elapsed}초 전"
+            elapsed < 3600 -> "${elapsed / 60}분 전"
+            else -> "${elapsed / 3600}시간 전"
+        }
+        binding.tvPcSync.text = "PC: $timeStr ($agoStr)"
+        binding.tvPcSync.setTextColor(
+            if (elapsed < 300) 0xFF2ECC71.toInt()       // 5분 이내: 녹색
+            else if (elapsed < 600) 0xFFE67E22.toInt()   // 10분 이내: 주황
+            else 0xFFE74C3C.toInt()                       // 10분 초과: 빨강
         )
     }
 

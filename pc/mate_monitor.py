@@ -21,7 +21,7 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.j
 DEFAULT_CONFIG = {
     "github_token": "",
     "gist_id": "a67e5de3271d6d0716b276dc6a8391cb",
-    "window_title": "메이트",
+    "window_title": "genesis",
     "delivery_tab_text": "배달",
     "poll_interval_sec": 30,
 }
