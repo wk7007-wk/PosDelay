@@ -191,7 +191,10 @@ class AdWebAutomation(private val activity: Activity) {
                             changeState(State.PERFORMING_ACTION)
                             finishWithSuccess("[테스트] 배민 API 호출 시뮬레이션 성공 (${targetAmount}원)")
                         }
-                        Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> navigateCoupangAdPage()
+                        Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> {
+                            changeState(State.PERFORMING_ACTION)
+                            finishWithSuccess("[테스트] 쿠팡 API 호출 시뮬레이션 성공")
+                        }
                         null -> {}
                     }
                 }, 2000)
@@ -372,9 +375,17 @@ class AdWebAutomation(private val activity: Activity) {
     // ───────── 쿠팡이츠 ─────────
 
     private fun handleCoupangPage(url: String) {
-        // advertising.coupangeats.com 페이지 처리
+        // advertising.coupangeats.com → API 직접 호출
         if (url.contains("advertising.coupangeats.com")) {
-            handleAdvertisingPage(url)
+            if (url.contains("/login")) {
+                log(Code.INFO_STATE, "advertising 포털 로그인 필요")
+                changeState(State.SUBMITTING_LOGIN)
+                handler.postDelayed({ submitCoupangLogin() }, 2000)
+            } else if (state != State.PERFORMING_ACTION) {
+                log(Code.INFO_STATE, "advertising 포털 로드됨 → API 호출")
+                changeState(State.PERFORMING_ACTION)
+                handler.postDelayed({ callCoupangToggleApi() }, 3000)
+            }
             return
         }
         when {
@@ -390,9 +401,9 @@ class AdWebAutomation(private val activity: Activity) {
                 finishWithError(Code.ERR_LOGIN_FAILED, "쿠팡 2단계 인증 필요 — 자동화 불가")
             }
             state == State.WAITING_LOGIN_RESULT || state == State.SUBMITTING_LOGIN -> {
-                log(Code.INFO_STATE, "쿠팡 로그인 성공")
+                log(Code.INFO_STATE, "쿠팡 로그인 성공 → advertising 포털로 이동")
                 changeState(State.NAVIGATING_TO_AD)
-                handler.postDelayed({ navigateCoupangAdPage() }, 2000)
+                webView?.loadUrl("https://advertising.coupangeats.com")
             }
             else -> {}
         }
@@ -439,390 +450,119 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡: "광고" 포함 링크 찾아 href 직접 이동 또는 클릭 */
-    private fun navigateCoupangAdPage(retries: Int = MAX_RETRIES) {
-        if (state != State.NAVIGATING_TO_AD) return
-
-        val js = """
-            (function() {
-                var links = document.querySelectorAll('a');
-                for (var i = 0; i < links.length; i++) {
-                    var t = (links[i].innerText || '').trim();
-                    if (t.length < 20 && t.indexOf('광고') >= 0 && t.indexOf('약관') < 0) {
-                        var href = links[i].href || '';
-                        if (href && href.indexOf('#') < 0 && href.length > 1) {
-                            window.location.href = href;
-                            return 'NAV|' + href.substring(href.lastIndexOf('/'));
-                        }
-                        links[i].click();
-                        return 'CLICKED|' + t;
-                    }
-                }
-                return 'NOT_FOUND|links=' + links.length;
-            })();
-        """.trimIndent()
-
-        webView?.evaluateJavascript(js) { result ->
-            log(Code.INFO_JS_RESULT, "쿠팡 광고메뉴: $result")
-            if (result?.contains("NAV") == true || result?.contains("CLICKED") == true) {
-                changeState(State.PERFORMING_ACTION)
-                // CMG 렌더링 대기 + 네트워크 인터셉터 주입
-                handler.postDelayed({ injectNetworkInterceptor() }, 3000)
-                handler.postDelayed({ performCoupangToggle(8) }, 8000)
-            } else if (retries > 0) {
-                handler.postDelayed({ navigateCoupangAdPage(retries - 1) }, RETRY_DELAY)
-            } else {
-                // store 포털에서 광고 메뉴 못 찾음 → advertising 포털 직접 로드
-                log(Code.INFO_STATE, "store 포털에서 광고 메뉴 없음 → advertising 포털 시도")
-                extractCoupangIframeAndNavigate()
-            }
-        }
-    }
-
-    /** 쿠팡: 광고 토글/스위치 찾아 클릭 (메인 + iframe + shadow DOM, 폴링) */
-    private fun performCoupangToggle(retries: Int = 8) {
+    /** 쿠팡: advertising API로 캠페인 토글 (DOM 대신 API 직접 호출) */
+    private fun callCoupangToggleApi() {
         if (state != State.PERFORMING_ACTION) return
         val turnOn = currentAction == Action.COUPANG_AD_ON
         val onOff = if (turnOn) "켜기" else "끄기"
 
         val js = """
             (function() {
-                function findToggle(doc, label) {
-                    // 1. toggle/switch 요소 탐색
-                    var toggles = doc.querySelectorAll(
-                        'input[type="checkbox"], button[role="switch"], [class*="toggle"], [class*="switch"], [class*="Toggle"], [class*="Switch"]');
-                    for (var i = 0; i < toggles.length; i++) {
-                        var p = toggles[i].closest('div, section, label') || toggles[i].parentElement;
-                        var ctx = p ? p.textContent.substring(0, 100) : '';
-                        if (ctx.indexOf('광고') >= 0 || ctx.indexOf('켜짐') >= 0 || ctx.indexOf('꺼짐') >= 0 ||
-                            ctx.indexOf('상태') >= 0 || ctx.indexOf('활성') >= 0 || ctx.indexOf('캠페인') >= 0) {
-                            if (toggles[i].type === 'checkbox') {
-                                var isOn = toggles[i].checked;
-                                if ((${turnOn} && !isOn) || (!${turnOn} && isOn)) toggles[i].click();
-                            } else { toggles[i].click(); }
-                            return 'OK|' + label + '|toggle|ctx=' + ctx.substring(0, 30);
-                        }
+                window.__coupangApiResult = null;
+
+                // 1단계: advertising API 인증
+                var xhr1 = new XMLHttpRequest();
+                xhr1.open('POST', '/api/v1/auth/login', true);
+                xhr1.setRequestHeader('Content-Type', 'application/json');
+                xhr1.withCredentials = true;
+                xhr1.onload = function() {
+                    if (xhr1.status !== 200) {
+                        window.__coupangApiResult = 'ERR|인증실패|status=' + xhr1.status;
+                        return;
                     }
-                    // 2. 버튼 탐색 (켜기/끄기/일시정지/재개)
-                    var btns = doc.querySelectorAll('button');
-                    for (var j = 0; j < btns.length; j++) {
-                        var t = btns[j].textContent.trim();
-                        // "새 광고 시작하기" 등 새 캠페인 생성 버튼 제외
-                        if (t.indexOf('새') >= 0 || t.indexOf('만들기') >= 0 || t.indexOf('생성') >= 0) continue;
-                        if (${if (turnOn) "t==='켜기'||t==='재개'||t==='활성화'||t==='ON'||t.indexOf('광고 켜기')>=0||t.indexOf('광고 재개')>=0" else "t==='끄기'||t==='중지'||t==='일시정지'||t==='OFF'||t.indexOf('광고 끄기')>=0||t.indexOf('광고 중지')>=0||t.indexOf('일시정지')>=0"}) {
-                            var parentCtx = (btns[j].closest('div,section,li') || btns[j].parentElement);
-                            var ctx = parentCtx ? parentCtx.textContent.substring(0,80).replace(/\n/g,' ') : '';
-                            btns[j].click();
-                            return 'OK|' + label + '|btn|' + t.substring(0, 20) + '|ctx=' + ctx.substring(0,60);
+
+                    // 2단계: 캠페인 목록 조회
+                    var today = new Date();
+                    var y = today.getFullYear();
+                    var m = String(today.getMonth() + 1).padStart(2, '0');
+                    var d = String(today.getDate()).padStart(2, '0');
+
+                    var xhr2 = new XMLHttpRequest();
+                    xhr2.open('POST', '/api/v1/campaign/list', true);
+                    xhr2.setRequestHeader('Content-Type', 'application/json');
+                    xhr2.withCredentials = true;
+                    xhr2.onload = function() {
+                        if (xhr2.status !== 200) {
+                            window.__coupangApiResult = 'ERR|캠페인조회실패|status=' + xhr2.status;
+                            return;
                         }
-                    }
-                    return null;
-                }
-
-                // 페이지 내 모든 텍스트 + 요소 요약 (디버깅)
-                function summarize(doc, label) {
-                    var toggles = doc.querySelectorAll('input[type="checkbox"], button[role="switch"], [class*="toggle"], [class*="switch"]');
-                    var btns = doc.querySelectorAll('button');
-                    var btnTexts = [];
-                    for (var b = 0; b < btns.length && b < 15; b++) {
-                        var bt = btns[b].textContent.trim().substring(0,30);
-                        if (bt) btnTexts.push(bt);
-                    }
-                    return label + ':toggles=' + toggles.length + '|btns=' + btns.length + '|texts=[' + btnTexts.join(',') + ']';
-                }
-
-                // 1. 메인 document
-                var r = findToggle(document, 'main');
-                if (r) return r;
-                var debug = summarize(document, 'main');
-
-                // 2. iframe 내부 (CMG 마이크로프론트엔드) — robots.txt 제외
-                var iframes = document.querySelectorAll('iframe');
-                debug += '|iframes=' + iframes.length;
-                for (var f = 0; f < iframes.length; f++) {
-                    try {
-                        var src = iframes[f].src || '';
-                        if (src.indexOf('robots.txt') >= 0) { debug += '|if' + f + '=robots'; continue; }
-                        var iDoc = iframes[f].contentDocument || iframes[f].contentWindow.document;
-                        if (iDoc && iDoc.body && iDoc.body.textContent.length > 10) {
-                            var ir = findToggle(iDoc, 'iframe' + f);
-                            if (ir) return ir;
-                            debug += '|' + summarize(iDoc, 'if' + f);
-                        } else {
-                            debug += '|if' + f + '=empty(' + src.substring(0,40) + ')';
+                        var data = JSON.parse(xhr2.responseText);
+                        var campaigns = data.campaigns || data.content || [];
+                        if (!Array.isArray(campaigns) || campaigns.length === 0) {
+                            window.__coupangApiResult = 'ERR|캠페인없음|' + xhr2.responseText.substring(0, 200);
+                            return;
                         }
-                    } catch(e) { debug += '|if' + f + '_x=' + e.message.substring(0,30); }
-                }
 
-                // 3. shadow DOM 재귀 탐색 (wujie 프레임워크)
-                function searchShadows(root, depth) {
-                    if (depth > 3) return null;
-                    var all = root.querySelectorAll('*');
-                    var found = [];
-                    for (var s = 0; s < all.length; s++) {
-                        if (all[s].shadowRoot) {
-                            found.push(all[s]);
-                            var sr = findToggle(all[s].shadowRoot, 'shadow_d' + depth);
-                            if (sr) return sr;
-                            // shadow DOM 내 iframe도 탐색
-                            var sIframes = all[s].shadowRoot.querySelectorAll('iframe');
-                            for (var si = 0; si < sIframes.length; si++) {
-                                try {
-                                    var siSrc = sIframes[si].src || '';
-                                    if (siSrc.indexOf('robots') >= 0) continue;
-                                    var siDoc = sIframes[si].contentDocument || sIframes[si].contentWindow.document;
-                                    if (siDoc && siDoc.body && siDoc.body.textContent.length > 10) {
-                                        var sir = findToggle(siDoc, 'shadow_if' + si);
-                                        if (sir) return sir;
-                                    }
-                                } catch(e) {}
+                        var campaign = campaigns[0];
+                        var campaignId = String(campaign.id || '');
+                        var currentActive = campaign.isActive;
+                        if (!campaignId) {
+                            window.__coupangApiResult = 'ERR|캠페인ID없음';
+                            return;
+                        }
+
+                        // 이미 원하는 상태이면 스킵
+                        if (currentActive === $turnOn) {
+                            window.__coupangApiResult = 'OK|이미${onOff}상태|id=' + campaignId;
+                            return;
+                        }
+
+                        // 3단계: 토글 API 호출
+                        var xhr3 = new XMLHttpRequest();
+                        xhr3.open('POST', '/api/v1/campaign/toggle', true);
+                        xhr3.setRequestHeader('Content-Type', 'application/json');
+                        xhr3.withCredentials = true;
+                        xhr3.onload = function() {
+                            if (xhr3.status === 200) {
+                                var res = JSON.parse(xhr3.responseText);
+                                window.__coupangApiResult = 'OK|id=' + campaignId + '|isActive=' + res.isActive;
+                            } else {
+                                window.__coupangApiResult = 'FAIL|토글실패|status=' + xhr3.status + '|' + xhr3.responseText.substring(0, 200);
                             }
-                            // 재귀
-                            var deeper = searchShadows(all[s].shadowRoot, depth + 1);
-                            if (deeper) return deeper;
-                        }
-                    }
-                    return null;
-                }
-                var shadowResult = searchShadows(document, 0);
-                if (shadowResult) return shadowResult;
-                // shadow DOM 내부 요약
-                var shadowAll = document.querySelectorAll('*');
-                var shadowCount = 0;
-                var shadowInfo = '';
-                for (var s2 = 0; s2 < shadowAll.length; s2++) {
-                    if (shadowAll[s2].shadowRoot) {
-                        shadowCount++;
-                        var sBody = shadowAll[s2].shadowRoot.querySelector('body') || shadowAll[s2].shadowRoot;
-                        var sText = (sBody.textContent || '').trim().substring(0, 100);
-                        var sIfs = shadowAll[s2].shadowRoot.querySelectorAll('iframe');
-                        shadowInfo += '|sd' + shadowCount + '=text(' + sText.length + ')ifs(' + sIfs.length + ')';
-                        if (sText.length > 0) shadowInfo += '[' + sText.substring(0,50) + ']';
-                    }
-                }
-                debug += '|shadows=' + shadowCount + shadowInfo;
-
-                return 'NOT_FOUND|' + debug;
-            })();
-        """.trimIndent()
-
-        webView?.evaluateJavascript(js) { result ->
-            log(Code.INFO_JS_RESULT, "쿠팡 토글($retries): $result")
-            if (result?.contains("NOT_FOUND") == true) {
-                if (retries > 0) {
-                    handler.postDelayed({ performCoupangToggle(retries - 1) }, RETRY_DELAY)
-                } else {
-                    captureHtmlOnError("coupang-toggle")
-                    finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 광고 토글 없음")
-                }
-            } else {
-                // 클릭 성공 → 확인 팝업 처리 (2초 후)
-                handler.postDelayed({ handleCoupangConfirmDialog(turnOn, onOff) }, 2000)
-            }
-        }
-    }
-
-    /** 쿠팡: 클릭 후 확인/팝업 처리 + 결과 검증 */
-    private fun handleCoupangConfirmDialog(turnOn: Boolean, onOff: String) {
-        if (state != State.PERFORMING_ACTION) return
-
-        // 확인 팝업이 있으면 클릭, 없으면 바로 성공 처리
-        val js = """
-            (function() {
-                function searchAll(root) {
-                    // 메인 document
-                    var r = findConfirm(root);
-                    if (r) return r;
-                    // shadow DOM 내부
-                    var all = root.querySelectorAll('*');
-                    for (var i = 0; i < all.length; i++) {
-                        if (all[i].shadowRoot) {
-                            var sr = findConfirm(all[i].shadowRoot);
-                            if (sr) return sr;
-                        }
-                    }
-                    return null;
-                }
-                function findConfirm(doc) {
-                    // 모달/팝업/다이얼로그 내 확인 버튼 탐색
-                    var btns = doc.querySelectorAll('button');
-                    for (var i = 0; i < btns.length; i++) {
-                        var t = btns[i].textContent.trim();
-                        if (t === '확인' || t === '네' || t === 'OK' || t === '적용' || t === '완료' ||
-                            t === '켜기' || t === '끄기' || t === '일시정지' || t === '재개') {
-                            // 모달 컨텍스트인지 확인 (dialog, modal, overlay 등)
-                            var parent = btns[i].closest('[role="dialog"], [class*="modal"], [class*="Modal"], [class*="dialog"], [class*="Dialog"], [class*="popup"], [class*="Popup"], [class*="overlay"], [class*="Overlay"]');
-                            if (parent) {
-                                btns[i].click();
-                                return 'CONFIRM|' + t + '|ctx=' + parent.textContent.substring(0, 80).replace(/\\n/g,' ');
-                            }
-                        }
-                    }
-                    return null;
-                }
-                var r = searchAll(document);
-                if (r) return r;
-                return 'NO_POPUP';
-            })();
-        """.trimIndent()
-
-        webView?.evaluateJavascript(js) { result ->
-            val r = result?.removeSurrounding("\"") ?: "NO_POPUP"
-            log(Code.INFO_JS_RESULT, "쿠팡 확인팝업: $r")
-            // 캡처된 API 요청 출력 (토글 클릭 후 발생한 요청들)
-            dumpCapturedRequests()
-
-            if (r.startsWith("CONFIRM")) {
-                handler.postDelayed({
-                    dumpCapturedRequests()  // 확인 클릭 후 추가 요청도 캡처
-                    AdManager.setCoupangAdOn(turnOn)
-                    finishWithSuccess("쿠팡 광고 $onOff 완료 (확인 팝업 처리)")
-                }, 3000)
-            } else {
-                handler.postDelayed({
-                    dumpCapturedRequests()  // 최종 캡처
-                    AdManager.setCoupangAdOn(turnOn)
-                    finishWithSuccess("쿠팡 광고 $onOff 완료")
-                }, 2000)
-            }
-        }
-    }
-
-    /** 쿠팡: fetch/XHR 네트워크 인터셉터 주입 — API 엔드포인트 자동 발견 */
-    private fun injectNetworkInterceptor() {
-        val js = """
-            (function() {
-                if (window.__netIntercepted) return 'ALREADY';
-                window.__netIntercepted = true;
-                window.__capturedRequests = [];
-
-                // fetch 가로채기
-                var origFetch = window.fetch;
-                window.fetch = function(url, opts) {
-                    var entry = {
-                        type: 'fetch',
-                        url: (typeof url === 'string') ? url : (url.url || ''),
-                        method: (opts && opts.method) || 'GET',
-                        body: (opts && opts.body) ? String(opts.body).substring(0, 300) : null,
-                        time: Date.now()
+                        };
+                        xhr3.onerror = function() { window.__coupangApiResult = 'ERR|토글요청실패'; };
+                        xhr3.send(JSON.stringify({id: campaignId, isActive: $turnOn}));
                     };
-                    window.__capturedRequests.push(entry);
-                    return origFetch.apply(this, arguments).then(function(resp) {
-                        entry.status = resp.status;
-                        return resp;
-                    });
+                    xhr2.onerror = function() { window.__coupangApiResult = 'ERR|캠페인조회실패'; };
+                    xhr2.send(JSON.stringify({
+                        size: 10, page: 0,
+                        dateRange: { startDate: y+'-'+m+'-01', endDate: y+'-'+m+'-'+d }
+                    }));
                 };
+                xhr1.onerror = function() { window.__coupangApiResult = 'ERR|인증요청실패'; };
+                xhr1.send(JSON.stringify({deviceId: 'NOT_USED', accessToken: 'NOT_USED'}));
 
-                // XMLHttpRequest 가로채기
-                var origOpen = XMLHttpRequest.prototype.open;
-                var origSend = XMLHttpRequest.prototype.send;
-                XMLHttpRequest.prototype.open = function(method, url) {
-                    this.__captMethod = method;
-                    this.__captUrl = url;
-                    return origOpen.apply(this, arguments);
-                };
-                XMLHttpRequest.prototype.send = function(body) {
-                    var entry = {
-                        type: 'xhr',
-                        url: this.__captUrl || '',
-                        method: this.__captMethod || '?',
-                        body: body ? String(body).substring(0, 300) : null,
-                        time: Date.now()
-                    };
-                    window.__capturedRequests.push(entry);
-                    var self = this;
-                    this.addEventListener('load', function() { entry.status = self.status; });
-                    return origSend.apply(this, arguments);
-                };
-
-                // shadow DOM 내부 iframe에도 주입 시도
-                var all = document.querySelectorAll('*');
-                for (var i = 0; i < all.length; i++) {
-                    if (all[i].shadowRoot) {
-                        var ifs = all[i].shadowRoot.querySelectorAll('iframe');
-                        for (var j = 0; j < ifs.length; j++) {
-                            try {
-                                var w = ifs[j].contentWindow;
-                                if (w && w.fetch) {
-                                    var of2 = w.fetch;
-                                    w.fetch = function(url, opts) {
-                                        window.__capturedRequests.push({
-                                            type: 'iframe-fetch',
-                                            url: (typeof url === 'string') ? url : (url.url || ''),
-                                            method: (opts && opts.method) || 'GET',
-                                            body: (opts && opts.body) ? String(opts.body).substring(0, 300) : null,
-                                            time: Date.now()
-                                        });
-                                        return of2.apply(this, arguments);
-                                    };
-                                }
-                            } catch(e) {}
-                        }
-                    }
-                }
-                return 'INJECTED';
+                return 'STARTED';
             })();
         """.trimIndent()
 
         webView?.evaluateJavascript(js) { result ->
-            log(Code.INFO_JS_RESULT, "네트워크 인터셉터: $result")
+            log(Code.INFO_JS_RESULT, "쿠팡API시작: $result")
+            handler.postDelayed({ pollCoupangApiResult(5) }, 3000)
         }
     }
 
-    /** 쿠팡: 캡처된 네트워크 요청 로그 출력 */
-    private fun dumpCapturedRequests() {
-        val js = """
-            (function() {
-                var reqs = window.__capturedRequests || [];
-                if (reqs.length === 0) return 'NO_REQUESTS';
-                var out = [];
-                for (var i = 0; i < reqs.length; i++) {
-                    var r = reqs[i];
-                    var line = r.type + '|' + r.method + '|' + (r.status||'?') + '|' + r.url;
-                    if (r.body) line += '|body=' + r.body.substring(0, 150);
-                    out.push(line);
-                }
-                return 'CAPTURED(' + reqs.length + ')|' + out.join('\n');
-            })();
-        """.trimIndent()
-
-        webView?.evaluateJavascript(js) { result ->
-            val r = result?.removeSurrounding("\"") ?: "ERROR"
-            // 긴 로그를 여러 줄로 분리하여 기록
-            val lines = r.replace("\\n", "\n").split("\n")
-            for (line in lines) {
-                log(Code.INFO_JS_RESULT, "캡처API: $line")
-            }
-        }
-    }
-
-    /** 쿠팡: CMG 렌더링 실패 → advertising 포털 직접 로드 */
-    private fun extractCoupangIframeAndNavigate() {
+    /** 쿠팡: API 비동기 결과 폴링 */
+    private fun pollCoupangApiResult(retries: Int) {
         if (state != State.PERFORMING_ACTION) return
+        val turnOn = currentAction == Action.COUPANG_AD_ON
+        val onOff = if (turnOn) "켜기" else "끄기"
 
-        // store 포털에서 CORS 차단됨 → advertising 포털을 직접 WebView에 로드
-        log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising 포털 직접 로드")
-
-        // advertising 포털의 광고 관리 페이지를 직접 로드
-        // 로그인 세션은 store.coupangeats.com 쿠키 공유 기대
-        changeState(State.NAVIGATING_TO_AD)
-        webView?.loadUrl("https://advertising.coupangeats.com")
-    }
-
-    /** 쿠팡: advertising 포털 로드 후 토글 찾기 */
-    private fun handleAdvertisingPage(url: String) {
-        when {
-            url.contains("/login") -> {
-                // advertising 포털 로그인 필요 — store 세션이 공유 안됨
-                log(Code.INFO_STATE, "advertising 포털 로그인 필요")
-                changeState(State.SUBMITTING_LOGIN)
-                handler.postDelayed({ submitCoupangLogin() }, 2000)
-            }
-            else -> {
-                // advertising 포털 로드 완료 — 토글 탐색
-                log(Code.INFO_STATE, "advertising 포털 로드됨: $url")
-                changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ performCoupangToggle(8) }, 3000)
+        webView?.evaluateJavascript(
+            "(function(){ return window.__coupangApiResult || 'PENDING'; })()"
+        ) { result ->
+            val r = result?.removeSurrounding("\"") ?: "PENDING"
+            log(Code.INFO_JS_RESULT, "쿠팡API폴링($retries): $r")
+            when {
+                r == "PENDING" -> {
+                    if (retries > 0) handler.postDelayed({ pollCoupangApiResult(retries - 1) }, 3000)
+                    else finishWithError(Code.ERR_NO_AD_FIELD, "쿠팡 API 응답 없음")
+                }
+                r.startsWith("OK") -> {
+                    AdManager.setCoupangAdOn(turnOn)
+                    finishWithSuccess("쿠팡 광고 $onOff 완료 ($r)")
+                }
+                else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API: $r")
             }
         }
     }
