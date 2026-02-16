@@ -375,19 +375,6 @@ class AdWebAutomation(private val activity: Activity) {
     // ───────── 쿠팡이츠 ─────────
 
     private fun handleCoupangPage(url: String) {
-        // advertising.coupangeats.com → API 직접 호출
-        if (url.contains("advertising.coupangeats.com")) {
-            if (url.contains("/login")) {
-                log(Code.INFO_STATE, "advertising 포털 로그인 필요")
-                changeState(State.SUBMITTING_LOGIN)
-                handler.postDelayed({ submitCoupangLogin() }, 2000)
-            } else if (state != State.PERFORMING_ACTION) {
-                log(Code.INFO_STATE, "advertising 포털 로드됨 → API 호출")
-                changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ callCoupangToggleApi() }, 3000)
-            }
-            return
-        }
         when {
             url.contains("/login") || url.contains("/merchant/login") -> {
                 if (state == State.WAITING_LOGIN_RESULT) {
@@ -401,9 +388,22 @@ class AdWebAutomation(private val activity: Activity) {
                 finishWithError(Code.ERR_LOGIN_FAILED, "쿠팡 2단계 인증 필요 — 자동화 불가")
             }
             state == State.WAITING_LOGIN_RESULT || state == State.SUBMITTING_LOGIN -> {
-                log(Code.INFO_STATE, "쿠팡 로그인 성공 → advertising 포털로 이동")
-                changeState(State.NAVIGATING_TO_AD)
-                webView?.loadUrl("https://advertising.coupangeats.com")
+                log(Code.INFO_STATE, "쿠팡 로그인 성공 → store 페이지에서 API 직접 호출")
+                changeState(State.PERFORMING_ACTION)
+                handler.postDelayed({ callCoupangToggleApi() }, 2000)
+            }
+            state == State.LOADING_LOGIN -> {
+                // 이미 로그인된 상태
+                handler.postDelayed({
+                    if (state == State.LOADING_LOGIN) {
+                        val cur = webView?.url ?: ""
+                        if (!cur.contains("/login")) {
+                            log(Code.INFO_STATE, "쿠팡 이미 로그인됨 → API 직접 호출")
+                            changeState(State.PERFORMING_ACTION)
+                            callCoupangToggleApi()
+                        }
+                    }
+                }, 4000)
             }
             else -> {}
         }
@@ -460,9 +460,11 @@ class AdWebAutomation(private val activity: Activity) {
             (function() {
                 window.__coupangApiResult = null;
 
+                var AD_API = 'https://advertising.coupangeats.com';
+
                 // 1단계: advertising API 인증
                 var xhr1 = new XMLHttpRequest();
-                xhr1.open('POST', '/api/v1/auth/login', true);
+                xhr1.open('POST', AD_API + '/api/v1/auth/login', true);
                 xhr1.setRequestHeader('Content-Type', 'application/json');
                 xhr1.withCredentials = true;
                 xhr1.onload = function() {
@@ -478,7 +480,7 @@ class AdWebAutomation(private val activity: Activity) {
                     var d = String(today.getDate()).padStart(2, '0');
 
                     var xhr2 = new XMLHttpRequest();
-                    xhr2.open('POST', '/api/v1/campaign/list', true);
+                    xhr2.open('POST', AD_API + '/api/v1/campaign/list', true);
                     xhr2.setRequestHeader('Content-Type', 'application/json');
                     xhr2.withCredentials = true;
                     xhr2.onload = function() {
@@ -509,7 +511,7 @@ class AdWebAutomation(private val activity: Activity) {
 
                         // 3단계: 토글 API 호출
                         var xhr3 = new XMLHttpRequest();
-                        xhr3.open('POST', '/api/v1/campaign/toggle', true);
+                        xhr3.open('POST', AD_API + '/api/v1/campaign/toggle', true);
                         xhr3.setRequestHeader('Content-Type', 'application/json');
                         xhr3.withCredentials = true;
                         xhr3.onload = function() {
