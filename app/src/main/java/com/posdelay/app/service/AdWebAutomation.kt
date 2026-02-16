@@ -18,7 +18,7 @@ class AdWebAutomation(private val activity: Activity) {
     companion object {
         private const val TAG = "AdWebAutomation"
         private const val BAEMIN_ENTRY_URL = "https://self.baemin.com"
-        private const val COUPANG_LOGIN_URL = "https://store.coupangeats.com/merchant/login"
+        private const val COUPANG_ENTRY_URL = "https://store.coupangeats.com/merchant/management"
         private const val TIMEOUT_MS = 45000L
         private const val RETRY_DELAY = 3000L
         private const val MAX_RETRIES = 2
@@ -172,7 +172,8 @@ class AdWebAutomation(private val activity: Activity) {
                         if (!AdManager.hasCoupangCredentials()) {
                             finishWithError(Code.ERR_NO_CREDENTIALS, "쿠팡 로그인 정보 없음"); return@post
                         }
-                        webView?.loadUrl(COUPANG_LOGIN_URL)
+                        // 관리 페이지 로드 → 이미 로그인이면 바로 진행, 아니면 로그인 리다이렉트
+                        webView?.loadUrl(COUPANG_ENTRY_URL)
                     }
                 }
             } catch (e: Exception) {
