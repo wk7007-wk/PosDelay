@@ -285,11 +285,26 @@ class AdWebAutomation(private val activity: Activity) {
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (!data || !data.adCampaignId) {
-                        window.__baeminApiResult = 'ERR|캠페인없음|shop=' + shopNo + '|' + JSON.stringify(data).substring(0,80);
+                    if (!data || !data.bid) {
+                        window.__baeminApiResult = 'ERR|데이터없음|shop=' + shopNo + '|keys=' + Object.keys(data||{}).join(',');
                         return;
                     }
-                    var cid = data.adCampaignId;
+                    // campaignId를 여러 필드명에서 탐색
+                    var cid = data.adCampaignId || data.campaignId || data.id || data.bookingId || null;
+                    if (!cid) {
+                        // 전체 키 로그 + 숫자형 ID 값 탐색
+                        var keys = Object.keys(data);
+                        for (var k=0;k<keys.length;k++) {
+                            var v = data[keys[k]];
+                            if (typeof v === 'number' && v > 10000000 && keys[k].toLowerCase().indexOf('id') >= 0) {
+                                cid = v; break;
+                            }
+                        }
+                        if (!cid) {
+                            window.__baeminApiResult = 'ERR|캠페인ID없음|keys=' + keys.join(',') + '|data=' + JSON.stringify(data).substring(0,200);
+                            return;
+                        }
+                    }
                     var curBid = data.bid || 0;
                     return fetch('https://self-api.baemin.com/v4/cpc/bookings/' + cid + '/bid-budget', {
                         method: 'PUT', credentials: 'include',
@@ -509,15 +524,78 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
-    /** 쿠팡: CMG 렌더링 실패 → advertising.coupangeats.com 직접 이동 */
+    /** 쿠팡: CMG 렌더링 실패 → advertising API 직접 호출로 캠페인 토글 */
     private fun extractCoupangIframeAndNavigate() {
         if (state != State.PERFORMING_ACTION) return
+        val turnOn = currentAction == Action.COUPANG_AD_ON
+        val onOff = if (turnOn) "켜기" else "끄기"
 
-        // CMG 마이크로프론트엔드가 store 포털 내에서 렌더링 안됨
-        // → 쿠팡이츠 광고 전용 포털로 직접 이동 (같은 도메인 쿠키 공유)
-        log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising.coupangeats.com 직접 이동")
-        webView?.loadUrl("https://advertising.coupangeats.com")
-        handler.postDelayed({ performCoupangToggle(5) }, 8000)
+        // advertising.coupangeats.com은 리다이렉트됨
+        // → store 포털의 WebView에서 advertising API를 fetch로 직접 호출
+        log(Code.INFO_STATE, "CMG 렌더링 실패 → advertising API 직접 호출")
+
+        val js = """
+            (function() {
+                window.__coupangApiResult = null;
+                // 1단계: advertising 포털 로그인
+                fetch('https://advertising.coupangeats.com/api/v1/auth/login', {
+                    method: 'POST', credentials: 'include',
+                    headers: {'Accept':'application/json','Content-Type':'application/json'},
+                    body: JSON.stringify({deviceId:'NOT_USED', accessToken:'NOT_USED'})
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(auth) {
+                    if (!auth || !auth.advertiserId) {
+                        window.__coupangApiResult = 'ERR|로그인실패|' + JSON.stringify(auth).substring(0,100);
+                        return;
+                    }
+                    var advId = auth.advertiserId;
+                    // 2단계: 캠페인 목록 조회 시도
+                    return fetch('https://advertising.coupangeats.com/api/v1/campaigns?advertiserId=' + advId, {
+                        method: 'GET', credentials: 'include',
+                        headers: {'Accept':'application/json'}
+                    })
+                    .then(function(r2) { return r2.json(); })
+                    .then(function(campaigns) {
+                        window.__coupangApiResult = 'DATA|advId=' + advId + '|campaigns=' + JSON.stringify(campaigns).substring(0,300);
+                    });
+                })
+                .catch(function(e) { window.__coupangApiResult = 'ERR|' + e.message; });
+                return 'STARTED';
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            log(Code.INFO_JS_RESULT, "쿠팡API시작: $result")
+            handler.postDelayed({ pollCoupangApiResult(5, turnOn, onOff) }, 3000)
+        }
+    }
+
+    /** 쿠팡: API 비동기 결과 폴링 */
+    private fun pollCoupangApiResult(retries: Int, turnOn: Boolean, onOff: String) {
+        if (state != State.PERFORMING_ACTION) return
+
+        webView?.evaluateJavascript(
+            "(function(){ return window.__coupangApiResult || 'PENDING'; })()"
+        ) { result ->
+            val r = result?.removeSurrounding("\"") ?: "PENDING"
+            log(Code.INFO_JS_RESULT, "쿠팡API폴링($retries): $r")
+            when {
+                r == "PENDING" -> {
+                    if (retries > 0) handler.postDelayed({ pollCoupangApiResult(retries - 1, turnOn, onOff) }, 3000)
+                    else finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API 응답 없음")
+                }
+                r.startsWith("DATA") -> {
+                    // 캠페인 데이터 확보 — 로그에 기록 (다음 버전에서 토글 구현)
+                    finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API 탐색 완료 (데이터 수집): $r")
+                }
+                r.startsWith("OK") -> {
+                    AdManager.setCoupangAdOn(turnOn)
+                    finishWithSuccess("쿠팡 광고 $onOff 완료")
+                }
+                else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API: $r")
+            }
+        }
     }
 
     // ───────── 유틸리티 ─────────
