@@ -16,6 +16,7 @@ import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.annotation.SuppressLint
+import kotlin.collections.ArrayDeque
 import android.app.Dialog
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -49,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var adWebAutomation: AdWebAutomation? = null
+    private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -430,13 +432,22 @@ class MainActivity : AppCompatActivity() {
             openWebViewBrowser("쿠팡이츠 스토어", "https://store.coupangeats.com/merchant/login")
         }
 
-        // 수동 실행: 배민 금액 변경
+        // 수동 실행: 배민 금액 변경 (정상/축소 선택)
         binding.btnAdManualBaemin.setOnClickListener {
             if (!AdManager.hasBaeminCredentials()) {
                 Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+            val normal = AdManager.getBaeminAmount()
+            val reduced = AdManager.getBaeminReducedAmount()
+            AlertDialog.Builder(this)
+                .setTitle("배민 광고 금액 설정")
+                .setItems(arrayOf("정상 금액 (${normal}원)", "축소 금액 (${reduced}원)")) { _, which ->
+                    val amount = if (which == 0) normal else reduced
+                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, amount)
+                }
+                .setNegativeButton("취소", null)
+                .show()
         }
 
         // 수동 실행: 쿠팡 끄기
@@ -452,31 +463,25 @@ class MainActivity : AppCompatActivity() {
         binding.btnBaeminLogin.setOnClickListener { showLoginDialog("배민") }
         binding.btnCoupangLogin.setOnClickListener { showLoginDialog("쿠팡") }
 
-        // 테스트 모드 (로컬 모의 페이지)
-        binding.btnTestBaemin.setOnClickListener {
-            executeAdTest(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
-        }
-        binding.btnTestCoupang.setOnClickListener {
-            executeAdTest(AdWebAutomation.Action.COUPANG_AD_OFF)
-        }
-
         // 광고 로그 보기
         binding.btnAdLog.setOnClickListener { showAdLog() }
     }
 
-    // ───────── 광고 자동화 실행 ─────────
+    // ───────── 광고 자동화 실행 (순차 큐) ─────────
 
     private fun executeAdAction(action: AdWebAutomation.Action, amount: Int = AdManager.getBaeminAmount()) {
         if (adWebAutomation?.isRunning() == true) {
-            Toast.makeText(this, "이미 진행 중인 작업이 있습니다", Toast.LENGTH_SHORT).show()
+            // 큐에 추가 → 현재 작업 완료 후 자동 실행
+            adActionQueue.addLast(Pair(action, amount))
+            val actionName = actionDisplayName(action, amount)
+            Toast.makeText(this, "$actionName 대기열 추가 (${adActionQueue.size}건)", Toast.LENGTH_SHORT).show()
             return
         }
+        startAdAction(action, amount)
+    }
 
-        val actionName = when (action) {
-            AdWebAutomation.Action.BAEMIN_SET_AMOUNT -> "배민 금액 ${amount}원 변경"
-            AdWebAutomation.Action.COUPANG_AD_ON -> "쿠팡 광고 켜기"
-            AdWebAutomation.Action.COUPANG_AD_OFF -> "쿠팡 광고 끄기"
-        }
+    private fun startAdAction(action: AdWebAutomation.Action, amount: Int) {
+        val actionName = actionDisplayName(action, amount)
         Toast.makeText(this, "$actionName 실행 중...", Toast.LENGTH_SHORT).show()
 
         adWebAutomation = AdWebAutomation(this)
@@ -484,23 +489,27 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val icon = if (success) "OK" else "FAIL"
                 Toast.makeText(this, "[$icon] $message", Toast.LENGTH_LONG).show()
+                // 큐에 다음 작업이 있으면 실행
+                processNextAdAction()
             }
         }
     }
 
-    /** 테스트 모드 실행 (로컬 모의 페이지) */
-    private fun executeAdTest(action: AdWebAutomation.Action, amount: Int = 200) {
-        if (adWebAutomation?.isRunning() == true) {
-            Toast.makeText(this, "이미 진행 중", Toast.LENGTH_SHORT).show()
-            return
-        }
-        Toast.makeText(this, "[테스트] ${action.name} 실행 중...", Toast.LENGTH_SHORT).show()
-        adWebAutomation = AdWebAutomation(this)
-        adWebAutomation?.executeTest(action, amount) { success, message ->
-            runOnUiThread {
-                val icon = if (success) "OK" else "FAIL"
-                Toast.makeText(this, "[테스트 $icon] $message", Toast.LENGTH_LONG).show()
-            }
+    private fun processNextAdAction() {
+        if (adActionQueue.isEmpty()) return
+        val (nextAction, nextAmount) = adActionQueue.removeFirst()
+        // 이전 WebView 정리 후 약간 대기
+        adWebAutomation = null
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startAdAction(nextAction, nextAmount)
+        }, 2000)
+    }
+
+    private fun actionDisplayName(action: AdWebAutomation.Action, amount: Int): String {
+        return when (action) {
+            AdWebAutomation.Action.BAEMIN_SET_AMOUNT -> "배민 금액 ${amount}원 변경"
+            AdWebAutomation.Action.COUPANG_AD_ON -> "쿠팡 광고 켜기"
+            AdWebAutomation.Action.COUPANG_AD_OFF -> "쿠팡 광고 끄기"
         }
     }
 
