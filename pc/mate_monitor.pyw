@@ -14,6 +14,7 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
   5. 더블클릭으로 실행: mate_monitor.pyw (창 없이 백그라운드)
 """
 
+import ctypes
 import json
 import logging
 import os
@@ -112,8 +113,25 @@ def connect_pos(cfg):
     return None, None
 
 
+def is_mouse_active():
+    """마우스 사용 중인지 감지 (0.3초간 커서 이동 확인)"""
+    try:
+        class POINT(ctypes.Structure):
+            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+        pt1 = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
+        time.sleep(0.3)
+        pt2 = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
+        return pt1.x != pt2.x or pt1.y != pt2.y
+    except Exception:
+        return False
+
+
 def click_delivery_tab(win, tab_id):
-    """자동화 ID로 배달 탭 클릭 (마우스 이동 없이)"""
+    """자동화 ID로 배달 탭 클릭 (마우스 사용 중이면 건너뜀)"""
+    if is_mouse_active():
+        return False
     try:
         tab = win.child_window(auto_id=tab_id)
         if tab.exists(timeout=2):

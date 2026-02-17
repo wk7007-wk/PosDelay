@@ -12,6 +12,7 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 처음 실행 시 설정 자동 안내됩니다.
 """
 
+import ctypes
 import json
 import os
 import re
@@ -115,13 +116,28 @@ def connect_pos(cfg):
     return None, None
 
 
+def is_mouse_active():
+    """마우스 사용 중인지 감지 (0.3초간 커서 이동 확인)"""
+    try:
+        class POINT(ctypes.Structure):
+            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+        pt1 = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
+        time.sleep(0.3)
+        pt2 = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
+        return pt1.x != pt2.x or pt1.y != pt2.y
+    except Exception:
+        return False
+
+
 def click_delivery_tab(win, tab_id):
-    """자동화 ID로 배달 탭 클릭 (마우스 이동 없이)"""
+    """자동화 ID로 배달 탭 클릭 (마우스 사용 중이면 건너뜀)"""
+    if is_mouse_active():
+        return False
     try:
         tab = win.child_window(auto_id=tab_id)
         if tab.exists(timeout=2):
-            # invoke() → click() → click_input() 순서 시도
-            # invoke/click은 마우스를 움직이지 않아 사용자 방해 없음
             try:
                 tab.invoke()
                 return True
