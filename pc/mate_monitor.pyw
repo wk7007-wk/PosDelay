@@ -127,6 +127,30 @@ def ensure_window_visible(win):
     return False
 
 
+_scan_done = False
+
+def scan_pos_elements(win):
+    """POS 창의 모든 UI 요소 덤프 (1회만)"""
+    global _scan_done
+    if _scan_done:
+        return
+    _scan_done = True
+    log.info("=== POS UI 요소 스캔 ===")
+    try:
+        for c in win.descendants():
+            try:
+                aid = c.element_info.automation_id or ""
+                name = (c.window_text() or "")[:40]
+                ctype = c.element_info.control_type or ""
+                if aid or name:
+                    log.info(f"  id={aid}  text=[{name}]  type={ctype}")
+            except Exception:
+                pass
+    except Exception as e:
+        log.warning(f"스캔 오류: {e}")
+    log.info("=== 스캔 끝 ===")
+
+
 def click_delivery_tab(win, tab_id):
     mouse_active = is_mouse_active()
     if mouse_active:
@@ -152,6 +176,7 @@ def click_delivery_tab(win, tab_id):
             return True
         else:
             log.warning(f"배달탭 없음 (id={tab_id})")
+            scan_pos_elements(win)
     except Exception as e:
         log.warning(f"배달탭 클릭 오류: {e}")
     return False
