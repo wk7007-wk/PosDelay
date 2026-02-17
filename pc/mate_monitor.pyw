@@ -103,7 +103,7 @@ def is_mouse_active():
             _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
         pt1 = POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
-        time.sleep(1)
+        time.sleep(5)
         pt2 = POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
         return pt1.x != pt2.x or pt1.y != pt2.y
