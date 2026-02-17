@@ -378,3 +378,214 @@
 2026-02-17 12:44:06 [!] 'MATE POS' 창 없음
 2026-02-17 12:44:36 창 재연결 시도...
 2026-02-17 12:44:47 [!] 'MATE POS' 창 없음
+2026-02-17 12:45:17 창 재연결 시도...
+2026-02-17 12:45:27 [!] 'MATE POS' 창 없음
+2026-02-17 12:45:57 창 재연결 시도...
+2026-02-17 12:46:03 주문: 2건 (3→2) [OCR: 저디중 2]
+2026-02-17 12:46:04 Gist 업데이트 완료
+2026-02-17 12:46:05 주문: 2건 (3→2) [OCR: 저디중 2]
+2026-02-17 12:46:06 Gist 업데이트 완료
+2026-02-17 12:46:07 [!] 'MATE POS' 창 없음
+2026-02-17 12:46:27 주문: 2건 (3→2) [OCR: 저디중 2]
+2026-02-17 12:46:29 Gist 업데이트 완료
+2026-02-17 12:46:29 주문: 2건 (3→2) [OCR: 저디중 2]
+2026-02-17 12:46:30 Gist 업데이트 완료
+2026-02-17 12:46:37 창 재연결 시도...
+2026-02-17 12:46:47 [!] 'MATE POS' 창 없음
+2026-02-17 12:47:17 창 재연결 시도...
+2026-02-17 12:47:27 [!] 'MATE POS' 창 없음
+2026-02-17 12:47:57 창 재연결 시도...
+2026-02-17 12:48:08 [!] 'MATE POS' 창 없음
+2026-02-17 12:48:38 창 재연결 시도...
+2026-02-17 12:48:48 [!] 'MATE POS' 창 없음
+2026-02-17 12:49:18 창 재연결 시도...
+2026-02-17 12:49:28 [!] 'MATE POS' 창 없음
+2026-02-17 12:49:58 창 재연결 시도...
+2026-02-17 12:50:08 [!] 'MATE POS' 창 없음
+2026-02-17 12:50:38 창 재연결 시도...
+2026-02-17 12:50:48 [!] 'MATE POS' 창 없음
+2026-02-17 12:51:18 창 재연결 시도...
+2026-02-17 12:51:28 [!] 'MATE POS' 창 없음
+2026-02-17 12:51:58 창 재연결 시도...
+2026-02-17 12:52:09 [!] 'MATE POS' 창 없음
+2026-02-17 12:52:39 창 재연결 시도...
+2026-02-17 12:52:42 ========================================
+2026-02-17 12:52:42   PosDelay PC 모니터 시작 (PID 7460)
+2026-02-17 12:52:42 ========================================
+2026-02-17 12:52:43 [OK] Tesseract OCR 확인
+2026-02-17 12:52:43 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 12:52:49 [!] 'MATE POS' 창 없음
+2026-02-17 12:52:52 [OK] POS 연결: 메인 (uia)
+2026-02-17 12:52:52 모니터링 시작 (30초 간격)
+2026-02-17 12:53:02 주문: 2건 (-1→2) [OCR: 저디중 2]
+2026-02-17 12:53:03 Gist 업데이트 완료
+2026-02-17 12:53:19 창 재연결 시도...
+2026-02-17 12:53:29 [!] 'MATE POS' 창 없음
+2026-02-17 12:53:59 창 재연결 시도...
+2026-02-17 12:54:09 [!] 'MATE POS' 창 없음
+2026-02-17 12:54:39 창 재연결 시도...
+2026-02-17 12:54:50 [!] 'MATE POS' 창 없음
+2026-02-17 12:55:20 창 재연결 시도...
+2026-02-17 12:55:30 [!] 'MATE POS' 창 없음
+2026-02-17 12:56:00 창 재연결 시도...
+2026-02-17 12:56:10 [!] 'MATE POS' 창 없음
+2026-02-17 12:56:40 창 재연결 시도...
+2026-02-17 12:56:50 [!] 'MATE POS' 창 없음
+2026-02-17 12:57:20 창 재연결 시도...
+2026-02-17 12:57:30 [!] 'MATE POS' 창 없음
+2026-02-17 12:58:00 창 재연결 시도...
+2026-02-17 12:58:10 [!] 'MATE POS' 창 없음
+2026-02-17 12:58:40 창 재연결 시도...
+2026-02-17 12:58:40 주문: 1건 (2→1) [OCR: 저디중 1]
+2026-02-17 12:58:42 Gist 업데이트 완료
+2026-02-17 12:58:42 주문: 1건 (2→1) [OCR: 저디중 1]
+2026-02-17 12:58:43 주문: 1건 (2→1) [OCR: 저디중 1]
+2026-02-17 12:58:44 Gist 업데이트 완료
+2026-02-17 12:58:50 [!] 'MATE POS' 창 없음
+2026-02-17 12:58:55 주문: 1건 (2→1) [OCR: 저디중 1]
+2026-02-17 12:58:56 Gist 업데이트 완료
+2026-02-17 12:59:20 창 재연결 시도...
+2026-02-17 12:59:21 주문: 1건 (2→1) [OCR: 저디중 1]
+2026-02-17 12:59:22 Gist 업데이트 완료
+2026-02-17 12:59:30 [!] 'MATE POS' 창 없음
+2026-02-17 13:00:00 창 재연결 시도...
+2026-02-17 13:00:11 [!] 'MATE POS' 창 없음
+2026-02-17 13:00:41 창 재연결 시도...
+2026-02-17 13:00:51 [!] 'MATE POS' 창 없음
+2026-02-17 13:00:55 주문: 0건 (1→0) [OCR: 저디중 0]
+2026-02-17 13:00:57 주문: 0건 (1→0) [OCR: 저디중 0]
+2026-02-17 13:00:57 Gist 업데이트 완료
+2026-02-17 13:00:58 Gist 업데이트 완료
+2026-02-17 13:00:58 주문: 0건 (1→0) [OCR: 저디중 0]
+2026-02-17 13:00:59 Gist 업데이트 완료
+2026-02-17 13:01:08 주문: 0건 (1→0) [OCR: 저디중 0]
+2026-02-17 13:01:10 Gist 업데이트 완료
+2026-02-17 13:01:21 창 재연결 시도...
+2026-02-17 13:01:23 주문: 0건 (1→0) [OCR: 저디중 0]
+2026-02-17 13:01:24 Gist 업데이트 완료
+2026-02-17 13:01:31 [!] 'MATE POS' 창 없음
+2026-02-17 13:01:45 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 67182>, 'backend': 'uia'}
+2026-02-17 13:01:45 건수 감지 실패 (1회)
+2026-02-17 13:01:50 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 67182>, 'backend': 'uia'}
+2026-02-17 13:01:50 건수 감지 실패 (1회)
+2026-02-17 13:01:52 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 67182>, 'backend': 'uia'}
+2026-02-17 13:01:52 건수 감지 실패 (1회)
+2026-02-17 13:01:58 [!] OCR 오류: {'title_re': '.*메인.*', 'backend': 'uia', 'enabled_only': False, 'visible_only': False, 'process': 10076}
+2026-02-17 13:01:58 건수 감지 실패 (1회)
+2026-02-17 13:02:01 창 재연결...
+2026-02-17 13:02:01 창 재연결 시도...
+2026-02-17 13:02:11 [!] 'MATE POS' 창 없음
+2026-02-17 13:02:14 [!] '메인' 창 없음
+2026-02-17 13:02:20 창 재연결...
+2026-02-17 13:02:25 창 재연결...
+2026-02-17 13:02:27 창 재연결...
+2026-02-17 13:02:33 [!] '메인' 창 없음
+2026-02-17 13:02:33 창 재연결...
+2026-02-17 13:02:38 [!] '메인' 창 없음
+2026-02-17 13:02:40 [!] '메인' 창 없음
+2026-02-17 13:02:41 창 재연결 시도...
+2026-02-17 13:02:44 창 재연결...
+2026-02-17 13:02:47 [!] '메인' 창 없음
+2026-02-17 13:02:51 [!] 'MATE POS' 창 없음
+2026-02-17 13:02:57 [!] '메인' 창 없음
+2026-02-17 13:03:03 창 재연결...
+2026-02-17 13:03:08 창 재연결...
+2026-02-17 13:03:10 창 재연결...
+2026-02-17 13:03:16 [!] '메인' 창 없음
+2026-02-17 13:03:17 창 재연결...
+2026-02-17 13:03:21 창 재연결 시도...
+2026-02-17 13:03:21 [!] '메인' 창 없음
+2026-02-17 13:03:23 [!] '메인' 창 없음
+2026-02-17 13:03:27 창 재연결...
+2026-02-17 13:03:30 [!] '메인' 창 없음
+2026-02-17 13:03:31 [!] 'MATE POS' 창 없음
+2026-02-17 13:03:40 [!] '메인' 창 없음
+2026-02-17 13:03:46 창 재연결...
+2026-02-17 13:03:51 창 재연결...
+2026-02-17 13:03:53 창 재연결...
+2026-02-17 13:03:59 [!] '메인' 창 없음
+2026-02-17 13:04:00 창 재연결...
+2026-02-17 13:04:01 창 재연결 시도...
+2026-02-17 13:04:09 [!] '메인' 창 없음
+2026-02-17 13:04:09 [!] '메인' 창 없음
+2026-02-17 13:04:10 창 재연결...
+2026-02-17 13:04:14 [!] 'MATE POS' 창 없음
+2026-02-17 13:04:14 [!] '메인' 창 없음
+2026-02-17 13:04:23 [!] '메인' 창 없음
+2026-02-17 16:47:53 기존 인스턴스 종료 실패: [WinError 87] 매개 변수가 틀립니다
+2026-02-17 16:47:54 ========================================
+2026-02-17 16:47:54   PosDelay PC 모니터 시작 (PID 10924)
+2026-02-17 16:47:54 ========================================
+2026-02-17 16:48:01 [OK] Tesseract OCR 확인
+2026-02-17 16:48:01 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 16:48:14 [OK] POS 연결: 메인 (uia)
+2026-02-17 16:48:14 모니터링 시작 (30초 간격)
+2026-02-17 16:48:29 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:48:29 건수 감지 실패 (1회)
+2026-02-17 16:48:56 기존 인스턴스 종료 (PID 10924)
+2026-02-17 16:48:59 ========================================
+2026-02-17 16:48:59   PosDelay PC 모니터 시작 (PID 1656)
+2026-02-17 16:48:59 ========================================
+2026-02-17 16:49:13 [OK] Tesseract OCR 확인
+2026-02-17 16:49:13 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 16:49:15 MATE POS 팝업 자동 닫기
+2026-02-17 16:49:42 [OK] POS 연결: 메인 (uia)
+2026-02-17 16:49:42 모니터링 시작 (30초 간격)
+2026-02-17 16:49:54 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:49:54 건수 감지 실패 (1회)
+2026-02-17 16:50:36 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:51:20 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:52:06 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:52:49 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:53:33 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:54:18 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:55:02 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:55:44 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:56:26 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:57:11 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:57:11 건수 감지 실패 (11회)
+2026-02-17 16:57:55 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:58:39 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 16:59:23 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:00:07 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:00:50 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:01:17 기존 인스턴스 종료 (PID 1656)
+2026-02-17 17:01:18 ========================================
+2026-02-17 17:01:18   PosDelay PC 모니터 시작 (PID 11984)
+2026-02-17 17:01:18 ========================================
+2026-02-17 17:01:23 [OK] Tesseract OCR 확인
+2026-02-17 17:01:23 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 17:01:32 [OK] POS 연결: 메인 (uia)
+2026-02-17 17:01:32 모니터링 시작 (30초 간격)
+2026-02-17 17:01:44 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:01:44 건수 감지 실패 (1회)
+2026-02-17 17:02:25 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:03:07 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:03:48 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:03:56 기존 인스턴스 종료 (PID 11984)
+2026-02-17 17:03:57 ========================================
+2026-02-17 17:03:57   PosDelay PC 모니터 시작 (PID 9632)
+2026-02-17 17:03:57 ========================================
+2026-02-17 17:03:58 [OK] Tesseract OCR 확인
+2026-02-17 17:03:58 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 17:04:07 [OK] POS 연결: 메인 (uia)
+2026-02-17 17:04:07 모니터링 시작 (30초 간격)
+2026-02-17 17:04:18 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:04:18 건수 감지 실패 (1회)
+2026-02-17 17:05:00 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:05:44 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:06:28 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:07:12 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:07:56 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:08:39 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:09:24 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:10:07 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:10:51 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:11:36 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:11:36 건수 감지 실패 (11회)
+2026-02-17 17:12:19 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:13:03 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:13:47 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:14:31 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:15:12 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:15:56 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
