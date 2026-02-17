@@ -1,6 +1,6 @@
 ============================================================
   POS 창 UI 스캔 결과
-  시간: 2026-02-17 08:57:06
+  시간: 2026-02-17 10:19:40
 ============================================================
 
 [1] 열린 창 목록:
@@ -8,16 +8,15 @@
   - "C:\WINDOWS\py.exe"
   - "pc - 파일 탐색기"
   - "메인"
-  - "C:\WINDOWS\py.exe"
-  - "관리자: C:\WINDOWS\system32\CMD.exe"
-  - "관리자: C:\WINDOWS\system32\cmd.exe"
-  - "쿠팡이츠 사장님 포털 외 페이지 6개 - 개인 - Microsoft​ Edge"
   - "설정"
   - "Excel"
   - "Windows 입력 환경"
   - "안내"
   - "통화매니저 로그인"
   - "MATE POS"
+  - "카카오톡"
+  - "SemPlus-KIS정보통신 외 페이지 6개 - 개인 - Microsoft​ Edge"
+  - "관리자: C:\WINDOWS\system32\cmd.exe"
   - "Program Manager"
 
 [2] 연결 성공: "MATE POS" (키워드: MATE, 백엔드: uia)
