@@ -117,13 +117,13 @@ def connect_pos(cfg):
 
 
 def is_mouse_active():
-    """마우스 사용 중인지 감지 (0.3초간 커서 이동 확인)"""
+    """마우스 사용 중인지 감지 (1초간 커서 이동 확인)"""
     try:
         class POINT(ctypes.Structure):
             _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
         pt1 = POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
-        time.sleep(0.3)
+        time.sleep(1)
         pt2 = POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
         return pt1.x != pt2.x or pt1.y != pt2.y
