@@ -218,7 +218,7 @@ def capture_window_bg(hwnd):
 
 
 def read_order_count(win, cfg):
-    """처리중 건수 읽기: 1) 요소 크롭 OCR  2) 창 전체 OCR fallback"""
+    """배달+처리중 건수: 전체 창 OCR → 배달 행에서 처리중 카운트"""
     import pytesseract
     from PIL import Image, ImageOps
 
@@ -229,94 +229,59 @@ def read_order_count(win, cfg):
     try:
         hwnd = win.handle
         img = capture_window_bg(hwnd)
-        win_rect = win.rectangle()
     except Exception as e:
         log.warning(f"캡처 실패: {e}")
         return None, None
 
-    # 방법1: auto_id 요소 크롭 → OCR
-    try:
-        proc_id = cfg.get("processing_tab_id", "133094")
-        elem = win.child_window(auto_id=proc_id)
-        if elem.exists(timeout=2):
-            rect = elem.rectangle()
-            x1 = rect.left - win_rect.left
-            y1 = rect.top - win_rect.top
-            x2 = rect.right - win_rect.left
-            y2 = rect.bottom - win_rect.top
-            cropped = img.crop((x1, y1, x2, y2))
-
-            result = _ocr_image(cropped, pytesseract, Image, ImageOps)
-            if result:
-                return result
-    except Exception as e:
-        log.info(f"요소 크롭 실패 (id={cfg.get('processing_tab_id')}): {type(e).__name__}")
-
-    # 방법2: 창 전체 OCR → "처리중" 패턴 찾기
+    # 전체 창 OCR
     try:
         w, h = img.size
-        # 상단 25% 영역 (탭 바 위치)
-        top_crop = img.crop((0, 0, w, int(h * 0.25)))
-        result = _ocr_full(top_crop, pytesseract, Image, ImageOps)
-        if result:
-            log.info("전체OCR로 건수 감지")
-            return result
+        scaled = img.resize((w * 2, h * 2), Image.LANCZOS)
+        gray = scaled.convert("L")
+        bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
+
+        text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 6").strip()
+        count = _count_delivery_processing(text)
+        if count is not None:
+            return count, f"배달+처리중: {count}건"
+
+        # 반전 시도
+        inverted = ImageOps.invert(gray)
+        bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
+        text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 6").strip()
+        count2 = _count_delivery_processing(text2)
+        if count2 is not None:
+            return count2, f"배달+처리중(inv): {count2}건"
+
+        # fallback: "처리중 N" 패턴 (이전 방식)
+        for t in [text, text2]:
+            if t:
+                m = re.search(r"[처저][리디]중\s*(\d+)", t)
+                if m:
+                    return int(m.group(1)), f"패턴: {m.group(0)}"
+
     except Exception as e:
-        log.warning(f"전체OCR 오류: {e}")
+        log.warning(f"OCR 오류: {e}")
 
     return None, None
 
 
-def _ocr_image(cropped, pytesseract, Image, ImageOps):
-    """크롭 이미지 → 4배 확대 → OCR"""
-    w, h = cropped.size
-    scaled = cropped.resize((w * 4, h * 4), Image.LANCZOS)
-    gray = scaled.convert("L")
-    bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
+def _count_delivery_processing(text):
+    """OCR 텍스트에서 '배달' + '처리중' 조합 행 수 카운트"""
+    if not text:
+        return None
 
-    text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 7").strip()
-    if text:
-        m = re.search(r"(\d+)", text)
-        if m:
-            return int(m.group(1)), f"OCR: {text}"
+    lines = text.split("\n")
+    count = 0
+    for line in lines:
+        # 배달 + 처리중이 같은 줄에 있으면 카운트
+        has_delivery = "배달" in line or "배닫" in line or "베달" in line
+        has_processing = "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+        if has_delivery and has_processing:
+            count += 1
 
-    inverted = ImageOps.invert(gray)
-    bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
-    text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 7").strip()
-    if text2:
-        m = re.search(r"(\d+)", text2)
-        if m:
-            return int(m.group(1)), f"OCR(inv): {text2}"
-    return None
-
-
-def _ocr_full(img, pytesseract, Image, ImageOps):
-    """넓은 영역 OCR → '처리중 N' 패턴 찾기"""
-    w, h = img.size
-    scaled = img.resize((w * 2, h * 2), Image.LANCZOS)
-    gray = scaled.convert("L")
-    bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
-
-    # 여러 줄 모드로 전체 텍스트 추출
-    text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 6").strip()
-    if text:
-        # "처리중 N" 또는 "처리중N" 패턴
-        m = re.search(r"처리중\s*(\d+)", text)
-        if m:
-            return int(m.group(1)), f"전체OCR: 처리중 {m.group(1)}"
-        # "저디중 N" (OCR 오인식 패턴)
-        m = re.search(r"[처저][리디]중\s*(\d+)", text)
-        if m:
-            return int(m.group(1)), f"전체OCR: {m.group(0)}"
-
-    # 반전 버전
-    inverted = ImageOps.invert(gray)
-    bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
-    text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 6").strip()
-    if text2:
-        m = re.search(r"[처저][리디]중\s*(\d+)", text2)
-        if m:
-            return int(m.group(1)), f"전체OCR(inv): {m.group(0)}"
+    if count > 0:
+        return count
     return None
 
 
