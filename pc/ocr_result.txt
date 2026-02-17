@@ -1,0 +1,32 @@
+[OK] Tesseract: C:\Program Files\Tesseract-OCR\tesseract.exe
+[OK] Tesseract 버전: 5.5.0.20241111
+[OK] 창: "메인"
+[OK] 배달 탭 클릭
+
+[1] 전체 창 OCR:
+------------------------------------------------------------
+  스크린샷 저장: screenshot_full.png (1024x742)
+  OCR 결과:
+a LORI Tesseract Mit: 9.9.0.20201iii
+— [ox] 창: "메인"
+Cok] 배달 탭 클릭
+
+[1] 전체 창 oct
+
+1                               »
+
+«
+a
+
+
+
+[2] 서브탭 영역 OCR:
+------------------------------------------------------------
+  id=264920  pos=(65,260)  size=(126x34)  OCR=""  img=subtab_264920.png
+  id=133094  pos=(201,260)  size=(126x34)  OCR=""  img=subtab_133094.png
+  id=133092  pos=(337,260)  size=(126x34)  OCR=""  img=subtab_133092.png
+  id=133090  pos=(473,260)  size=(126x34)  OCR=""  img=subtab_133090.png
+
+[3] 주문목록 영역 OCR:
+------------------------------------------------------------
+  주문목록 OCR:
