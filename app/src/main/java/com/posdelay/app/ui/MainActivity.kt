@@ -195,6 +195,10 @@ class MainActivity : AppCompatActivity() {
             binding.tvAutoOffThreshold.text = "${value}건"
         }
 
+        AdManager.baeminCurrentBid.observe(this) { bid ->
+            binding.tvBaeminAdStatus.text = if (bid > 0) "현재: ${bid}원" else "현재: --"
+        }
+
         AdManager.lastAdAction.observe(this) { action ->
             binding.tvLastAdAction.text = if (action.isNullOrEmpty()) "마지막 동작: --" else "마지막: $action"
         }

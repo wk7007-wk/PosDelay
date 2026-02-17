@@ -367,7 +367,10 @@ class AdWebAutomation(private val activity: Activity) {
                     if (retries > 0) handler.postDelayed({ pollBaeminApiResult(retries - 1) }, 3000)
                     else finishWithError(Code.ERR_NO_AD_FIELD, "배민 API 응답 없음")
                 }
-                r.startsWith("OK") -> finishWithSuccess("배민 광고 금액 ${targetAmount}원 변경")
+                r.startsWith("OK") -> {
+                    AdManager.setBaeminCurrentBid(targetAmount)
+                    finishWithSuccess("배민 광고 금액 ${targetAmount}원 변경")
+                }
                 else -> finishWithError(Code.ERR_NO_AD_FIELD, "배민 API: $r")
             }
         }

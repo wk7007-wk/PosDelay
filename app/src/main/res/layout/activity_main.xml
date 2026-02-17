@@ -344,7 +344,7 @@
             android:layout_weight="1"
             android:text="카운터 초기화"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#E67E22"
+            android:backgroundTint="#2AC1BC"
             android:layout_marginEnd="8dp" />
 
         <Button
@@ -493,9 +493,10 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvBaeminAdStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="우리가게클릭 CPC"
+                    android:text="현재: --"
                     android:textColor="#888888"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -552,7 +553,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="배민 축소 금액"
-                    android:textColor="#E67E22"
+                    android:textColor="#2AC1BC"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -578,7 +579,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="50원"
-                android:textColor="#E67E22"
+                android:textColor="#2AC1BC"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:paddingStart="10dp"
@@ -848,7 +849,7 @@
                 android:layout_marginStart="4dp" />
         </LinearLayout>
 
-        <!-- 수동 실행: 배민 -->
+        <!-- 수동 실행: 정상 (배민+쿠팡) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -868,26 +869,6 @@
                 android:layout_marginEnd="4dp" />
 
             <Button
-                android:id="@+id/btnAdManualBaeminReduced"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:text="배민 축소금액"
-                android:textSize="12sp"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#16A085"
-                android:layout_marginStart="4dp" />
-        </LinearLayout>
-
-        <!-- 수동 실행: 쿠팡 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="8dp">
-
-            <Button
                 android:id="@+id/btnAdManualCoupangOn"
                 android:layout_width="0dp"
                 android:layout_height="44dp"
@@ -896,6 +877,26 @@
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#E74C3C"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <!-- 수동 실행: 축소/끄기 (배민+쿠팡) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnAdManualBaeminReduced"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="배민 축소금액"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#16A085"
                 android:layout_marginEnd="4dp" />
 
             <Button

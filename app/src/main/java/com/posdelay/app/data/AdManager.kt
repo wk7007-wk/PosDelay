@@ -23,6 +23,7 @@ object AdManager {
     private const val KEY_ORDER_AUTO_OFF_ENABLED = "order_auto_off_enabled"
     private const val KEY_AUTO_OFF_THRESHOLD = "auto_off_threshold"
     private const val KEY_LAST_AD_ACTION = "last_ad_action"
+    private const val KEY_BAEMIN_CURRENT_BID = "baemin_current_bid"
 
     // Secure prefs keys
     private const val KEY_BAEMIN_ID = "baemin_id"
@@ -64,6 +65,9 @@ object AdManager {
     private val _lastAdAction = MutableLiveData("")
     val lastAdAction: LiveData<String> = _lastAdAction
 
+    private val _baeminCurrentBid = MutableLiveData(0)
+    val baeminCurrentBid: LiveData<Int> = _baeminCurrentBid
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -93,6 +97,7 @@ object AdManager {
         _orderAutoOffEnabled.postValue(prefs.getBoolean(KEY_ORDER_AUTO_OFF_ENABLED, false))
         _autoOffThreshold.postValue(prefs.getInt(KEY_AUTO_OFF_THRESHOLD, 5))
         _lastAdAction.postValue(prefs.getString(KEY_LAST_AD_ACTION, "") ?: "")
+        _baeminCurrentBid.postValue(prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0))
     }
 
     // Getters
@@ -162,6 +167,13 @@ object AdManager {
     fun setLastAdAction(value: String) {
         prefs.edit().putString(KEY_LAST_AD_ACTION, value).apply()
         _lastAdAction.postValue(value)
+    }
+
+    fun getBaeminCurrentBid(): Int = prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0)
+
+    fun setBaeminCurrentBid(value: Int) {
+        prefs.edit().putInt(KEY_BAEMIN_CURRENT_BID, value).apply()
+        _baeminCurrentBid.postValue(value)
     }
 
     // Credential setters
