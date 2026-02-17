@@ -589,3 +589,66 @@
 2026-02-17 17:14:31 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
 2026-02-17 17:15:12 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
 2026-02-17 17:15:56 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:16:38 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:17:19 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:18:01 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:18:46 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:18:46 건수 감지 실패 (21회)
+2026-02-17 17:19:30 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:20:14 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:20:58 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:21:42 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:22:26 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:23:10 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:23:53 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:24:37 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:25:21 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:26:03 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:26:03 건수 감지 실패 (31회)
+2026-02-17 17:26:47 [!] OCR 오류: {'auto_id': '133094', 'top_level_only': False, 'parent': <uia_element_info.UIAElementInfo - '메인', TfrmMainNavView, 66608>, 'backend': 'uia'}
+2026-02-17 17:27:23 기존 인스턴스 종료 (PID 9632)
+2026-02-17 17:27:24 ========================================
+2026-02-17 17:27:24   PosDelay PC 모니터 시작 (PID 2472)
+2026-02-17 17:27:24 ========================================
+2026-02-17 17:27:25 [OK] Tesseract OCR 확인
+2026-02-17 17:27:25 [OK] 시작프로그램 등록: "C:\Users\wk771\AppData\Local\Programs\Python\Python314\pythonw.exe" "C:\py\posdelay\pc\mate_monitor.pyw"
+2026-02-17 17:27:33 [OK] POS 연결: 메인 (uia)
+2026-02-17 17:27:33 모니터링 시작 (30초 간격)
+2026-02-17 17:27:38 마우스 사용 중 → 탭 클릭 건너뜀
+2026-02-17 17:27:45 건수 감지 실패 (1회)
+2026-02-17 17:28:23 배달탭 없음 (id=198354)
+2026-02-17 17:29:06 배달탭 없음 (id=198354)
+2026-02-17 17:29:49 배달탭 없음 (id=198354)
+2026-02-17 17:30:32 배달탭 없음 (id=198354)
+2026-02-17 17:31:16 배달탭 없음 (id=198354)
+2026-02-17 17:31:59 배달탭 없음 (id=198354)
+2026-02-17 17:32:42 배달탭 없음 (id=198354)
+2026-02-17 17:33:26 배달탭 없음 (id=198354)
+2026-02-17 17:34:09 배달탭 없음 (id=198354)
+2026-02-17 17:34:52 배달탭 없음 (id=198354)
+2026-02-17 17:34:58 건수 감지 실패 (11회)
+2026-02-17 17:35:36 배달탭 없음 (id=198354)
+2026-02-17 17:36:19 배달탭 없음 (id=198354)
+2026-02-17 17:37:02 배달탭 없음 (id=198354)
+2026-02-17 17:37:46 배달탭 없음 (id=198354)
+2026-02-17 17:38:29 배달탭 없음 (id=198354)
+2026-02-17 17:39:12 배달탭 없음 (id=198354)
+2026-02-17 17:39:55 배달탭 없음 (id=198354)
+2026-02-17 17:40:39 배달탭 없음 (id=198354)
+2026-02-17 17:41:22 배달탭 없음 (id=198354)
+2026-02-17 17:42:05 배달탭 없음 (id=198354)
+2026-02-17 17:42:10 건수 감지 실패 (21회)
+2026-02-17 17:42:48 배달탭 없음 (id=198354)
+2026-02-17 17:43:31 배달탭 없음 (id=198354)
+2026-02-17 17:44:14 배달탭 없음 (id=198354)
+2026-02-17 17:44:58 배달탭 없음 (id=198354)
+2026-02-17 17:45:41 배달탭 없음 (id=198354)
+2026-02-17 17:46:25 배달탭 없음 (id=198354)
+2026-02-17 17:47:08 배달탭 없음 (id=198354)
+2026-02-17 17:47:51 배달탭 없음 (id=198354)
+2026-02-17 17:48:35 배달탭 없음 (id=198354)
+2026-02-17 17:49:18 배달탭 없음 (id=198354)
+2026-02-17 17:49:23 건수 감지 실패 (31회)
+2026-02-17 17:50:01 배달탭 없음 (id=198354)
+2026-02-17 17:50:44 배달탭 없음 (id=198354)
+2026-02-17 17:51:27 배달탭 없음 (id=198354)
