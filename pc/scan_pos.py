@@ -30,28 +30,55 @@ for w in all_wins:
     if w.name.strip():
         log(f"  - \"{w.name}\"")
 
-# 2. GENESIS 또는 POS 관련 창 찾기
-keywords = ["GENESIS", "genesis", "BBQ", "bbq", "MATE", "mate", "POS", "pos"]
+# 2. MATE POS 팝업 자동 닫기
+log("\n[2] MATE POS 팝업 확인...")
+try:
+    mate_app = Application(backend="uia").connect(title="MATE POS", timeout=3)
+    mate_win = mate_app.window(title="MATE POS")
+    mate_texts = [c.window_text() for c in mate_win.descendants() if c.window_text()]
+    if "MATE POS가 실행 중입니다" in " ".join(mate_texts):
+        log("  팝업 발견 → 자동 닫기")
+        try:
+            mate_win.child_window(title="확인").click_input()
+            time.sleep(1)
+        except Exception:
+            try:
+                mate_win.child_window(title="닫기").click_input()
+                time.sleep(1)
+            except Exception:
+                pass
+    else:
+        log("  MATE POS 창은 팝업이 아님")
+except Exception:
+    log("  MATE POS 팝업 없음")
+
+# 3. POS 메인 창 찾기 ("메인" 우선)
+keywords = ["메인", "GENESIS", "genesis", "BBQ", "bbq", "MATE POS", "POS"]
 target_win = None
 target_title = ""
 
 for kw in keywords:
-    try:
-        app = Application(backend="uia").connect(title_re=f".*{kw}.*", timeout=3)
-        target_win = app.window(title_re=f".*{kw}.*")
-        target_title = target_win.window_text()
-        log(f"\n[2] 연결 성공: \"{target_title}\" (키워드: {kw}, 백엔드: uia)")
+    for backend in ["uia", "win32"]:
+        try:
+            app = Application(backend=backend).connect(title_re=f".*{kw}.*", timeout=3)
+            win = app.window(title_re=f".*{kw}.*")
+            title = win.window_text()
+            # "실행 중입니다" 팝업은 건너뛰기
+            try:
+                child_texts = [c.window_text() for c in win.descendants() if c.window_text()]
+                if "실행 중입니다" in " ".join(child_texts) and len(child_texts) < 6:
+                    log(f"  \"{title}\" → 팝업, 건너뜀")
+                    continue
+            except Exception:
+                pass
+            target_win = win
+            target_title = title
+            log(f"\n[3] 연결 성공: \"{target_title}\" (키워드: {kw}, 백엔드: {backend})")
+            break
+        except Exception:
+            pass
+    if target_win:
         break
-    except Exception:
-        pass
-    try:
-        app = Application(backend="win32").connect(title_re=f".*{kw}.*", timeout=3)
-        target_win = app.window(title_re=f".*{kw}.*")
-        target_title = target_win.window_text()
-        log(f"\n[2] 연결 성공: \"{target_title}\" (키워드: {kw}, 백엔드: win32)")
-        break
-    except Exception:
-        pass
 
 if not target_win:
     log("\n[!] POS 관련 창을 찾지 못했습니다.")
