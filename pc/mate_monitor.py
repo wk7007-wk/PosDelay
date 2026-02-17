@@ -13,6 +13,7 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 """
 
 import ctypes
+import ctypes.wintypes
 import json
 import os
 import re
@@ -26,6 +27,7 @@ DEFAULT_CONFIG = {
     "gist_id": "a67e5de3271d6d0716b276dc6a8391cb",
     "window_title": "메인",
     "delivery_tab_id": "198354",
+    "processing_tab_id": "133094",
     "poll_interval_sec": 30,
     "tesseract_path": r"C:\Program Files\Tesseract-OCR\tesseract.exe",
 }
@@ -93,7 +95,6 @@ def connect_pos(cfg):
         try:
             app = Application(backend=backend).connect(title_re=f".*{keyword}.*", timeout=5)
             win = app.window(title_re=f".*{keyword}.*")
-            # 팝업 아닌지 확인
             try:
                 child_texts = [c.window_text() for c in win.descendants() if c.window_text()]
                 if "실행 중입니다" in " ".join(child_texts) and len(child_texts) < 6:
@@ -106,7 +107,6 @@ def connect_pos(cfg):
             pass
 
     print(f"\n[!] '{keyword}' 창을 찾을 수 없습니다.")
-    print("현재 열린 창:")
     try:
         for w in findwindows.find_elements():
             if w.name.strip():
@@ -155,8 +155,44 @@ def click_delivery_tab(win, tab_id):
     return False
 
 
-def capture_and_ocr(win, cfg):
-    """창 스크린샷 → OCR로 텍스트 추출"""
+def capture_window_bg(hwnd):
+    """PrintWindow API로 창이 가려져도 캡처"""
+    import win32gui
+    import win32ui
+    from PIL import Image
+
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    w = right - left
+    h = bottom - top
+
+    hwndDC = win32gui.GetWindowDC(hwnd)
+    mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+    saveDC = mfcDC.CreateCompatibleDC()
+
+    bitmap = win32ui.CreateBitmap()
+    bitmap.CreateCompatibleBitmap(mfcDC, w, h)
+    saveDC.SelectObject(bitmap)
+
+    # PrintWindow (PW_RENDERFULLCONTENT = 2)
+    ctypes.windll.user32.PrintWindow(hwnd, saveDC.GetSafeHdc(), 2)
+
+    bmpinfo = bitmap.GetInfo()
+    bmpstr = bitmap.GetBitmapBits(True)
+    img = Image.frombuffer(
+        'RGB', (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+        bmpstr, 'raw', 'BGRX', 0, 1
+    )
+
+    win32gui.DeleteObject(bitmap.GetHandle())
+    saveDC.DeleteDC()
+    mfcDC.DeleteDC()
+    win32gui.ReleaseDC(hwnd, hwndDC)
+
+    return img
+
+
+def read_order_count(win, cfg):
+    """처리중 서브탭을 캡처 → 4배 확대 → OCR → 건수 추출"""
     import pytesseract
     from PIL import Image
 
@@ -165,83 +201,49 @@ def capture_and_ocr(win, cfg):
         pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
     try:
-        img = win.capture_as_image()
-        # OCR (한국어 + 영어)
-        text = pytesseract.image_to_string(img, lang="kor+eng")
-        return text
+        # 1. 배경에서도 동작하는 PrintWindow 캡처
+        hwnd = win.handle
+        img = capture_window_bg(hwnd)
+        win_rect = win.rectangle()
+
+        # 2. "처리중 N" 서브탭 위치 크롭
+        proc_id = cfg.get("processing_tab_id", "133094")
+        elem = win.child_window(auto_id=proc_id)
+        rect = elem.rectangle()
+        x1 = rect.left - win_rect.left
+        y1 = rect.top - win_rect.top
+        x2 = rect.right - win_rect.left
+        y2 = rect.bottom - win_rect.top
+        cropped = img.crop((x1, y1, x2, y2))
+
+        # 3. 4배 확대 + 전처리
+        w, h = cropped.size
+        scaled = cropped.resize((w * 4, h * 4), Image.LANCZOS)
+        gray = scaled.convert("L")
+        bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
+
+        # 4. OCR (단일 라인 모드)
+        text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 7").strip()
+
+        if text:
+            m = re.search(r"(\d+)", text)
+            if m:
+                count = int(m.group(1))
+                return count, f"OCR: {text}"
+
+        # 5. 색상 반전 버전도 시도 (배경색에 따라)
+        from PIL import ImageOps
+        inverted = ImageOps.invert(gray)
+        bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
+        text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 7").strip()
+        if text2:
+            m = re.search(r"(\d+)", text2)
+            if m:
+                count = int(m.group(1))
+                return count, f"OCR(inv): {text2}"
+
     except Exception as e:
         print(f"[!] OCR 오류: {e}")
-        return ""
-
-
-def extract_order_count_ocr(ocr_text):
-    """OCR 텍스트에서 건수 추출"""
-    lines = ocr_text.replace("\n", " ")
-
-    # "처리중 3", "처리중3" 패턴
-    m = re.search(r"(?:처리중|진행중|조리중|접수대기|접수|대기)[\s:]*(\d+)", lines)
-    if m:
-        return int(m.group(1)), m.group(0).strip()
-
-    # "배달 3", "배달3"
-    m = re.search(r"배달[\s]*(\d+)", lines)
-    if m:
-        return int(m.group(1)), m.group(0).strip()
-
-    # "전체 3"
-    m = re.search(r"전체[\s]*(\d+)", lines)
-    if m:
-        return int(m.group(1)), m.group(0).strip()
-
-    # "N건"
-    m = re.search(r"(\d+)\s*건", lines)
-    if m:
-        return int(m.group(1)), m.group(0).strip()
-
-    return None, None
-
-
-def extract_order_count_text(win):
-    """pywinauto 텍스트에서 건수 추출 (OCR 없이)"""
-    texts = []
-    try:
-        for child in win.descendants():
-            try:
-                t = child.window_text()
-                if t and t.strip():
-                    texts.append(t.strip())
-            except Exception:
-                continue
-    except Exception:
-        pass
-
-    for text in texts:
-        m = re.search(r"배달[\s]*(\d+)", text)
-        if m:
-            return int(m.group(1)), text
-        m = re.search(r"(?:처리중|진행중|조리중|접수대기)[\s:]*(\d+)", text)
-        if m:
-            return int(m.group(1)), text
-        m = re.search(r"(\d+)\s*건", text)
-        if m:
-            return int(m.group(1)), text
-    return None, None
-
-
-def read_order_count(win, cfg, use_ocr=True):
-    """건수 읽기 (텍스트 → OCR 순서)"""
-    # 1차: pywinauto 텍스트
-    count, matched = extract_order_count_text(win)
-    if count is not None:
-        return count, f"텍스트: {matched}"
-
-    # 2차: OCR
-    if use_ocr:
-        ocr_text = capture_and_ocr(win, cfg)
-        if ocr_text:
-            count, matched = extract_order_count_ocr(ocr_text)
-            if count is not None:
-                return count, f"OCR: {matched}"
 
     return None, None
 
@@ -294,6 +296,20 @@ def main():
         else:
             print("[!] 토큰 필요"); return
 
+    # OCR 확인
+    try:
+        import pytesseract
+        tesseract_path = cfg.get("tesseract_path", "")
+        if tesseract_path and os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        ver = pytesseract.get_tesseract_version()
+        print(f"[OK] Tesseract {ver}")
+    except Exception:
+        print("[!] Tesseract OCR 필요!")
+        print("    https://github.com/UB-Mannheim/tesseract/wiki")
+        input("\n엔터를 누르면 종료...")
+        return
+
     # MATE POS 팝업 닫기
     dismiss_popup()
 
@@ -303,42 +319,22 @@ def main():
         input("\n엔터를 누르면 종료...")
         return
 
-    # OCR 사용 가능 여부 확인
-    use_ocr = False
-    try:
-        import pytesseract
-        from PIL import Image
-        tesseract_path = cfg.get("tesseract_path", "")
-        if tesseract_path and os.path.exists(tesseract_path):
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
-        pytesseract.get_tesseract_version()
-        use_ocr = True
-        print("[OK] OCR 사용 가능 (Tesseract)")
-    except Exception:
-        print("[!] OCR 미설치 → 텍스트 모드만 사용")
-        print("    OCR 설치: pip install pytesseract pillow")
-        print("    Tesseract: https://github.com/UB-Mannheim/tesseract/wiki")
-
     # 배달 탭 클릭
     tab_id = cfg["delivery_tab_id"]
     print(f"\n배달 탭 클릭 (id={tab_id})...")
     if click_delivery_tab(win, tab_id):
         print("[OK] 배달 탭 클릭 성공")
     else:
-        print("[!] 배달 탭 클릭 실패")
-        print("    scan_pos.py로 정확한 ID를 확인하세요.")
+        print("[!] 배달 탭 클릭 실패 (마우스 사용 중이거나 ID 불일치)")
 
     time.sleep(1)
 
     # 초기 건수 확인
-    count, matched = read_order_count(win, cfg, use_ocr)
+    count, matched = read_order_count(win, cfg)
     if count is not None:
         print(f"[OK] 주문 건수: {count}건 ({matched})")
     else:
-        print("[!] 건수 감지 실패")
-        if use_ocr:
-            ocr_text = capture_and_ocr(win, cfg)
-            print(f"OCR 결과 (처음 500자):\n{ocr_text[:500]}")
+        print("[!] 건수 감지 실패 — processing_tab_id 확인 필요")
 
     # 모니터링 루프
     interval = cfg["poll_interval_sec"]
@@ -364,7 +360,7 @@ def main():
             time.sleep(0.5)
 
             # 건수 읽기
-            count, matched = read_order_count(win, cfg, use_ocr)
+            count, matched = read_order_count(win, cfg)
 
             if count is not None:
                 fail_count = 0
