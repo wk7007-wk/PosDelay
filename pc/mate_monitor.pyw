@@ -98,20 +98,6 @@ def connect_pos(cfg):
     return None, None
 
 
-def is_mouse_active():
-    try:
-        class POINT(ctypes.Structure):
-            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
-        pt1 = POINT()
-        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
-        time.sleep(5)
-        pt2 = POINT()
-        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
-        return pt1.x != pt2.x or pt1.y != pt2.y
-    except Exception:
-        return False
-
-
 def ensure_window_visible(win):
     """최소화된 창 자동 복원"""
     try:
@@ -127,59 +113,19 @@ def ensure_window_visible(win):
     return False
 
 
-_scan_done = False
+_ocr_dump_count = 0
 
-def scan_pos_elements(win):
-    """POS 창의 모든 UI 요소 덤프 (1회만)"""
-    global _scan_done
-    if _scan_done:
+def _log_ocr_text(text, label):
+    """OCR 결과 텍스트를 로그에 덤프 (디버깅용, 처음 5회만)"""
+    global _ocr_dump_count
+    if _ocr_dump_count >= 5:
         return
-    _scan_done = True
-    log.info("=== POS UI 요소 스캔 ===")
-    try:
-        for c in win.descendants():
-            try:
-                aid = c.element_info.automation_id or ""
-                name = (c.window_text() or "")[:40]
-                ctype = c.element_info.control_type or ""
-                if aid or name:
-                    log.info(f"  id={aid}  text=[{name}]  type={ctype}")
-            except Exception:
-                pass
-    except Exception as e:
-        log.warning(f"스캔 오류: {e}")
-    log.info("=== 스캔 끝 ===")
-
-
-def click_delivery_tab(win, tab_id):
-    mouse_active = is_mouse_active()
-    if mouse_active:
-        log.info("마우스 사용 중 → 탭 클릭 건너뜀")
-        return False
-    try:
-        tab = win.child_window(auto_id=tab_id)
-        if tab.exists(timeout=2):
-            try:
-                tab.invoke()
-                log.info(f"배달탭 클릭 성공 (invoke, id={tab_id})")
-                return True
-            except Exception:
-                pass
-            try:
-                tab.click()
-                log.info(f"배달탭 클릭 성공 (click, id={tab_id})")
-                return True
-            except Exception:
-                pass
-            tab.click_input()
-            log.info(f"배달탭 클릭 성공 (click_input, id={tab_id})")
-            return True
-        else:
-            log.warning(f"배달탭 없음 (id={tab_id})")
-            scan_pos_elements(win)
-    except Exception as e:
-        log.warning(f"배달탭 클릭 오류: {e}")
-    return False
+    _ocr_dump_count += 1
+    log.info(f"=== OCR 텍스트 ({label}) [{_ocr_dump_count}/5] ===")
+    for i, line in enumerate(text.split("\n")):
+        if line.strip():
+            log.info(f"  L{i}: {line.strip()}")
+    log.info("=== OCR 끝 ===")
 
 
 def capture_window_bg(hwnd):
@@ -241,6 +187,7 @@ def read_order_count(win, cfg):
         bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
 
         text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 6").strip()
+        _log_ocr_text(text, "normal")
         count = _count_delivery_processing(text)
         if count is not None:
             return count, f"배달+처리중: {count}건"
@@ -249,16 +196,10 @@ def read_order_count(win, cfg):
         inverted = ImageOps.invert(gray)
         bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
         text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 6").strip()
+        _log_ocr_text(text2, "inverted")
         count2 = _count_delivery_processing(text2)
         if count2 is not None:
             return count2, f"배달+처리중(inv): {count2}건"
-
-        # fallback: "처리중 N" 패턴 (이전 방식)
-        for t in [text, text2]:
-            if t:
-                m = re.search(r"[처저][리디]중\s*(\d+)", t)
-                if m:
-                    return int(m.group(1)), f"패턴: {m.group(0)}"
 
     except Exception as e:
         log.warning(f"OCR 오류: {e}")
@@ -272,15 +213,18 @@ def _count_delivery_processing(text):
         return None
 
     lines = text.split("\n")
+    delivery_found = False
     count = 0
     for line in lines:
-        # 배달 + 처리중이 같은 줄에 있으면 카운트
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
         has_processing = "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-        if has_delivery and has_processing:
-            count += 1
+        if has_delivery:
+            delivery_found = True
+            if has_processing:
+                count += 1
 
-    if count > 0:
+    # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
+    if delivery_found:
         return count
     return None
 
@@ -395,7 +339,6 @@ def main():
         log.error("[!] POS 연결 실패. 종료.")
         return
 
-    tab_id = cfg["delivery_tab_id"]
     interval = cfg["poll_interval_sec"]
     log.info(f"모니터링 시작 ({interval}초 간격)")
 
@@ -414,9 +357,6 @@ def main():
                     continue
 
             ensure_window_visible(win)
-
-            click_delivery_tab(win, tab_id)
-            time.sleep(0.5)
 
             count, matched = read_order_count(win, cfg)
 

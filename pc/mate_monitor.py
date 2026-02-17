@@ -118,21 +118,6 @@ def connect_pos(cfg):
     return None, None
 
 
-def is_mouse_active():
-    """마우스 사용 중인지 감지 (5초간 커서 이동 확인)"""
-    try:
-        class POINT(ctypes.Structure):
-            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
-        pt1 = POINT()
-        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt1))
-        time.sleep(5)
-        pt2 = POINT()
-        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt2))
-        return pt1.x != pt2.x or pt1.y != pt2.y
-    except Exception:
-        return False
-
-
 def ensure_window_visible(win):
     """최소화된 창 자동 복원"""
     try:
@@ -145,33 +130,6 @@ def ensure_window_visible(win):
             return True
     except Exception:
         pass
-    return False
-
-
-def click_delivery_tab(win, tab_id):
-    """자동화 ID로 배달 탭 클릭 (마우스 사용 중이면 건너뜀)"""
-    if is_mouse_active():
-        print(f"[{time.strftime('%H:%M:%S')}] 마우스 사용 중 → 탭 클릭 건너뜀")
-        return False
-    try:
-        tab = win.child_window(auto_id=tab_id)
-        if tab.exists(timeout=2):
-            try:
-                tab.invoke()
-                return True
-            except Exception:
-                pass
-            try:
-                tab.click()
-                return True
-            except Exception:
-                pass
-            tab.click_input()
-            return True
-        else:
-            print(f"[{time.strftime('%H:%M:%S')}] 배달탭 없음 (id={tab_id})")
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] 배달탭 클릭 오류: {e}")
     return False
 
 
@@ -247,13 +205,6 @@ def read_order_count(win, cfg):
         if count2 is not None:
             return count2, f"배달+처리중(inv): {count2}건"
 
-        # fallback: "처리중 N" 패턴 (이전 방식)
-        for t in [text, text2]:
-            if t:
-                m = re.search(r"[처저][리디]중\s*(\d+)", t)
-                if m:
-                    return int(m.group(1)), f"패턴: {m.group(0)}"
-
     except Exception as e:
         print(f"[!] OCR 오류: {e}")
 
@@ -266,15 +217,18 @@ def _count_delivery_processing(text):
         return None
 
     lines = text.split("\n")
+    delivery_found = False
     count = 0
     for line in lines:
-        # 배달 + 처리중이 같은 줄에 있으면 카운트
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
         has_processing = "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-        if has_delivery and has_processing:
-            count += 1
+        if has_delivery:
+            delivery_found = True
+            if has_processing:
+                count += 1
 
-    if count > 0:
+    # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
+    if delivery_found:
         return count
     return None
 
@@ -373,22 +327,12 @@ def main():
         input("\n엔터를 누르면 종료...")
         return
 
-    # 배달 탭 클릭
-    tab_id = cfg["delivery_tab_id"]
-    print(f"\n배달 탭 클릭 (id={tab_id})...")
-    if click_delivery_tab(win, tab_id):
-        print("[OK] 배달 탭 클릭 성공")
-    else:
-        print("[!] 배달 탭 클릭 실패 (마우스 사용 중이거나 ID 불일치)")
-
-    time.sleep(1)
-
     # 초기 건수 확인
     count, matched = read_order_count(win, cfg)
     if count is not None:
         print(f"[OK] 주문 건수: {count}건 ({matched})")
     else:
-        print("[!] 건수 감지 실패 — processing_tab_id 확인 필요")
+        print("[!] 건수 감지 실패")
 
     # 모니터링 루프
     interval = cfg["poll_interval_sec"]
@@ -411,10 +355,6 @@ def main():
 
             # 최소화 복원
             ensure_window_visible(win)
-
-            # 배달 탭 클릭
-            click_delivery_tab(win, tab_id)
-            time.sleep(0.5)
 
             # 건수 읽기
             count, matched = read_order_count(win, cfg)
