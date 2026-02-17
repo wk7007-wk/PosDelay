@@ -151,6 +151,7 @@ def ensure_window_visible(win):
 def click_delivery_tab(win, tab_id):
     """자동화 ID로 배달 탭 클릭 (마우스 사용 중이면 건너뜀)"""
     if is_mouse_active():
+        print(f"[{time.strftime('%H:%M:%S')}] 마우스 사용 중 → 탭 클릭 건너뜀")
         return False
     try:
         tab = win.child_window(auto_id=tab_id)
@@ -167,8 +168,10 @@ def click_delivery_tab(win, tab_id):
                 pass
             tab.click_input()
             return True
-    except Exception:
-        pass
+        else:
+            print(f"[{time.strftime('%H:%M:%S')}] 배달탭 없음 (id={tab_id})")
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] 배달탭 클릭 오류: {e}")
     return False
 
 
@@ -209,55 +212,99 @@ def capture_window_bg(hwnd):
 
 
 def read_order_count(win, cfg):
-    """처리중 서브탭을 캡처 → 4배 확대 → OCR → 건수 추출"""
-    import pytesseract
-    from PIL import Image
+    """처리중 건수 읽기: 1) 텍스트 직접읽기 2) OCR fallback"""
 
-    tesseract_path = cfg.get("tesseract_path", "")
-    if tesseract_path and os.path.exists(tesseract_path):
-        pytesseract.pytesseract.tesseract_cmd = tesseract_path
-
+    # 방법1: pywinauto 텍스트 직접 읽기 (OCR 불필요)
     try:
-        # 1. 배경에서도 동작하는 PrintWindow 캡처
+        proc_id = cfg.get("processing_tab_id", "133094")
+        elem = None
+
+        try:
+            elem = win.child_window(auto_id=proc_id)
+            if not elem.exists(timeout=2):
+                elem = None
+        except Exception:
+            elem = None
+
+        if elem is None:
+            try:
+                elem = win.child_window(title_re=".*처리중.*", found_index=0)
+                if not elem.exists(timeout=2):
+                    elem = None
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] 텍스트 검색으로 처리중 탭 발견")
+            except Exception:
+                elem = None
+
+        if elem is None:
+            return None, None
+
+        try:
+            text = elem.window_text()
+            if text:
+                m = re.search(r"(\d+)", text)
+                if m:
+                    return int(m.group(1)), f"텍스트: {text}"
+        except Exception:
+            pass
+
+        try:
+            for child in elem.descendants():
+                try:
+                    ct = child.window_text()
+                    if ct and re.search(r"\d+", ct):
+                        m = re.search(r"(\d+)", ct)
+                        if m:
+                            return int(m.group(1)), f"자식텍스트: {ct}"
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"[!] 텍스트 읽기 실패: {e}")
+
+    # 방법2: OCR fallback
+    try:
+        import pytesseract
+        from PIL import Image, ImageOps
+
+        tesseract_path = cfg.get("tesseract_path", "")
+        if tesseract_path and os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+
         hwnd = win.handle
         img = capture_window_bg(hwnd)
         win_rect = win.rectangle()
 
-        # 2. "처리중 N" 서브탭 위치 크롭
-        proc_id = cfg.get("processing_tab_id", "133094")
-        elem = win.child_window(auto_id=proc_id)
-        rect = elem.rectangle()
-        x1 = rect.left - win_rect.left
-        y1 = rect.top - win_rect.top
-        x2 = rect.right - win_rect.left
-        y2 = rect.bottom - win_rect.top
-        cropped = img.crop((x1, y1, x2, y2))
+        if elem is not None:
+            rect = elem.rectangle()
+            x1 = rect.left - win_rect.left
+            y1 = rect.top - win_rect.top
+            x2 = rect.right - win_rect.left
+            y2 = rect.bottom - win_rect.top
+            cropped = img.crop((x1, y1, x2, y2))
+        else:
+            return None, None
 
-        # 3. 4배 확대 + 전처리
         w, h = cropped.size
         scaled = cropped.resize((w * 4, h * 4), Image.LANCZOS)
         gray = scaled.convert("L")
         bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
 
-        # 4. OCR (단일 라인 모드)
         text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 7").strip()
-
         if text:
             m = re.search(r"(\d+)", text)
             if m:
-                count = int(m.group(1))
-                return count, f"OCR: {text}"
+                return int(m.group(1)), f"OCR: {text}"
 
-        # 5. 색상 반전 버전도 시도 (배경색에 따라)
-        from PIL import ImageOps
         inverted = ImageOps.invert(gray)
         bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
         text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 7").strip()
         if text2:
             m = re.search(r"(\d+)", text2)
             if m:
-                count = int(m.group(1))
-                return count, f"OCR(inv): {text2}"
+                return int(m.group(1)), f"OCR(inv): {text2}"
 
     except Exception as e:
         print(f"[!] OCR 오류: {e}")

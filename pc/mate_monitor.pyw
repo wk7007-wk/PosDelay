@@ -128,25 +128,32 @@ def ensure_window_visible(win):
 
 
 def click_delivery_tab(win, tab_id):
-    if is_mouse_active():
+    mouse_active = is_mouse_active()
+    if mouse_active:
+        log.info("마우스 사용 중 → 탭 클릭 건너뜀")
         return False
     try:
         tab = win.child_window(auto_id=tab_id)
         if tab.exists(timeout=2):
             try:
                 tab.invoke()
+                log.info(f"배달탭 클릭 성공 (invoke, id={tab_id})")
                 return True
             except Exception:
                 pass
             try:
                 tab.click()
+                log.info(f"배달탭 클릭 성공 (click, id={tab_id})")
                 return True
             except Exception:
                 pass
             tab.click_input()
+            log.info(f"배달탭 클릭 성공 (click_input, id={tab_id})")
             return True
-    except Exception:
-        pass
+        else:
+            log.warning(f"배달탭 없음 (id={tab_id})")
+    except Exception as e:
+        log.warning(f"배달탭 클릭 오류: {e}")
     return False
 
 
@@ -186,27 +193,84 @@ def capture_window_bg(hwnd):
 
 
 def read_order_count(win, cfg):
-    """처리중 서브탭 캡처 → 4배 확대 → OCR"""
-    import pytesseract
-    from PIL import Image, ImageOps
+    """처리중 건수 읽기: 1) 텍스트 직접읽기 2) OCR fallback"""
 
-    tesseract_path = cfg.get("tesseract_path", "")
-    if tesseract_path and os.path.exists(tesseract_path):
-        pytesseract.pytesseract.tesseract_cmd = tesseract_path
-
+    # 방법1: pywinauto 텍스트 직접 읽기 (OCR 불필요)
     try:
+        proc_id = cfg.get("processing_tab_id", "133094")
+        elem = None
+
+        # auto_id로 검색
+        try:
+            elem = win.child_window(auto_id=proc_id)
+            if not elem.exists(timeout=2):
+                elem = None
+        except Exception:
+            elem = None
+
+        # fallback: "처리중" 텍스트로 검색
+        if elem is None:
+            try:
+                elem = win.child_window(title_re=".*처리중.*", found_index=0)
+                if not elem.exists(timeout=2):
+                    elem = None
+                else:
+                    log.info(f"텍스트 검색으로 처리중 탭 발견")
+            except Exception:
+                elem = None
+
+        if elem is None:
+            return None, None
+
+        # 텍스트 직접 읽기 시도
+        try:
+            text = elem.window_text()
+            if text:
+                m = re.search(r"(\d+)", text)
+                if m:
+                    return int(m.group(1)), f"텍스트: {text}"
+        except Exception:
+            pass
+
+        # 자식 요소 텍스트 읽기
+        try:
+            for child in elem.descendants():
+                try:
+                    ct = child.window_text()
+                    if ct and re.search(r"\d+", ct):
+                        m = re.search(r"(\d+)", ct)
+                        if m:
+                            return int(m.group(1)), f"자식텍스트: {ct}"
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    except Exception as e:
+        log.warning(f"텍스트 읽기 실패: {e}")
+
+    # 방법2: OCR fallback
+    try:
+        import pytesseract
+        from PIL import Image, ImageOps
+
+        tesseract_path = cfg.get("tesseract_path", "")
+        if tesseract_path and os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+
         hwnd = win.handle
         img = capture_window_bg(hwnd)
         win_rect = win.rectangle()
 
-        proc_id = cfg.get("processing_tab_id", "133094")
-        elem = win.child_window(auto_id=proc_id)
-        rect = elem.rectangle()
-        x1 = rect.left - win_rect.left
-        y1 = rect.top - win_rect.top
-        x2 = rect.right - win_rect.left
-        y2 = rect.bottom - win_rect.top
-        cropped = img.crop((x1, y1, x2, y2))
+        if elem is not None:
+            rect = elem.rectangle()
+            x1 = rect.left - win_rect.left
+            y1 = rect.top - win_rect.top
+            x2 = rect.right - win_rect.left
+            y2 = rect.bottom - win_rect.top
+            cropped = img.crop((x1, y1, x2, y2))
+        else:
+            return None, None
 
         w, h = cropped.size
         scaled = cropped.resize((w * 4, h * 4), Image.LANCZOS)
@@ -228,7 +292,7 @@ def read_order_count(win, cfg):
                 return int(m.group(1)), f"OCR(inv): {text2}"
 
     except Exception as e:
-        log.warning(f"[!] OCR 오류: {e}")
+        log.warning(f"OCR 오류: {e}")
 
     return None, None
 
