@@ -1,11 +1,13 @@
 """
-메이트포스 주문 건수 모니터 → GitHub Gist로 공유
+GENESIS BBQ POS 주문 건수 모니터 → GitHub Gist로 공유
 PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 
 사용법:
   1. Python 설치 (python.org → Add to PATH 체크)
-  2. cmd에서: pip install pywinauto requests
-  3. 이 파일 실행: python mate_monitor.py
+  2. cmd에서: pip install pywinauto requests pillow pytesseract
+  3. Tesseract OCR 설치: https://github.com/UB-Mannheim/tesseract/wiki
+     → 설치 시 "Additional language data" 에서 Korean 체크
+  4. 이 파일 실행: python mate_monitor.py
 
 처음 실행 시 설정 자동 안내됩니다.
 """
@@ -21,9 +23,10 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.j
 DEFAULT_CONFIG = {
     "github_token": "",
     "gist_id": "a67e5de3271d6d0716b276dc6a8391cb",
-    "window_title": "GENESIS",
-    "delivery_tab_text": "배달",
+    "window_title": "메인",
+    "delivery_tab_id": "198354",
     "poll_interval_sec": 30,
+    "tesseract_path": r"C:\Program Files\Tesseract-OCR\tesseract.exe",
 }
 
 
@@ -38,7 +41,7 @@ def load_config():
     print("\n=== 첫 실행: 설정 파일 생성 ===\n")
     print("GitHub Personal Access Token이 필요합니다.")
     print("  1. https://github.com/settings/tokens/new 접속")
-    print("  2. Note: PosDelay")
+    print("  2. Note: PosDelay2")
     print("  3. Expiration: No expiration")
     print("  4. 체크: gist")
     print("  5. Generate token 클릭 → 토큰 복사\n")
@@ -55,122 +58,175 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
-def connect_mate_pos(cfg):
-    """메이트포스 창에 연결"""
-    from pywinauto import Application, findwindows
+def dismiss_popup():
+    """MATE POS 팝업 자동 닫기"""
+    from pywinauto import Application
+    try:
+        app = Application(backend="uia").connect(title="MATE POS", timeout=3)
+        win = app.window(title="MATE POS")
+        texts = [c.window_text() for c in win.descendants() if c.window_text()]
+        if "실행 중입니다" in " ".join(texts):
+            print("[OK] MATE POS 팝업 자동 닫기")
+            try:
+                btn = win.child_window(title="확인")
+                try:
+                    btn.invoke()
+                except Exception:
+                    try:
+                        btn.click()
+                    except Exception:
+                        btn.click_input()
+                time.sleep(1)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
+
+def connect_pos(cfg):
+    """POS 메인 창에 연결"""
+    from pywinauto import Application, findwindows
     keyword = cfg["window_title"]
 
-    try:
-        # UIA 백엔드 (최신 UI 프레임워크 지원)
-        app = Application(backend="uia").connect(title_re=f".*{keyword}.*", timeout=5)
-        win = app.window(title_re=f".*{keyword}.*")
-        print(f"[OK] 메이트포스 연결: {win.window_text()}")
-        return app, win
-    except Exception:
-        pass
+    for backend in ["uia", "win32"]:
+        try:
+            app = Application(backend=backend).connect(title_re=f".*{keyword}.*", timeout=5)
+            win = app.window(title_re=f".*{keyword}.*")
+            # 팝업 아닌지 확인
+            try:
+                child_texts = [c.window_text() for c in win.descendants() if c.window_text()]
+                if "실행 중입니다" in " ".join(child_texts) and len(child_texts) < 6:
+                    continue
+            except Exception:
+                pass
+            print(f"[OK] POS 연결: {win.window_text()} ({backend})")
+            return app, win
+        except Exception:
+            pass
 
+    print(f"\n[!] '{keyword}' 창을 찾을 수 없습니다.")
+    print("현재 열린 창:")
     try:
-        # Win32 백엔드 (기존 Win32 앱)
-        app = Application(backend="win32").connect(title_re=f".*{keyword}.*", timeout=5)
-        win = app.window(title_re=f".*{keyword}.*")
-        print(f"[OK] 메이트포스 연결 (win32): {win.window_text()}")
-        return app, win
-    except Exception:
-        pass
-
-    # 창 목록 표시
-    print(f"\n[!] '{keyword}' 포함 창을 찾을 수 없습니다.")
-    print("\n현재 열린 창:")
-    try:
-        windows = findwindows.find_elements()
-        for w in windows:
+        for w in findwindows.find_elements():
             if w.name.strip():
                 print(f"  - {w.name}")
     except Exception:
         pass
-    print(f"\nconfig.json의 window_title을 수정하세요.")
     return None, None
 
 
-def click_delivery_tab(win, tab_text):
-    """텍스트로 배달 탭 찾아서 클릭"""
+def click_delivery_tab(win, tab_id):
+    """자동화 ID로 배달 탭 클릭 (마우스 이동 없이)"""
     try:
-        # 방법 1: 정확한 텍스트 매칭
-        btn = win.child_window(title=tab_text, found_index=0)
-        if btn.exists(timeout=2):
-            btn.click_input()
-            return True
-    except Exception:
-        pass
-
-    try:
-        # 방법 2: 부분 텍스트 매칭
-        btn = win.child_window(title_re=f".*{tab_text}.*", found_index=0)
-        if btn.exists(timeout=2):
-            btn.click_input()
-            return True
-    except Exception:
-        pass
-
-    try:
-        # 방법 3: 모든 자식 요소에서 텍스트 검색
-        for child in win.descendants():
+        tab = win.child_window(auto_id=tab_id)
+        if tab.exists(timeout=2):
+            # invoke() → click() → click_input() 순서 시도
+            # invoke/click은 마우스를 움직이지 않아 사용자 방해 없음
             try:
-                name = child.window_text()
-                if tab_text in name:
-                    child.click_input()
-                    return True
+                tab.invoke()
+                return True
             except Exception:
-                continue
+                pass
+            try:
+                tab.click()
+                return True
+            except Exception:
+                pass
+            tab.click_input()
+            return True
     except Exception:
         pass
-
     return False
 
 
-def read_all_texts(win):
-    """창 내 모든 텍스트 수집"""
-    texts = []
-    try:
-        # 창 제목
-        texts.append(win.window_text())
-    except Exception:
-        pass
+def capture_and_ocr(win, cfg):
+    """창 스크린샷 → OCR로 텍스트 추출"""
+    import pytesseract
+    from PIL import Image
+
+    tesseract_path = cfg.get("tesseract_path", "")
+    if tesseract_path and os.path.exists(tesseract_path):
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
     try:
-        # 모든 자식 요소 텍스트
+        img = win.capture_as_image()
+        # OCR (한국어 + 영어)
+        text = pytesseract.image_to_string(img, lang="kor+eng")
+        return text
+    except Exception as e:
+        print(f"[!] OCR 오류: {e}")
+        return ""
+
+
+def extract_order_count_ocr(ocr_text):
+    """OCR 텍스트에서 건수 추출"""
+    lines = ocr_text.replace("\n", " ")
+
+    # "처리중 3", "처리중3" 패턴
+    m = re.search(r"(?:처리중|진행중|조리중|접수대기|접수|대기)[\s:]*(\d+)", lines)
+    if m:
+        return int(m.group(1)), m.group(0).strip()
+
+    # "배달 3", "배달3"
+    m = re.search(r"배달[\s]*(\d+)", lines)
+    if m:
+        return int(m.group(1)), m.group(0).strip()
+
+    # "전체 3"
+    m = re.search(r"전체[\s]*(\d+)", lines)
+    if m:
+        return int(m.group(1)), m.group(0).strip()
+
+    # "N건"
+    m = re.search(r"(\d+)\s*건", lines)
+    if m:
+        return int(m.group(1)), m.group(0).strip()
+
+    return None, None
+
+
+def extract_order_count_text(win):
+    """pywinauto 텍스트에서 건수 추출 (OCR 없이)"""
+    texts = []
+    try:
         for child in win.descendants():
             try:
-                text = child.window_text()
-                if text and text.strip():
-                    texts.append(text.strip())
+                t = child.window_text()
+                if t and t.strip():
+                    texts.append(t.strip())
             except Exception:
                 continue
     except Exception:
         pass
 
-    return texts
-
-
-def extract_order_count(texts):
-    """텍스트 목록에서 배달 건수 추출"""
     for text in texts:
-        # "배달 3", "배달3", "배달 0" (GENESIS BBQ 탭 형식)
         m = re.search(r"배달[\s]*(\d+)", text)
         if m:
             return int(m.group(1)), text
-        # "처리중3", "처리중 3건", "조리중 3" 등
-        m = re.search(r"(?:처리중|진행중|조리중|접수대기|접수|대기)[\s:：()（）]*(\d+)", text)
-        if m:
-            return int(m.group(1)), text
-        # "전체 3", "N건" 등
-        m = re.search(r"전체[\s]*(\d+)", text)
+        m = re.search(r"(?:처리중|진행중|조리중|접수대기)[\s:]*(\d+)", text)
         if m:
             return int(m.group(1)), text
         m = re.search(r"(\d+)\s*건", text)
         if m:
             return int(m.group(1)), text
+    return None, None
+
+
+def read_order_count(win, cfg, use_ocr=True):
+    """건수 읽기 (텍스트 → OCR 순서)"""
+    # 1차: pywinauto 텍스트
+    count, matched = extract_order_count_text(win)
+    if count is not None:
+        return count, f"텍스트: {matched}"
+
+    # 2차: OCR
+    if use_ocr:
+        ocr_text = capture_and_ocr(win, cfg)
+        if ocr_text:
+            count, matched = extract_order_count_ocr(ocr_text)
+            if count is not None:
+                return count, f"OCR: {matched}"
+
     return None, None
 
 
@@ -207,7 +263,7 @@ def update_gist(cfg, count):
 
 def main():
     print("=" * 50)
-    print("  메이트포스 주문 모니터 (PosDelay PC)")
+    print("  GENESIS BBQ POS 주문 모니터")
     print("=" * 50)
 
     cfg = load_config()
@@ -222,37 +278,51 @@ def main():
         else:
             print("[!] 토큰 필요"); return
 
-    # 메이트포스 연결
-    app, win = connect_mate_pos(cfg)
+    # MATE POS 팝업 닫기
+    dismiss_popup()
+
+    # POS 연결
+    app, win = connect_pos(cfg)
     if not win:
         input("\n엔터를 누르면 종료...")
         return
 
-    # 배달 탭 클릭 테스트
-    tab_text = cfg["delivery_tab_text"]
-    print(f"\n'{tab_text}' 탭 검색 중...")
-    if click_delivery_tab(win, tab_text):
-        print(f"[OK] '{tab_text}' 탭 클릭 성공")
+    # OCR 사용 가능 여부 확인
+    use_ocr = False
+    try:
+        import pytesseract
+        from PIL import Image
+        tesseract_path = cfg.get("tesseract_path", "")
+        if tesseract_path and os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        pytesseract.get_tesseract_version()
+        use_ocr = True
+        print("[OK] OCR 사용 가능 (Tesseract)")
+    except Exception:
+        print("[!] OCR 미설치 → 텍스트 모드만 사용")
+        print("    OCR 설치: pip install pytesseract pillow")
+        print("    Tesseract: https://github.com/UB-Mannheim/tesseract/wiki")
+
+    # 배달 탭 클릭
+    tab_id = cfg["delivery_tab_id"]
+    print(f"\n배달 탭 클릭 (id={tab_id})...")
+    if click_delivery_tab(win, tab_id):
+        print("[OK] 배달 탭 클릭 성공")
     else:
-        print(f"[!] '{tab_text}' 탭을 찾지 못했습니다.")
-        print("    config.json의 delivery_tab_text를 수정하세요.")
-        # 모든 텍스트 표시 (디버깅)
-        texts = read_all_texts(win)
-        print(f"\n창 텍스트 ({len(texts)}개):")
-        for t in texts[:30]:
-            print(f"  [{t}]")
+        print("[!] 배달 탭 클릭 실패")
+        print("    scan_pos.py로 정확한 ID를 확인하세요.")
 
     time.sleep(1)
 
     # 초기 건수 확인
-    texts = read_all_texts(win)
-    count, matched = extract_order_count(texts)
+    count, matched = read_order_count(win, cfg, use_ocr)
     if count is not None:
-        print(f"[OK] 주문 건수: {count}건 (매칭: {matched})")
+        print(f"[OK] 주문 건수: {count}건 ({matched})")
     else:
-        print("[!] 건수 감지 실패. 텍스트 확인:")
-        for t in texts[:20]:
-            print(f"  [{t}]")
+        print("[!] 건수 감지 실패")
+        if use_ocr:
+            ocr_text = capture_and_ocr(win, cfg)
+            print(f"OCR 결과 (처음 500자):\n{ocr_text[:500]}")
 
     # 모니터링 루프
     interval = cfg["poll_interval_sec"]
@@ -262,28 +332,28 @@ def main():
     fail_count = 0
     while True:
         try:
-            # 창 재연결 (최소화/재시작 대응)
+            # 창 재연결
             try:
                 win.window_text()
             except Exception:
-                print(f"[{time.strftime('%H:%M:%S')}] 창 재연결 시도...")
-                app, win = connect_mate_pos(cfg)
+                print(f"[{time.strftime('%H:%M:%S')}] 창 재연결...")
+                dismiss_popup()
+                app, win = connect_pos(cfg)
                 if not win:
                     time.sleep(interval)
                     continue
 
             # 배달 탭 클릭
-            click_delivery_tab(win, tab_text)
+            click_delivery_tab(win, tab_id)
             time.sleep(0.5)
 
-            # 텍스트 읽기
-            texts = read_all_texts(win)
-            count, matched = extract_order_count(texts)
+            # 건수 읽기
+            count, matched = read_order_count(win, cfg, use_ocr)
 
             if count is not None:
                 fail_count = 0
                 if count != last_count:
-                    print(f"[{time.strftime('%H:%M:%S')}] 주문: {count}건 ({last_count}→{count})")
+                    print(f"[{time.strftime('%H:%M:%S')}] 주문: {count}건 ({last_count}→{count}) [{matched}]")
                     if update_gist(cfg, count):
                         print(f"[{time.strftime('%H:%M:%S')}] Gist 업데이트 완료")
                     last_count = count
