@@ -117,9 +117,11 @@ class MainActivity : AppCompatActivity() {
             binding.tvOrderCount.text = count.toString()
             updateStatus(count)
             DelayNotificationHelper.update(this)
-            // 주문 밀림 감지 → 광고 자동 끄기
+            // 주문 밀림 감지 → 광고 자동 끄기/켜기
             if (AdScheduler.checkOrderThreshold()) {
                 handleOrderThresholdExceeded()
+            } else if (AdScheduler.checkOrderBelowThreshold()) {
+                handleOrderBelowThreshold()
             }
         }
 
@@ -526,14 +528,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 주문 밀림 임계값 초과 시 처리 */
+    /** 주문 밀림 임계값 초과/미만 시 처리 */
     private var lastOrderAutoOffTime = 0L
+    private var lastOrderAutoOnTime = 0L
+    private var adAutoOffActive = false
 
     private fun handleOrderThresholdExceeded() {
         // 5분 내 중복 방지
         val now = System.currentTimeMillis()
         if (now - lastOrderAutoOffTime < 5 * 60 * 1000) return
         lastOrderAutoOffTime = now
+        adAutoOffActive = true
 
         val count = OrderTracker.getOrderCount()
         val threshold = AdManager.getAutoOffThreshold()
@@ -544,6 +549,27 @@ class MainActivity : AppCompatActivity() {
         }
         if (AdManager.hasBaeminCredentials()) {
             executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
+        }
+    }
+
+    private fun handleOrderBelowThreshold() {
+        // 자동 끄기가 실행된 적 없으면 무시
+        if (!adAutoOffActive) return
+        // 5분 내 중복 방지
+        val now = System.currentTimeMillis()
+        if (now - lastOrderAutoOnTime < 5 * 60 * 1000) return
+        lastOrderAutoOnTime = now
+        adAutoOffActive = false
+
+        val count = OrderTracker.getOrderCount()
+        val threshold = AdManager.getAutoOffThreshold()
+        Toast.makeText(this, "주문 ${count}건 < ${threshold}건 → 광고 자동 켜기", Toast.LENGTH_LONG).show()
+
+        if (AdManager.hasCoupangCredentials()) {
+            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+        }
+        if (AdManager.hasBaeminCredentials()) {
+            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
         }
     }
 

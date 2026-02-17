@@ -88,6 +88,14 @@ object AdScheduler {
         val threshold = AdManager.getAutoOffThreshold()
         return count >= threshold
     }
+
+    /** 임계값 미만이면 true 반환 (광고 자동 켜기용) */
+    fun checkOrderBelowThreshold(): Boolean {
+        if (!AdManager.isAdEnabled() || !AdManager.isOrderAutoOffEnabled()) return false
+        val count = OrderTracker.getOrderCount()
+        val threshold = AdManager.getAutoOffThreshold()
+        return count < threshold
+    }
 }
 
 class AdAlarmReceiver : BroadcastReceiver() {

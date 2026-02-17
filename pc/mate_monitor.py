@@ -221,7 +221,8 @@ def _count_delivery_processing(text):
     count = 0
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
-        has_processing = "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+        has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+                         or "조리시작" in line or "초리시작" in line or "조리시직" in line)
         if has_delivery:
             delivery_found = True
             if has_processing:
