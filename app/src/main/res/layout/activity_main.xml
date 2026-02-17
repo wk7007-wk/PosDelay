@@ -838,7 +838,38 @@
                 android:layout_marginStart="4dp" />
         </LinearLayout>
 
-        <!-- 수동 실행 + 로그인 설정 -->
+        <!-- 수동 실행: 배민 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btnAdManualBaeminNormal"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="배민 정상금액"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#2AC1BC"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnAdManualBaeminReduced"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="배민 축소금액"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#16A085"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <!-- 수동 실행: 쿠팡 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -847,14 +878,14 @@
             android:layout_marginBottom="8dp">
 
             <Button
-                android:id="@+id/btnAdManualBaemin"
+                android:id="@+id/btnAdManualCoupangOn"
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_weight="1"
-                android:text="배민 자동실행"
+                android:text="쿠팡 켜기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#2AC1BC"
+                android:backgroundTint="#3498DB"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -862,7 +893,7 @@
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_weight="1"
-                android:text="쿠팡 자동실행"
+                android:text="쿠팡 끄기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#E74C3C"

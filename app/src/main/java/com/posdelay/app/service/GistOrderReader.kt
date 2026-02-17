@@ -1,5 +1,6 @@
 package com.posdelay.app.service
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -21,9 +22,11 @@ object GistOrderReader {
 
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
+    private var appContext: Context? = null
 
-    fun start() {
+    fun start(context: Context) {
         if (running) return
+        appContext = context.applicationContext
         running = true
         handler.post(fetchRunnable)
         Log.d(TAG, "Gist 모니터링 시작 (${INTERVAL_MS / 1000}초 간격)")
@@ -74,6 +77,10 @@ object GistOrderReader {
                     val age = System.currentTimeMillis() - pcTime
                     if (pcTime > 0 && age < 10 * 60 * 1000) {
                         OrderTracker.syncPcOrderCount(count, pcTime)
+                        // 알림으로 건수 표시
+                        appContext?.let { ctx ->
+                            handler.post { DelayNotificationHelper.update(ctx) }
+                        }
                     } else if (pcTime > 0) {
                         // 오래된 데이터도 시간은 기록 (UI에 표시용)
                         OrderTracker.updatePcSyncTime(pcTime)

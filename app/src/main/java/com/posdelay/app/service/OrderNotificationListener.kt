@@ -19,9 +19,12 @@ class OrderNotificationListener : NotificationListenerService() {
         val title = extras.getString("android.title") ?: ""
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
 
-        // MATE 알림은 전부 로그에 기록
+        // MATE 알림 로그 기록 (배차 알림은 너무 많으므로 제외)
         if (packageName == MATE_PACKAGE) {
-            NotificationLog.add(packageName, title, text)
+            val combined = "$title $text"
+            if (!combined.contains("배차") && !combined.contains("라이더")) {
+                NotificationLog.add(packageName, title, text)
+            }
         }
 
         if (packageName != MATE_PACKAGE) return

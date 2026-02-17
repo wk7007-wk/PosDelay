@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         DelayNotificationHelper.update(this)
 
         handleScheduledAction(intent)
-        GistOrderReader.start()
+        GistOrderReader.start(this)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -432,22 +432,31 @@ class MainActivity : AppCompatActivity() {
             openWebViewBrowser("쿠팡이츠 스토어", "https://store.coupangeats.com/merchant/login")
         }
 
-        // 수동 실행: 배민 금액 변경 (정상/축소 선택)
-        binding.btnAdManualBaemin.setOnClickListener {
+        // 수동 실행: 배민 정상금액
+        binding.btnAdManualBaeminNormal.setOnClickListener {
             if (!AdManager.hasBaeminCredentials()) {
                 Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val normal = AdManager.getBaeminAmount()
-            val reduced = AdManager.getBaeminReducedAmount()
-            AlertDialog.Builder(this)
-                .setTitle("배민 광고 금액 설정")
-                .setItems(arrayOf("정상 금액 (${normal}원)", "축소 금액 (${reduced}원)")) { _, which ->
-                    val amount = if (which == 0) normal else reduced
-                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, amount)
-                }
-                .setNegativeButton("취소", null)
-                .show()
+            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+        }
+
+        // 수동 실행: 배민 축소금액
+        binding.btnAdManualBaeminReduced.setOnClickListener {
+            if (!AdManager.hasBaeminCredentials()) {
+                Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
+        }
+
+        // 수동 실행: 쿠팡 켜기
+        binding.btnAdManualCoupangOn.setOnClickListener {
+            if (!AdManager.hasCoupangCredentials()) {
+                Toast.makeText(this, "쿠팡 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
         }
 
         // 수동 실행: 쿠팡 끄기
