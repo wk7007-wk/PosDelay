@@ -20,7 +20,9 @@ import re
 import time
 import requests
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
+LOCK_FILE = os.path.join(SCRIPT_DIR, "monitor.lock")
 
 DEFAULT_CONFIG = {
     "github_token": "",
@@ -129,6 +131,21 @@ def is_mouse_active():
         return pt1.x != pt2.x or pt1.y != pt2.y
     except Exception:
         return False
+
+
+def ensure_window_visible(win):
+    """최소화된 창 자동 복원"""
+    try:
+        hwnd = win.handle
+        if ctypes.windll.user32.IsIconic(hwnd):
+            SW_RESTORE = 9
+            ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+            time.sleep(1)
+            print(f"[{time.strftime('%H:%M:%S')}] POS 최소화 감지 → 복원")
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def click_delivery_tab(win, tab_id):
@@ -279,9 +296,32 @@ def update_gist(cfg, count):
         return False
 
 
+def kill_old_instances():
+    """기존 인스턴스 종료 (PID 락 파일 기반)"""
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            import signal
+            os.kill(old_pid, signal.SIGTERM)
+            print(f"[OK] 기존 인스턴스 종료 (PID {old_pid})")
+            time.sleep(1)
+        except (ProcessLookupError, ValueError):
+            pass
+        except Exception:
+            try:
+                os.system(f"taskkill /PID {old_pid} /F >nul 2>&1")
+            except Exception:
+                pass
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
 def main():
+    kill_old_instances()
+
     print("=" * 50)
-    print("  GENESIS BBQ POS 주문 모니터")
+    print(f"  GENESIS BBQ POS 주문 모니터 (PID {os.getpid()})")
     print("=" * 50)
 
     cfg = load_config()
@@ -354,6 +394,9 @@ def main():
                 if not win:
                     time.sleep(interval)
                     continue
+
+            # 최소화 복원
+            ensure_window_visible(win)
 
             # 배달 탭 클릭
             click_delivery_tab(win, tab_id)

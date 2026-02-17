@@ -11,6 +11,7 @@ import ctypes
 import ctypes.wintypes
 import json
 import logging
+import logging.handlers
 import os
 import re
 import sys
@@ -20,15 +21,15 @@ import requests
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
 LOG_FILE = os.path.join(SCRIPT_DIR, "monitor_log.txt")
+LOCK_FILE = os.path.join(SCRIPT_DIR, "monitor.lock")
 
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    encoding="utf-8",
-)
 log = logging.getLogger("mate_monitor")
+log.setLevel(logging.INFO)
+_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILE, maxBytes=500_000, backupCount=2, encoding="utf-8"
+)
+_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s", "%Y-%m-%d %H:%M:%S"))
+log.addHandler(_handler)
 
 DEFAULT_CONFIG = {
     "github_token": "",
@@ -109,6 +110,21 @@ def is_mouse_active():
         return pt1.x != pt2.x or pt1.y != pt2.y
     except Exception:
         return False
+
+
+def ensure_window_visible(win):
+    """최소화된 창 자동 복원"""
+    try:
+        hwnd = win.handle
+        if ctypes.windll.user32.IsIconic(hwnd):
+            SW_RESTORE = 9
+            ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+            time.sleep(1)
+            log.info("POS 최소화 감지 → 복원")
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def click_delivery_tab(win, tab_id):
@@ -262,9 +278,37 @@ def register_startup():
         log.warning(f"[!] 시작프로그램 등록 실패: {e}")
 
 
+def kill_old_instances():
+    """기존 인스턴스 종료 (PID 락 파일 기반)"""
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            # 기존 프로세스 강제 종료
+            import signal
+            os.kill(old_pid, signal.SIGTERM)
+            log.info(f"기존 인스턴스 종료 (PID {old_pid})")
+            time.sleep(1)
+        except (ProcessLookupError, ValueError):
+            pass  # 이미 종료됨
+        except Exception as e:
+            log.warning(f"기존 인스턴스 종료 실패: {e}")
+            # Windows에서는 taskkill 시도
+            try:
+                os.system(f"taskkill /PID {old_pid} /F >nul 2>&1")
+            except Exception:
+                pass
+
+    # 현재 PID 기록
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
 def main():
+    kill_old_instances()
+
     log.info("=" * 40)
-    log.info("  PosDelay PC 모니터 시작 (백그라운드)")
+    log.info(f"  PosDelay PC 모니터 시작 (PID {os.getpid()})")
     log.info("=" * 40)
 
     cfg = load_config()
@@ -317,6 +361,8 @@ def main():
                     time.sleep(interval)
                     continue
 
+            ensure_window_visible(win)
+
             click_delivery_tab(win, tab_id)
             time.sleep(0.5)
 
@@ -342,6 +388,12 @@ def main():
         except Exception as e:
             log.error(f"오류: {e}")
             time.sleep(interval)
+
+    # 종료 시 락 파일 정리
+    try:
+        os.remove(LOCK_FILE)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

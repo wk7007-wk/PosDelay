@@ -171,7 +171,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="쿠팡이츠"
-                android:textColor="#00C4B4"
+                android:textColor="#E74C3C"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -197,7 +197,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="10건"
-            android:textColor="#00C4B4"
+            android:textColor="#E74C3C"
             android:textSize="22sp"
             android:textStyle="bold"
             android:paddingStart="12dp"
@@ -358,66 +358,76 @@
             android:layout_marginStart="8dp" />
     </LinearLayout>
 
-    <!-- 하단 권한 상태 -->
+    <!-- 하단: 상태 + 버튼 (컴팩트) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:layout_marginTop="8dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp">
 
         <TextView
             android:id="@+id/tvNotificationStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="알림 접근: 확인 중..."
+            android:text="알림✓"
             android:textColor="#999999"
-            android:textSize="12sp" />
+            android:textSize="10sp"
+            android:layout_marginEnd="8dp" />
 
         <TextView
             android:id="@+id/tvAccessibilityStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="접근성 서비스: 확인 중..."
+            android:text="접근성✓"
             android:textColor="#999999"
-            android:textSize="12sp"
-            android:layout_marginTop="4dp" />
+            android:textSize="10sp" />
 
-        <LinearLayout
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnPermissions"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:layout_height="30dp"
+            android:text="권한"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#333333"
+            android:textSize="10sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:layout_marginEnd="4dp" />
 
-            <Button
-                android:id="@+id/btnPermissions"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="권한 설정"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#333333"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp" />
+        <Button
+            android:id="@+id/btnViewLog"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:text="로그"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#1A6B8A"
+            android:textSize="10sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:layout_marginEnd="4dp" />
 
-            <Button
-                android:id="@+id/btnViewLog"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="알림 로그"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#1A6B8A"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp" />
-
-            <Button
-                android:id="@+id/btnUpdate"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="앱 업데이트"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#8E44AD"
-                android:textSize="12sp" />
-        </LinearLayout>
+        <Button
+            android:id="@+id/btnUpdate"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:text="업데이트"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#8E44AD"
+            android:textSize="10sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
     </LinearLayout>
 
     <!-- ══════════ 광고 관리 섹션 ══════════ -->
@@ -606,7 +616,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="쿠팡이츠 광고"
-                    android:textColor="#00C4B4"
+                    android:textColor="#E74C3C"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -823,7 +833,7 @@
                 android:text="배민 직접열기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#06B6AA"
+                android:backgroundTint="#2AC1BC"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -834,7 +844,7 @@
                 android:text="쿠팡 직접열기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1A73E8"
+                android:backgroundTint="#E74C3C"
                 android:layout_marginStart="4dp" />
         </LinearLayout>
 
@@ -885,7 +895,7 @@
                 android:text="쿠팡 켜기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#3498DB"
+                android:backgroundTint="#E74C3C"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -896,7 +906,7 @@
                 android:text="쿠팡 끄기"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#E74C3C"
+                android:backgroundTint="#C0392B"
                 android:layout_marginStart="4dp" />
         </LinearLayout>
 

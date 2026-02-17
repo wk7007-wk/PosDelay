@@ -426,10 +426,10 @@ class MainActivity : AppCompatActivity() {
 
         // 직접 열기: 전체화면 WebView로 사이트 확인
         binding.btnOpenBaemin.setOnClickListener {
-            openWebViewBrowser("배민 사장님 사이트", "https://self.baemin.com")
+            openWebViewBrowser("배민 광고센터", "https://self.baemin.com/ad-center")
         }
         binding.btnOpenCoupang.setOnClickListener {
-            openWebViewBrowser("쿠팡이츠 스토어", "https://store.coupangeats.com/merchant/login")
+            openWebViewBrowser("쿠팡이츠 광고", "https://advertising.coupangeats.com")
         }
 
         // 수동 실행: 배민 정상금액
@@ -1075,13 +1075,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions() {
         val notificationEnabled = isNotificationListenerEnabled()
-        binding.tvNotificationStatus.text = "알림 접근: ${if (notificationEnabled) "활성화" else "비활성화"}"
+        binding.tvNotificationStatus.text = if (notificationEnabled) "알림 ✓" else "알림 ✗"
         binding.tvNotificationStatus.setTextColor(
             if (notificationEnabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
         )
 
         val accessibilityEnabled = isAccessibilityEnabled()
-        binding.tvAccessibilityStatus.text = "접근성 서비스: ${if (accessibilityEnabled) "활성화" else "비활성화"}"
+        binding.tvAccessibilityStatus.text = if (accessibilityEnabled) "접근성 ✓" else "접근성 ✗"
         binding.tvAccessibilityStatus.setTextColor(
             if (accessibilityEnabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
         )
