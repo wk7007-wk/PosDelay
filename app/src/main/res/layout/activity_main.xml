@@ -228,6 +228,15 @@
                 android:textColor="#707088"
                 android:textSize="12sp" />
 
+            <TextView
+                android:id="@+id/tvNextRefresh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#3498DB"
+                android:textSize="11sp"
+                android:layout_marginStart="6dp" />
+
             <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
             <Button

@@ -40,6 +40,8 @@ object GistOrderReader {
     private var currentInterval = INTERVAL_NORMAL
     private var lastMateAttempt = 0L
     private var pendingReturnHome = false
+    var nextFetchTime = 0L
+        private set
 
     fun start(context: Context) {
         if (running) return
@@ -66,7 +68,10 @@ object GistOrderReader {
         override fun run() {
             fetchGist()
             handler.post { checkStaleAndRefresh() }
-            if (running) handler.postDelayed(this, currentInterval)
+            if (running) {
+                nextFetchTime = System.currentTimeMillis() + currentInterval
+                handler.postDelayed(this, currentInterval)
+            }
         }
     }
 

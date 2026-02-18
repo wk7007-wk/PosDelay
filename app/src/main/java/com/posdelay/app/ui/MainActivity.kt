@@ -52,6 +52,14 @@ import com.posdelay.app.service.GitHubUpdater
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private val countdownHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val countdownRunnable = object : Runnable {
+        override fun run() {
+            val remaining = ((GistOrderReader.nextFetchTime - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            binding.tvNextRefresh.text = "${remaining}s"
+            countdownHandler.postDelayed(this, 1000)
+        }
+    }
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
@@ -75,6 +83,12 @@ class MainActivity : AppCompatActivity() {
 
         handleScheduledAction(intent)
         GistOrderReader.start(this)
+        countdownHandler.post(countdownRunnable)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        countdownHandler.removeCallbacks(countdownRunnable)
     }
 
     override fun onNewIntent(intent: Intent?) {
