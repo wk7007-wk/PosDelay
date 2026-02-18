@@ -223,15 +223,20 @@ def _count_delivery_processing(text):
         "조리완료", "초리완료", "조리완르",
         "배달중", "배닫중", "베달중",
         "배차", "배처",
-        "픽업", "픽엄",
         "대기", "데기",
         "로봇", "예약",
     ]
-    inactive_kw = ["거절", "취소", "완료", "완르"]
+    inactive_kw = ["거절", "취소", "완료", "완르", "픽업", "픽엄"]
     all_kw = active_kw + inactive_kw
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
         if not has_delivery:
+            continue
+
+        # 내점/포장이 같이 있으면 카테고리 헤더
+        has_other_type = "내점" in line or "포장" in line or "홀" in line
+        if has_other_type:
+            log.info(f"배달행[헤더]: {line.strip()[:60]}")
             continue
 
         # 상태 키워드 3개 이상 → 카테고리 헤더 행
