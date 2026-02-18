@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 object OrderTracker {
 
     private const val PREFS_NAME = "pos_delay_prefs"
+    private lateinit var appContext: android.content.Context
     private const val KEY_ORDER_COUNT = "order_count"
     private const val KEY_COUPANG_THRESHOLD = "coupang_threshold"
     private const val KEY_BAEMIN_THRESHOLD = "baemin_threshold"
@@ -44,6 +45,7 @@ object OrderTracker {
     val lastPcSyncTime: LiveData<Long> = _lastPcSyncTime
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _orderCount.postValue(prefs.getInt(KEY_ORDER_COUNT, 0))
         _coupangThreshold.postValue(prefs.getInt(KEY_COUPANG_THRESHOLD, 10))
@@ -67,6 +69,10 @@ object OrderTracker {
         val value = maxOf(0, count)
         prefs.edit().putInt(KEY_ORDER_COUNT, value).apply()
         _orderCount.postValue(value)
+        // 백그라운드에서도 광고 임계값 체크
+        try {
+            com.posdelay.app.service.AdScheduler.checkFromBackground(appContext, value)
+        } catch (_: Exception) {}
     }
 
     /** MATE 화면에서 읽은 정확한 건수로 동기화 (시간 기록) */

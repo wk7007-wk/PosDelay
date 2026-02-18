@@ -14,6 +14,7 @@ import logging
 import logging.handlers
 import os
 import re
+import subprocess
 import sys
 import time
 import requests
@@ -302,6 +303,47 @@ def kill_old_instances():
         f.write(str(os.getpid()))
 
 
+def auto_update():
+    """git pull 후 변경 있으면 자동 재시작 (백그라운드)"""
+    repo_dir = os.path.dirname(SCRIPT_DIR)  # PosDelay/ 루트
+    try:
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=repo_dir, capture_output=True, text=True, timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        output = result.stdout.strip()
+        log.info(f"git pull: {output}")
+
+        if "Already up to date" in output or "Already up-to-date" in output:
+            return  # 변경 없음
+
+        # 변경 있음 → 재시작
+        log.info("코드 업데이트 감지 → 재시작")
+
+        # 락 파일 정리
+        try:
+            os.remove(LOCK_FILE)
+        except Exception:
+            pass
+
+        # pythonw로 백그라운드 재시작
+        pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        if not os.path.exists(pythonw):
+            pythonw = "pythonw"
+        script = os.path.join(SCRIPT_DIR, "mate_monitor.pyw")
+        subprocess.Popen(
+            [pythonw, script],
+            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+        )
+        sys.exit(0)
+
+    except subprocess.TimeoutExpired:
+        log.warning("git pull 타임아웃")
+    except Exception as e:
+        log.warning(f"auto_update 실패: {e}")
+
+
 def main():
     kill_old_instances()
 
@@ -342,12 +384,20 @@ def main():
         return
 
     interval = cfg["poll_interval_sec"]
-    log.info(f"모니터링 시작 ({interval}초 간격)")
+    log.info(f"모니터링 시작 ({interval}초 간격, 매 정각 자동업데이트)")
 
     last_count = -1
     fail_count = 0
+    last_update_slot = -1
     while True:
         try:
+            # 30분마다: git pull + 자동 재시작 (00분, 30분)
+            t = time.localtime()
+            current_slot = t.tm_hour * 2 + (1 if t.tm_min >= 30 else 0)
+            if current_slot != last_update_slot:
+                last_update_slot = current_slot
+                auto_update()  # 변경 있으면 여기서 재시작됨
+
             try:
                 win.window_text()
             except Exception:

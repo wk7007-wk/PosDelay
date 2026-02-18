@@ -81,20 +81,108 @@ object AdScheduler {
         }
     }
 
-    /** OrderTracker.orderCount 변경 시 호출 — 임계값 초과하면 true 반환 */
-    fun checkOrderThreshold(): Boolean {
-        if (!AdManager.isAdEnabled() || !AdManager.isOrderAutoOffEnabled()) return false
-        val count = OrderTracker.getOrderCount()
-        val threshold = AdManager.getAutoOffThreshold()
-        return count >= threshold
+    /** 현재 시각이 스케줄 활성 시간대(켜기~끄기) 안에 있는지 확인 */
+    fun isWithinActiveWindow(): Boolean {
+        if (!AdManager.isScheduleEnabled()) return true  // 스케줄 꺼져 있으면 항상 활성
+        val onTime = AdManager.getAdOnTime()   // 예: "08:00"
+        val offTime = AdManager.getAdOffTime()  // 예: "22:00"
+        val onMin = timeToMinutes(onTime) ?: return true
+        val offMin = timeToMinutes(offTime) ?: return true
+
+        val cal = Calendar.getInstance()
+        val nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+
+        return if (onMin <= offMin) {
+            // 같은 날: 08:00~22:00
+            nowMin in onMin until offMin
+        } else {
+            // 자정 넘김: 22:00~08:00 → 22:00이후 또는 08:00이전
+            nowMin >= onMin || nowMin < offMin
+        }
     }
 
-    /** 임계값 미만이면 true 반환 (광고 자동 켜기용) */
-    fun checkOrderBelowThreshold(): Boolean {
-        if (!AdManager.isAdEnabled() || !AdManager.isOrderAutoOffEnabled()) return false
-        val count = OrderTracker.getOrderCount()
-        val threshold = AdManager.getAutoOffThreshold()
-        return count < threshold
+    private fun timeToMinutes(timeStr: String): Int? {
+        val parts = timeStr.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        return h * 60 + m
+    }
+
+    private fun isAutoEnabled(): Boolean =
+        AdManager.isAdEnabled() && AdManager.isOrderAutoOffEnabled() && isWithinActiveWindow()
+
+    /** 쿠팡: 끄기 임계값 초과? */
+    fun shouldCoupangOff(): Boolean {
+        if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
+        return OrderTracker.getOrderCount() >= AdManager.getCoupangOffThreshold()
+    }
+    /** 쿠팡: 켜기 임계값 이하? */
+    fun shouldCoupangOn(): Boolean {
+        if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
+        return OrderTracker.getOrderCount() <= AdManager.getCoupangOnThreshold()
+    }
+    /** 배민: 끄기 임계값 초과? */
+    fun shouldBaeminOff(): Boolean {
+        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
+        return OrderTracker.getOrderCount() >= AdManager.getBaeminOffThreshold()
+    }
+    /** 배민: 켜기 임계값 이하? */
+    fun shouldBaeminOn(): Boolean {
+        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
+        return OrderTracker.getOrderCount() <= AdManager.getBaeminOnThreshold()
+    }
+
+    private const val KEY_LAST_BG_COUPANG = "last_bg_coupang"
+    private const val KEY_LAST_BG_BAEMIN = "last_bg_baemin"
+
+    /** 백그라운드에서 주문 건수 변경 시 — 현재 상태 기반으로 필요시 실행 */
+    fun checkFromBackground(context: Context, count: Int) {
+        if (!AdManager.isAdEnabled() || !AdManager.isOrderAutoOffEnabled()) return
+        if (!isWithinActiveWindow()) return
+        val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        var needOff = false
+        var needOn = false
+
+        // 쿠팡: 개별 스위치 확인
+        val coupangOn = AdManager.coupangCurrentOn.value
+        val lastCoupang = prefs.getLong(KEY_LAST_BG_COUPANG, 0L)
+        if (AdManager.isCoupangAutoEnabled() && now - lastCoupang >= 5 * 60 * 1000) {
+            if (count >= AdManager.getCoupangOffThreshold() && coupangOn != false) {
+                prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
+                needOff = true
+            } else if (count <= AdManager.getCoupangOnThreshold() && coupangOn == false) {
+                prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
+                needOn = true
+            }
+        }
+
+        // 배민: 개별 스위치 확인
+        val bid = AdManager.getBaeminCurrentBid()
+        val normalAmount = AdManager.getBaeminAmount()
+        val lastBaemin = prefs.getLong(KEY_LAST_BG_BAEMIN, 0L)
+        if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
+            if (count >= AdManager.getBaeminOffThreshold() && (bid <= 0 || bid >= normalAmount)) {
+                prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()
+                needOff = true
+            } else if (count <= AdManager.getBaeminOnThreshold() && bid in 1 until normalAmount) {
+                prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()
+                needOn = true
+            }
+        }
+
+        if (needOff) launchAdAction(context, "ad_auto_off")
+        else if (needOn) launchAdAction(context, "ad_auto_on")
+    }
+
+    private fun launchAdAction(context: Context, action: String) {
+        Log.d(TAG, "Background trigger: $action")
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("ad_scheduled_action", action)
+        }
+        context.startActivity(intent)
     }
 }
 
@@ -107,16 +195,16 @@ class AdAlarmReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             AdScheduler.ACTION_AD_OFF -> {
-                AdManager.setLastAdAction("스케줄: 광고 끄기 시간")
-                // 알림 표시 + 앱 실행해서 WebView 자동화 실행
-                DelayNotificationHelper.showAdAlert(context, "스케줄: 광고 끄기 시간입니다")
+                val cnt = OrderTracker.getOrderCount()
+                AdManager.setLastAdAction("스케줄 광고끄기")
+                DelayNotificationHelper.showAdAlert(context, "${cnt}건 광고끄기")
                 launchWithAction(context, "ad_off")
-                // 내일 같은 시간으로 재등록
                 AdScheduler.scheduleAlarms(context)
             }
             AdScheduler.ACTION_AD_ON -> {
-                AdManager.setLastAdAction("스케줄: 광고 켜기 시간")
-                DelayNotificationHelper.showAdAlert(context, "스케줄: 광고 켜기 시간입니다")
+                val cnt = OrderTracker.getOrderCount()
+                AdManager.setLastAdAction("스케줄 광고켜기")
+                DelayNotificationHelper.showAdAlert(context, "${cnt}건 광고켜기")
                 launchWithAction(context, "ad_on")
                 AdScheduler.scheduleAlarms(context)
             }

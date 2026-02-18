@@ -99,9 +99,11 @@ class DelayAccessibilityService : AccessibilityService() {
             val count = findProcessingCount(rootNode)
             if (count != null) {
                 val current = OrderTracker.getOrderCount()
+                // MATE 건수 읽힘 → 동기화 시간 갱신 + 자동 복귀 트리거
+                OrderTracker.syncOrderCount(count)
+                GistOrderReader.onMateDataRead()
                 if (count != current) {
                     log(Code.INFO_COUNT, "MATE", "처리중 건수 변경: $current → $count")
-                    OrderTracker.syncOrderCount(count)
                     DelayNotificationHelper.update(applicationContext)
 
                     if (OrderTracker.shouldDelayCoupang()) {

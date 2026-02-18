@@ -21,7 +21,12 @@ object AdManager {
     private const val KEY_AD_ON_TIME = "ad_on_time"
     private const val KEY_SCHEDULE_ENABLED = "schedule_enabled"
     private const val KEY_ORDER_AUTO_OFF_ENABLED = "order_auto_off_enabled"
-    private const val KEY_AUTO_OFF_THRESHOLD = "auto_off_threshold"
+    private const val KEY_COUPANG_AUTO_ENABLED = "coupang_auto_enabled"
+    private const val KEY_BAEMIN_AUTO_ENABLED = "baemin_auto_enabled"
+    private const val KEY_COUPANG_OFF_THRESHOLD = "coupang_off_threshold"
+    private const val KEY_COUPANG_ON_THRESHOLD = "coupang_on_threshold"
+    private const val KEY_BAEMIN_OFF_THRESHOLD = "baemin_off_threshold"
+    private const val KEY_BAEMIN_ON_THRESHOLD = "baemin_on_threshold"
     private const val KEY_LAST_AD_ACTION = "last_ad_action"
     private const val KEY_BAEMIN_CURRENT_BID = "baemin_current_bid"
     private const val KEY_COUPANG_CURRENT_ON = "coupang_current_on"
@@ -60,8 +65,21 @@ object AdManager {
     private val _orderAutoOffEnabled = MutableLiveData(false)
     val orderAutoOffEnabled: LiveData<Boolean> = _orderAutoOffEnabled
 
-    private val _autoOffThreshold = MutableLiveData(5)
-    val autoOffThreshold: LiveData<Int> = _autoOffThreshold
+    private val _coupangAutoEnabled = MutableLiveData(false)
+    val coupangAutoEnabled: LiveData<Boolean> = _coupangAutoEnabled
+
+    private val _baeminAutoEnabled = MutableLiveData(false)
+    val baeminAutoEnabled: LiveData<Boolean> = _baeminAutoEnabled
+
+    private val _coupangOffThreshold = MutableLiveData(5)
+    val coupangOffThreshold: LiveData<Int> = _coupangOffThreshold
+    private val _coupangOnThreshold = MutableLiveData(3)
+    val coupangOnThreshold: LiveData<Int> = _coupangOnThreshold
+
+    private val _baeminOffThreshold = MutableLiveData(5)
+    val baeminOffThreshold: LiveData<Int> = _baeminOffThreshold
+    private val _baeminOnThreshold = MutableLiveData(3)
+    val baeminOnThreshold: LiveData<Int> = _baeminOnThreshold
 
     private val _lastAdAction = MutableLiveData("")
     val lastAdAction: LiveData<String> = _lastAdAction
@@ -99,7 +117,12 @@ object AdManager {
         _adOnTime.postValue(prefs.getString(KEY_AD_ON_TIME, "08:00") ?: "08:00")
         _scheduleEnabled.postValue(prefs.getBoolean(KEY_SCHEDULE_ENABLED, false))
         _orderAutoOffEnabled.postValue(prefs.getBoolean(KEY_ORDER_AUTO_OFF_ENABLED, false))
-        _autoOffThreshold.postValue(prefs.getInt(KEY_AUTO_OFF_THRESHOLD, 5))
+        _coupangAutoEnabled.postValue(prefs.getBoolean(KEY_COUPANG_AUTO_ENABLED, true))
+        _baeminAutoEnabled.postValue(prefs.getBoolean(KEY_BAEMIN_AUTO_ENABLED, true))
+        _coupangOffThreshold.postValue(prefs.getInt(KEY_COUPANG_OFF_THRESHOLD, 5))
+        _coupangOnThreshold.postValue(prefs.getInt(KEY_COUPANG_ON_THRESHOLD, 3))
+        _baeminOffThreshold.postValue(prefs.getInt(KEY_BAEMIN_OFF_THRESHOLD, 5))
+        _baeminOnThreshold.postValue(prefs.getInt(KEY_BAEMIN_ON_THRESHOLD, 3))
         _lastAdAction.postValue(prefs.getString(KEY_LAST_AD_ACTION, "") ?: "")
         _baeminCurrentBid.postValue(prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0))
         if (prefs.contains(KEY_COUPANG_CURRENT_ON)) {
@@ -116,7 +139,12 @@ object AdManager {
     fun getAdOnTime(): String = prefs.getString(KEY_AD_ON_TIME, "08:00") ?: "08:00"
     fun isScheduleEnabled(): Boolean = prefs.getBoolean(KEY_SCHEDULE_ENABLED, false)
     fun isOrderAutoOffEnabled(): Boolean = prefs.getBoolean(KEY_ORDER_AUTO_OFF_ENABLED, false)
-    fun getAutoOffThreshold(): Int = prefs.getInt(KEY_AUTO_OFF_THRESHOLD, 5)
+    fun isCoupangAutoEnabled(): Boolean = prefs.getBoolean(KEY_COUPANG_AUTO_ENABLED, true)
+    fun isBaeminAutoEnabled(): Boolean = prefs.getBoolean(KEY_BAEMIN_AUTO_ENABLED, true)
+    fun getCoupangOffThreshold(): Int = prefs.getInt(KEY_COUPANG_OFF_THRESHOLD, 5)
+    fun getCoupangOnThreshold(): Int = prefs.getInt(KEY_COUPANG_ON_THRESHOLD, 3)
+    fun getBaeminOffThreshold(): Int = prefs.getInt(KEY_BAEMIN_OFF_THRESHOLD, 5)
+    fun getBaeminOnThreshold(): Int = prefs.getInt(KEY_BAEMIN_ON_THRESHOLD, 3)
     fun getBaeminId(): String = securePrefs.getString(KEY_BAEMIN_ID, "") ?: ""
     fun getBaeminPw(): String = securePrefs.getString(KEY_BAEMIN_PW, "") ?: ""
     fun getCoupangId(): String = securePrefs.getString(KEY_COUPANG_ID, "") ?: ""
@@ -165,10 +193,37 @@ object AdManager {
         _orderAutoOffEnabled.postValue(value)
     }
 
-    fun setAutoOffThreshold(value: Int) {
-        val clamped = value.coerceIn(1, 30)
-        prefs.edit().putInt(KEY_AUTO_OFF_THRESHOLD, clamped).apply()
-        _autoOffThreshold.postValue(clamped)
+    fun setCoupangAutoEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_COUPANG_AUTO_ENABLED, value).apply()
+        _coupangAutoEnabled.postValue(value)
+    }
+
+    fun setBaeminAutoEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_BAEMIN_AUTO_ENABLED, value).apply()
+        _baeminAutoEnabled.postValue(value)
+    }
+
+    fun setCoupangOffThreshold(value: Int) {
+        val clamped = value.coerceIn(2, 30)
+        prefs.edit().putInt(KEY_COUPANG_OFF_THRESHOLD, clamped).apply()
+        _coupangOffThreshold.postValue(clamped)
+        if (getCoupangOnThreshold() >= clamped) setCoupangOnThreshold(clamped - 1)
+    }
+    fun setCoupangOnThreshold(value: Int) {
+        val clamped = value.coerceIn(1, getCoupangOffThreshold() - 1)
+        prefs.edit().putInt(KEY_COUPANG_ON_THRESHOLD, clamped).apply()
+        _coupangOnThreshold.postValue(clamped)
+    }
+    fun setBaeminOffThreshold(value: Int) {
+        val clamped = value.coerceIn(2, 30)
+        prefs.edit().putInt(KEY_BAEMIN_OFF_THRESHOLD, clamped).apply()
+        _baeminOffThreshold.postValue(clamped)
+        if (getBaeminOnThreshold() >= clamped) setBaeminOnThreshold(clamped - 1)
+    }
+    fun setBaeminOnThreshold(value: Int) {
+        val clamped = value.coerceIn(1, getBaeminOffThreshold() - 1)
+        prefs.edit().putInt(KEY_BAEMIN_ON_THRESHOLD, clamped).apply()
+        _baeminOnThreshold.postValue(clamped)
     }
 
     fun setLastAdAction(value: String) {

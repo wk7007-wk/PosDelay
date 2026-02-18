@@ -1,10 +1,14 @@
 package com.posdelay.app.service
 
+import android.app.KeyguardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import com.posdelay.app.data.OrderTracker
+import com.posdelay.app.ui.MainActivity
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,6 +16,9 @@ import java.net.URL
 /**
  * PC의 mate_monitor.py가 업로드한 주문 건수를 GitHub Gist에서 주기적으로 읽어옴.
  * PC가 항상 켜져 있으므로 폰보다 안정적인 주문 건수 소스.
+ *
+ * 3분 이상 갱신 없으면 MATE 앱을 자동으로 잠깐 열어서
+ * AccessibilityService가 건수를 직접 읽도록 함.
  */
 object GistOrderReader {
 
@@ -21,10 +28,16 @@ object GistOrderReader {
         "https://api.github.com/gists/a67e5de3271d6d0716b276dc6a8391cb"
     private const val INTERVAL_MS = 90_000L  // 90초 (API rate limit 60/h 대응)
 
+    private const val STALE_MS = 3 * 60 * 1000L       // 3분: 갱신 없으면 MATE 열기
+    private const val MATE_COOLDOWN_MS = 5 * 60 * 1000L // 5분: MATE 재시도 쿨다운
+    private const val MATE_PACKAGE = "com.foodtechkorea.posboss"
+
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var appContext: Context? = null
     private var consecutiveErrors = 0
+    private var lastMateAttempt = 0L
+    private var pendingReturnHome = false
 
     fun start(context: Context) {
         if (running) return
@@ -39,9 +52,17 @@ object GistOrderReader {
         handler.removeCallbacks(fetchRunnable)
     }
 
+    /** AccessibilityService가 MATE 건수 읽은 후 호출 → 자동 복귀 */
+    fun onMateDataRead() {
+        if (!pendingReturnHome) return
+        pendingReturnHome = false
+        handler.postDelayed({ goHome() }, 2000)
+    }
+
     private val fetchRunnable = object : Runnable {
         override fun run() {
             fetchGist()
+            handler.post { checkStaleAndRefresh() }
             if (running) handler.postDelayed(this, INTERVAL_MS)
         }
     }
@@ -103,6 +124,77 @@ object GistOrderReader {
                 consecutiveErrors++
                 Log.w(TAG, "Gist 읽기 실패 (${consecutiveErrors}회): ${e.message}")
             }
+        }
+    }
+
+    /** 3분 이상 갱신 없으면 MATE 앱을 잠깐 열어서 건수 확인 */
+    private fun checkStaleAndRefresh() {
+        val ctx = appContext ?: return
+        val lastSync = OrderTracker.getLastSyncTime()
+        val now = System.currentTimeMillis()
+
+        if (lastSync == 0L) return
+        if (now - lastSync < STALE_MS) return
+        if (now - lastMateAttempt < MATE_COOLDOWN_MS) return
+        if (!OrderTracker.isEnabled()) return
+
+        lastMateAttempt = now
+        val staleMin = (now - lastSync) / 60000
+
+        // 화면 잠금/꺼짐 상태 확인
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val screenOn = pm.isInteractive
+        val locked = km.isKeyguardLocked
+
+        if (!screenOn || locked) {
+            // 잠금 상태 → MATE 열어도 소용없음 → 알림으로 경고만
+            Log.d(TAG, "화면 잠김/꺼짐 → MATE 실행 불가, 알림만")
+            DelayNotificationHelper.showAdAlert(ctx, "${staleMin}분 갱신없음 확인필요")
+            return
+        }
+
+        Log.d(TAG, "데이터 ${staleMin}분 경과 → MATE 자동 실행")
+        DelayNotificationHelper.showAdProgress(ctx, "${staleMin}분 갱신없음 MATE확인")
+
+        try {
+            val launchIntent = ctx.packageManager.getLaunchIntentForPackage(MATE_PACKAGE)
+            if (launchIntent != null) {
+                launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                ctx.startActivity(launchIntent)
+                pendingReturnHome = true
+                // 안전장치: 8초 후 강제 복귀 (AccessibilityService 미응답 대비)
+                handler.postDelayed({ forceReturn() }, 8000)
+            } else {
+                Log.w(TAG, "MATE 앱 없음")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "MATE 실행 실패: ${e.message}")
+        }
+    }
+
+    private fun forceReturn() {
+        if (!pendingReturnHome) return
+        pendingReturnHome = false
+        goHome()
+    }
+
+    private fun goHome() {
+        val ctx = appContext ?: return
+        // AccessibilityService로 홈 버튼 누르기
+        val service = try {
+            DelayAccessibilityService.isAvailable()
+        } catch (_: Exception) { false }
+
+        if (service) {
+            try {
+                // performGlobalAction은 AccessibilityService에서만 호출 가능
+                // → 대신 PosDelay 앱으로 복귀
+                val intent = Intent(ctx, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                ctx.startActivity(intent)
+            } catch (_: Exception) {}
         }
     }
 }

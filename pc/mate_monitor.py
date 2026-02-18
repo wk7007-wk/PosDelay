@@ -17,6 +17,8 @@ import ctypes.wintypes
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 import requests
 
@@ -287,6 +289,38 @@ def kill_old_instances():
         f.write(str(os.getpid()))
 
 
+SCRIPT_DIR_ROOT = os.path.dirname(SCRIPT_DIR)  # PosDelay/ 루트
+
+
+def auto_update():
+    """git pull 후 변경 있으면 자동 재시작"""
+    try:
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=SCRIPT_DIR_ROOT, capture_output=True, text=True, timeout=30,
+        )
+        output = result.stdout.strip()
+        print(f"[{time.strftime('%H:%M:%S')}] git pull: {output}")
+
+        if "Already up to date" in output or "Already up-to-date" in output:
+            return  # 변경 없음
+
+        # 변경 있음 → 재시작
+        print(f"[{time.strftime('%H:%M:%S')}] 코드 업데이트 감지 → 재시작")
+        try:
+            os.remove(LOCK_FILE)
+        except Exception:
+            pass
+
+        script = os.path.abspath(__file__)
+        os.execv(sys.executable, [sys.executable, script])
+
+    except subprocess.TimeoutExpired:
+        print(f"[{time.strftime('%H:%M:%S')}] git pull 타임아웃")
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] auto_update 실패: {e}")
+
+
 def main():
     kill_old_instances()
 
@@ -338,12 +372,20 @@ def main():
 
     # 모니터링 루프
     interval = cfg["poll_interval_sec"]
-    print(f"\n{interval}초 간격 모니터링 시작... (Ctrl+C 종료)\n")
+    print(f"\n{interval}초 간격 모니터링 시작 (매 정각 자동업데이트)... (Ctrl+C 종료)\n")
 
     last_count = -1
     fail_count = 0
+    last_update_slot = -1
     while True:
         try:
+            # 30분마다: git pull + 자동 재시작 (00분, 30분)
+            t = time.localtime()
+            current_slot = t.tm_hour * 2 + (1 if t.tm_min >= 30 else 0)
+            if current_slot != last_update_slot:
+                last_update_slot = current_slot
+                auto_update()  # 변경 있으면 여기서 재시작됨
+
             # 창 재연결
             try:
                 win.window_text()

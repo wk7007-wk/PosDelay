@@ -99,6 +99,7 @@ object DelayNotificationHelper {
     }
 
     private const val NOTIFICATION_AD_ALERT_ID = 2003
+    private const val NOTIFICATION_AD_PROGRESS_ID = 2004
 
     fun showAdAlert(context: Context, message: String) {
         createChannels(context)
@@ -111,7 +112,6 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("PosDelay 광고 관리")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -119,6 +119,45 @@ object DelayNotificationHelper {
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_AD_ALERT_ID, notification)
+    }
+
+    /** 광고 자동화 진행 — 알림바 (TTS 읽기용, 간결하게) */
+    fun showAdProgress(context: Context, message: String) {
+        createChannels(context)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
+            .setSmallIcon(android.R.drawable.ic_popup_sync)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_AD_PROGRESS_ID, notification)
+    }
+
+    /** 광고 자동화 결과 — 알림바 (TTS 읽기용, 간결하게) */
+    fun showAdResult(context: Context, message: String, success: Boolean) {
+        createChannels(context)
+
+        val openIntent = Intent(context, MainActivity::class.java)
+        val openPendingIntent = PendingIntent.getActivity(
+            context, 0, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
+            .setSmallIcon(if (success) android.R.drawable.ic_dialog_info else android.R.drawable.ic_dialog_alert)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openPendingIntent)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(NOTIFICATION_AD_PROGRESS_ID)
         manager.notify(NOTIFICATION_AD_ALERT_ID, notification)
     }
 
