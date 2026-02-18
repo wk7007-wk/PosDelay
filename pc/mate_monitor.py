@@ -13,8 +13,10 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 """
 
 import ctypes
+import ctypes.wintypes
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -212,39 +214,25 @@ def read_order_count(win, cfg):
 
 
 def _count_delivery_processing(text):
-    """OCR 텍스트에서 배달 주문 행 수 카운트 (활성 상태만)"""
+    """OCR 텍스트에서 '배달' + '처리중' 조합 행 수 카운트"""
     if not text:
         return None
 
     lines = text.split("\n")
     delivery_found = False
     count = 0
-    unmatched = []
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
-        if not has_delivery:
-            continue
-        delivery_found = True
-        has_active = (
-            "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-            or "조리시작" in line or "초리시작" in line or "조리시직" in line
-            or "조리대기" in line or "초리대기" in line or "조리데기" in line
-            or "조리완료" in line or "초리완료" in line or "조리완르" in line
-            or "배달중" in line or "배닫중" in line or "베달중" in line
-            or "배차" in line or "배처" in line
-            or "픽업" in line or "픽엄" in line
-            or "대기" in line or "데기" in line
-            or "로봇" in line or "로봇도착" in line
-            or "예약" in line or "예역" in line
-        )
-        if has_active:
-            count += 1
-        else:
-            unmatched.append(line.strip()[:50])
+        has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+                         or "조리시작" in line or "초리시작" in line or "조리시직" in line
+                         or "조리완료" in line or "초리완료" in line or "조리완르" in line)
+        if has_delivery:
+            delivery_found = True
+            if has_processing:
+                count += 1
 
+    # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
-        if unmatched:
-            print(f"[!] 배달 미매칭 {len(unmatched)}행: {unmatched[:3]}")
         return count
     return None
 

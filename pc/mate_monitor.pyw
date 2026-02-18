@@ -8,10 +8,12 @@
 """
 
 import ctypes
+import ctypes.wintypes
 import json
 import logging
 import logging.handlers
 import os
+import re
 import subprocess
 import sys
 import time
@@ -112,6 +114,21 @@ def ensure_window_visible(win):
     return False
 
 
+_ocr_dump_count = 0
+
+def _log_ocr_text(text, label):
+    """OCR 결과 텍스트를 로그에 덤프 (디버깅용, 처음 5회만)"""
+    global _ocr_dump_count
+    if _ocr_dump_count >= 5:
+        return
+    _ocr_dump_count += 1
+    log.info(f"=== OCR 텍스트 ({label}) [{_ocr_dump_count}/5] ===")
+    for i, line in enumerate(text.split("\n")):
+        if line.strip():
+            log.info(f"  L{i}: {line.strip()}")
+    log.info("=== OCR 끝 ===")
+
+
 def capture_window_bg(hwnd):
     """PrintWindow API로 창이 가려져도 캡처"""
     import win32gui
@@ -171,14 +188,16 @@ def read_order_count(win, cfg):
         bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
 
         text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 6").strip()
+        _log_ocr_text(text, "normal")
         count = _count_delivery_processing(text)
         if count is not None:
             return count, f"배달+처리중: {count}건"
 
-        # 정상 OCR 실패 시만 반전 시도
+        # 반전 시도
         inverted = ImageOps.invert(gray)
         bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
         text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 6").strip()
+        _log_ocr_text(text2, "inverted")
         count2 = _count_delivery_processing(text2)
         if count2 is not None:
             return count2, f"배달+처리중(inv): {count2}건"
@@ -190,39 +209,25 @@ def read_order_count(win, cfg):
 
 
 def _count_delivery_processing(text):
-    """OCR 텍스트에서 배달 주문 행 수 카운트 (활성 상태만)"""
+    """OCR 텍스트에서 '배달' + '처리중' 조합 행 수 카운트"""
     if not text:
         return None
 
     lines = text.split("\n")
     delivery_found = False
     count = 0
-    unmatched = []
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
-        if not has_delivery:
-            continue
-        delivery_found = True
-        has_active = (
-            "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-            or "조리시작" in line or "초리시작" in line or "조리시직" in line
-            or "조리대기" in line or "초리대기" in line or "조리데기" in line
-            or "조리완료" in line or "초리완료" in line or "조리완르" in line
-            or "배달중" in line or "배닫중" in line or "베달중" in line
-            or "배차" in line or "배처" in line
-            or "픽업" in line or "픽엄" in line
-            or "대기" in line or "데기" in line
-            or "로봇" in line or "로봇도착" in line
-            or "예약" in line or "예역" in line
-        )
-        if has_active:
-            count += 1
-        else:
-            unmatched.append(line.strip()[:50])
+        has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+                         or "조리시작" in line or "초리시작" in line or "조리시직" in line
+                         or "조리완료" in line or "초리완료" in line or "조리완르" in line)
+        if has_delivery:
+            delivery_found = True
+            if has_processing:
+                count += 1
 
+    # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
-        if unmatched:
-            log.info(f"배달 미매칭 {len(unmatched)}행: {unmatched[:3]}")
         return count
     return None
 
