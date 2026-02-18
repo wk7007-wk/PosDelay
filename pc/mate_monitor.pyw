@@ -239,17 +239,10 @@ def _count_delivery_processing(text):
         if not has_delivery:
             continue
 
-        # 탭 바 감지
+        # 탭 바 감지 → 무조건 제외
         tab_count = sum(1 for kw in header_kw if kw in line)
         if tab_count >= 2:
-            parts = line.split("전체")
-            remainder = parts[-1] if len(parts) > 1 else ""
-            if any(kw in remainder for kw in active_kw):
-                delivery_found = True
-                count += 1
-                log.info(f"배달행[O탭]: {line.strip()[:100]}")
-            else:
-                log.info(f"배달행[헤더]: {line.strip()[:100]}")
+            log.info(f"배달행[헤더]: {line.strip()[:100]}")
             continue
 
         # 컬럼 헤더 감지
