@@ -216,11 +216,22 @@ def _count_delivery_processing(text):
     lines = text.split("\n")
     delivery_found = False
     count = 0
-    # 카운트 대상: 조리시작, 처리중, 조리완료 (+ OCR 오인식 변형)만
+    # 확실히 카운트: 처리중, 조리시작, 조리완료
     active_kw = [
         "처리중", "저리중", "처리종", "저디중",
         "조리시작", "초리시작", "조리시직",
         "조리완료", "초리완료", "조리완르",
+    ]
+    # 확실히 제외: 나머지 모든 상태 (카메라 리스트 기반)
+    exclude_kw = [
+        "완료", "완르",          # 완료 (조리완료는 active에서 먼저 매칭)
+        "거절", "취소", "결제취소",
+        "픽업", "픽엄",
+        "배달중", "배닫중", "베달중",
+        "배차", "배처",
+        "조리대기", "초리대기",
+        "대기", "데기",
+        "로봇", "예약",
     ]
     header_kw = ["내점", "포장", "전체", "홀"]
     for line in lines:
@@ -228,7 +239,7 @@ def _count_delivery_processing(text):
         if not has_delivery:
             continue
 
-        # 탭 바 감지: 내점/포장 + 전체 → 뒤에 주문 섞여 있을 수 있음
+        # 탭 바 감지
         tab_count = sum(1 for kw in header_kw if kw in line)
         if tab_count >= 2:
             parts = line.split("전체")
@@ -247,11 +258,17 @@ def _count_delivery_processing(text):
             continue
 
         delivery_found = True
-        is_active = any(kw in line for kw in active_kw)
-        tag = "O" if is_active else "X"
-        log.info(f"배달행[{tag}]: {line.strip()[:100]}")
-        if is_active:
+        # 1) 활성 키워드 있으면 → 카운트
+        if any(kw in line for kw in active_kw):
             count += 1
+            log.info(f"배달행[O]: {line.strip()[:100]}")
+        # 2) 제외 키워드 있으면 → 미카운트
+        elif any(kw in line for kw in exclude_kw):
+            log.info(f"배달행[X]: {line.strip()[:100]}")
+        # 3) 아무 상태도 안 읽힘 (OCR 깨짐) → 카운트
+        else:
+            count += 1
+            log.info(f"배달행[O?]: {line.strip()[:100]}")
 
     if delivery_found:
         log.info(f"배달 결과: {count}건")
