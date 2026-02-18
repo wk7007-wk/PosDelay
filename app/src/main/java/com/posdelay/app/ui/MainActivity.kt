@@ -187,11 +187,8 @@ class MainActivity : AppCompatActivity() {
             binding.tvBaeminReducedAmount.text = "${value}원"
         }
 
-        AdManager.coupangAdOn.observe(this) { on ->
-            binding.tvCoupangAdStatus.text = "상태: ${if (on) "켜짐" else "꺼짐"}"
-            binding.tvCoupangAdStatus.setTextColor(
-                if (on) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
-            )
+        AdManager.coupangAdOn.observe(this) { _ ->
+            updateMonitorPanel()
         }
 
         AdManager.adOffTime.observe(this) { time ->
@@ -248,8 +245,7 @@ class MainActivity : AppCompatActivity() {
             binding.tvBaeminMidAmount.text = "${value}원"
         }
 
-        AdManager.baeminCurrentBid.observe(this) { bid ->
-            binding.tvBaeminAdStatus.text = if (bid > 0) "현재: ${bid}원" else "현재: --"
+        AdManager.baeminCurrentBid.observe(this) { _ ->
             updateMonitorPanel()
         }
 
@@ -349,15 +345,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateModeButtons(auto: Boolean) {
         if (auto) {
-            binding.btnModeAuto.backgroundTintList =
-                android.content.res.ColorStateList.valueOf(0xFFE74C3C.toInt())
-            binding.btnModeSemi.backgroundTintList =
-                android.content.res.ColorStateList.valueOf(0xFF555555.toInt())
+            binding.btnModeAuto.setTextColor(0xFFE74C3C.toInt())
+            binding.btnModeAuto.setTypeface(null, android.graphics.Typeface.BOLD)
+            binding.btnModeSemi.setTextColor(0xFF707088.toInt())
+            binding.btnModeSemi.setTypeface(null, android.graphics.Typeface.NORMAL)
         } else {
-            binding.btnModeSemi.backgroundTintList =
-                android.content.res.ColorStateList.valueOf(0xFF2ECC71.toInt())
-            binding.btnModeAuto.backgroundTintList =
-                android.content.res.ColorStateList.valueOf(0xFF555555.toInt())
+            binding.btnModeSemi.setTextColor(0xFF2ECC71.toInt())
+            binding.btnModeSemi.setTypeface(null, android.graphics.Typeface.BOLD)
+            binding.btnModeAuto.setTextColor(0xFF707088.toInt())
+            binding.btnModeAuto.setTypeface(null, android.graphics.Typeface.NORMAL)
         }
     }
 
