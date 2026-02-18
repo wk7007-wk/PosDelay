@@ -8,12 +8,10 @@
 """
 
 import ctypes
-import ctypes.wintypes
 import json
 import logging
 import logging.handlers
 import os
-import re
 import subprocess
 import sys
 import time
@@ -114,21 +112,6 @@ def ensure_window_visible(win):
     return False
 
 
-_ocr_dump_count = 0
-
-def _log_ocr_text(text, label):
-    """OCR 결과 텍스트를 로그에 덤프 (디버깅용, 처음 5회만)"""
-    global _ocr_dump_count
-    if _ocr_dump_count >= 5:
-        return
-    _ocr_dump_count += 1
-    log.info(f"=== OCR 텍스트 ({label}) [{_ocr_dump_count}/5] ===")
-    for i, line in enumerate(text.split("\n")):
-        if line.strip():
-            log.info(f"  L{i}: {line.strip()}")
-    log.info("=== OCR 끝 ===")
-
-
 def capture_window_bg(hwnd):
     """PrintWindow API로 창이 가려져도 캡처"""
     import win32gui
@@ -188,16 +171,14 @@ def read_order_count(win, cfg):
         bw = gray.point(lambda x: 255 if x > 128 else 0, "1")
 
         text = pytesseract.image_to_string(bw, lang="kor+eng", config="--psm 6").strip()
-        _log_ocr_text(text, "normal")
         count = _count_delivery_processing(text)
         if count is not None:
             return count, f"배달+처리중: {count}건"
 
-        # 반전 시도
+        # 정상 OCR 실패 시만 반전 시도
         inverted = ImageOps.invert(gray)
         bw_inv = inverted.point(lambda x: 255 if x > 128 else 0, "1")
         text2 = pytesseract.image_to_string(bw_inv, lang="kor+eng", config="--psm 6").strip()
-        _log_ocr_text(text2, "inverted")
         count2 = _count_delivery_processing(text2)
         if count2 is not None:
             return count2, f"배달+처리중(inv): {count2}건"

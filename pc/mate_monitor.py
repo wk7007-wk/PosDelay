@@ -13,10 +13,8 @@ PosDelay 폰 앱에서 읽어서 광고 자동 제어에 활용
 """
 
 import ctypes
-import ctypes.wintypes
 import json
 import os
-import re
 import subprocess
 import sys
 import time
