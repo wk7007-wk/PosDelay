@@ -127,11 +127,11 @@ object AdScheduler {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
         return OrderTracker.getOrderCount() >= AdManager.getBaeminOffThreshold()
     }
-    /** 배민: 중간 임계값 이상 (끄기 미만) → 중간금액 */
+    /** 배민: 중간 임계값 이상 ~ 중간상한 이하 → 중간금액 */
     fun shouldBaeminMid(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
         val count = OrderTracker.getOrderCount()
-        return count >= AdManager.getBaeminMidThreshold() && count < AdManager.getBaeminOffThreshold()
+        return count >= AdManager.getBaeminMidThreshold() && count <= AdManager.getBaeminMidUpperThreshold()
     }
     /** 배민: 켜기 임계값 이하 → 정상금액 */
     fun shouldBaeminOn(): Boolean {
@@ -173,9 +173,10 @@ object AdScheduler {
         if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
             val targetAmount = when {
                 count >= AdManager.getBaeminOffThreshold() -> reducedAmount
+                count > AdManager.getBaeminMidUpperThreshold() -> null  // 중간↔최소 회색
                 count >= AdManager.getBaeminMidThreshold() -> midAmount
                 count <= AdManager.getBaeminOnThreshold() -> normalAmount
-                else -> null  // 구간 사이 → 변경 없음
+                else -> null  // 최대↔중간 회색
             }
             if (targetAmount != null && bid > 0 && bid != targetAmount) {
                 prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()

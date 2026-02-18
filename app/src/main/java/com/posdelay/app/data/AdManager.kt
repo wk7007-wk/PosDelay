@@ -28,6 +28,7 @@ object AdManager {
     private const val KEY_BAEMIN_OFF_THRESHOLD = "baemin_off_threshold"
     private const val KEY_BAEMIN_MID_THRESHOLD = "baemin_mid_threshold"
     private const val KEY_BAEMIN_ON_THRESHOLD = "baemin_on_threshold"
+    private const val KEY_BAEMIN_MID_UPPER_THRESHOLD = "baemin_mid_upper_threshold"
     private const val KEY_BAEMIN_MID_AMOUNT = "baemin_mid_amount"
     private const val KEY_LAST_AD_ACTION = "last_ad_action"
     private const val KEY_BAEMIN_CURRENT_BID = "baemin_current_bid"
@@ -85,6 +86,9 @@ object AdManager {
     private val _baeminOnThreshold = MutableLiveData(3)
     val baeminOnThreshold: LiveData<Int> = _baeminOnThreshold
 
+    private val _baeminMidUpperThreshold = MutableLiveData(7)
+    val baeminMidUpperThreshold: LiveData<Int> = _baeminMidUpperThreshold
+
     private val _baeminMidAmount = MutableLiveData(100)
     val baeminMidAmount: LiveData<Int> = _baeminMidAmount
 
@@ -131,6 +135,7 @@ object AdManager {
         _baeminOffThreshold.postValue(prefs.getInt(KEY_BAEMIN_OFF_THRESHOLD, 8))
         _baeminMidThreshold.postValue(prefs.getInt(KEY_BAEMIN_MID_THRESHOLD, 5))
         _baeminOnThreshold.postValue(prefs.getInt(KEY_BAEMIN_ON_THRESHOLD, 3))
+        _baeminMidUpperThreshold.postValue(prefs.getInt(KEY_BAEMIN_MID_UPPER_THRESHOLD, getBaeminOffThreshold() - 1))
         _baeminMidAmount.postValue(prefs.getInt(KEY_BAEMIN_MID_AMOUNT, 100))
         _lastAdAction.postValue(prefs.getString(KEY_LAST_AD_ACTION, "") ?: "")
         _baeminCurrentBid.postValue(prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0))
@@ -155,6 +160,7 @@ object AdManager {
     fun getBaeminOffThreshold(): Int = prefs.getInt(KEY_BAEMIN_OFF_THRESHOLD, 8)
     fun getBaeminMidThreshold(): Int = prefs.getInt(KEY_BAEMIN_MID_THRESHOLD, 5)
     fun getBaeminOnThreshold(): Int = prefs.getInt(KEY_BAEMIN_ON_THRESHOLD, 3)
+    fun getBaeminMidUpperThreshold(): Int = prefs.getInt(KEY_BAEMIN_MID_UPPER_THRESHOLD, getBaeminOffThreshold() - 1)
     fun getBaeminMidAmount(): Int = prefs.getInt(KEY_BAEMIN_MID_AMOUNT, 100)
     fun getBaeminId(): String = securePrefs.getString(KEY_BAEMIN_ID, "") ?: ""
     fun getBaeminPw(): String = securePrefs.getString(KEY_BAEMIN_PW, "") ?: ""
@@ -230,18 +236,25 @@ object AdManager {
         val clamped = value.coerceIn(3, 30)
         prefs.edit().putInt(KEY_BAEMIN_OFF_THRESHOLD, clamped).apply()
         _baeminOffThreshold.postValue(clamped)
+        if (getBaeminMidUpperThreshold() >= clamped) setBaeminMidUpperThreshold(clamped - 1)
         if (getBaeminMidThreshold() >= clamped) setBaeminMidThreshold(clamped - 1)
     }
     fun setBaeminMidThreshold(value: Int) {
         val clamped = value.coerceIn(2, getBaeminOffThreshold() - 1)
         prefs.edit().putInt(KEY_BAEMIN_MID_THRESHOLD, clamped).apply()
         _baeminMidThreshold.postValue(clamped)
+        if (getBaeminMidUpperThreshold() < clamped) setBaeminMidUpperThreshold(clamped)
         if (getBaeminOnThreshold() >= clamped) setBaeminOnThreshold(clamped - 1)
     }
     fun setBaeminOnThreshold(value: Int) {
         val clamped = value.coerceIn(1, getBaeminMidThreshold() - 1)
         prefs.edit().putInt(KEY_BAEMIN_ON_THRESHOLD, clamped).apply()
         _baeminOnThreshold.postValue(clamped)
+    }
+    fun setBaeminMidUpperThreshold(value: Int) {
+        val clamped = value.coerceIn(getBaeminMidThreshold(), getBaeminOffThreshold() - 1)
+        prefs.edit().putInt(KEY_BAEMIN_MID_UPPER_THRESHOLD, clamped).apply()
+        _baeminMidUpperThreshold.postValue(clamped)
     }
     fun setBaeminMidAmount(value: Int) {
         val clamped = value.coerceIn(50, 1000)

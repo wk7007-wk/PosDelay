@@ -451,6 +451,23 @@
             </LinearLayout>
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                <View android:layout_width="52dp" android:layout_height="0dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="중간↑" android:textColor="#A0522D" android:textSize="12sp" android:layout_marginEnd="2dp" />
+                <Button android:id="@+id/btnBaeminMidUpperThMinus" android:layout_width="30dp" android:layout_height="30dp"
+                    android:text="-" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#2A2A45"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+                <TextView android:id="@+id/tvBaeminMidUpperTh" android:layout_width="28dp" android:layout_height="wrap_content"
+                    android:text="7" android:textColor="#A0522D" android:textSize="20sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnBaeminMidUpperThPlus" android:layout_width="30dp" android:layout_height="30dp"
+                    android:text="+" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#2A2A45"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="  (이상 회색)" android:textColor="#707088" android:textSize="11sp" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
                 <View android:layout_width="52dp" android:layout_height="0dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"

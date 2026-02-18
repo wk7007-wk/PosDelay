@@ -115,7 +115,13 @@ class MainActivity : AppCompatActivity() {
                     executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
                 }
                 if (AdManager.hasBaeminCredentials()) {
-                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
+                    if (isBackground) {
+                        // 백그라운드 자동: 건수 기반 3단계 금액 계산
+                        val target = calculateBaeminTarget() ?: AdManager.getBaeminReducedAmount()
+                        executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, target)
+                    } else {
+                        executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
+                    }
                 }
             }
             "ad_on", "ad_auto_on" -> {
@@ -124,7 +130,12 @@ class MainActivity : AppCompatActivity() {
                     executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
                 }
                 if (AdManager.hasBaeminCredentials()) {
-                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+                    if (isBackground) {
+                        val target = calculateBaeminTarget() ?: AdManager.getBaeminAmount()
+                        executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, target)
+                    } else {
+                        executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+                    }
                 }
             }
         }
@@ -132,6 +143,20 @@ class MainActivity : AppCompatActivity() {
         if (isBackground) {
             pendingBackToBackground = true
         }
+    }
+
+    /** 현재 건수 기반 배민 목표 금액 계산 (3단계 + 회색) */
+    private fun calculateBaeminTarget(): Int? {
+        return when {
+            AdScheduler.shouldBaeminOff() -> AdManager.getBaeminReducedAmount()
+            AdScheduler.shouldBaeminMid() -> AdManager.getBaeminMidAmount()
+            AdScheduler.shouldBaeminOn() -> AdManager.getBaeminAmount()
+            else -> null
+        }
+    }
+
+    private fun updateBaeminThresholdInfo() {
+        binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${AdManager.getBaeminMidUpperThreshold()}/${AdManager.getBaeminMidThreshold()}/${AdManager.getBaeminOnThreshold()})"
     }
 
     /** 백그라운드 트리거 → 알림바, 수동 → Toast */
@@ -243,17 +268,21 @@ class MainActivity : AppCompatActivity() {
         }
         AdManager.baeminOffThreshold.observe(this) { value ->
             binding.tvBaeminOffTh.text = "$value"
-            binding.tvBaeminThresholdInfo.text = "(${value}/${AdManager.getBaeminMidThreshold()}/${AdManager.getBaeminOnThreshold()})"
+            updateBaeminThresholdInfo()
             updateGauges()
         }
         AdManager.baeminMidThreshold.observe(this) { value ->
             binding.tvBaeminMidTh.text = "$value"
-            binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${value}/${AdManager.getBaeminOnThreshold()})"
+            updateBaeminThresholdInfo()
             updateGauges()
         }
         AdManager.baeminOnThreshold.observe(this) { value ->
             binding.tvBaeminOnTh.text = "$value"
-            binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${AdManager.getBaeminMidThreshold()}/${value})"
+            updateBaeminThresholdInfo()
+            updateGauges()
+        }
+        AdManager.baeminMidUpperThreshold.observe(this) { value ->
+            binding.tvBaeminMidUpperTh.text = "$value"
             updateGauges()
         }
         AdManager.baeminMidAmount.observe(this) { value ->
@@ -421,16 +450,18 @@ class MainActivity : AppCompatActivity() {
             offTh = AdManager.getCoupangOffThreshold(),
             isCoupang = true)
 
-        // 배민: 3구간 (최대/중간/최소)
+        // 배민: 3구간 (최대/중간/최소) + 중간상한
         buildGauge(binding.gaugeBaemin, max, count,
             onTh = AdManager.getBaeminOnThreshold(),
             midTh = AdManager.getBaeminMidThreshold(),
             offTh = AdManager.getBaeminOffThreshold(),
-            isCoupang = false)
+            isCoupang = false,
+            midUpperTh = AdManager.getBaeminMidUpperThreshold())
     }
 
     private fun buildGauge(container: LinearLayout, max: Int, current: Int,
-                           onTh: Int, midTh: Int?, offTh: Int, isCoupang: Boolean) {
+                           onTh: Int, midTh: Int?, offTh: Int, isCoupang: Boolean,
+                           midUpperTh: Int? = null) {
         container.removeAllViews()
         val dp = resources.displayMetrics.density
         val dp1 = dp.toInt().coerceAtLeast(1)
@@ -439,7 +470,8 @@ class MainActivity : AppCompatActivity() {
         for (i in 0..max) {
             val color = when {
                 i <= onTh -> 0xFF2ECC71.toInt()
-                midTh != null && i >= midTh && i < offTh -> 0xFFE67E22.toInt()
+                midTh != null && midUpperTh != null && i >= midTh && i <= midUpperTh -> 0xFFE67E22.toInt()
+                midTh != null && midUpperTh == null && i >= midTh && i < offTh -> 0xFFE67E22.toInt()
                 i >= offTh -> 0xFFE74C3C.toInt()
                 else -> 0xFF2A2A45.toInt()
             }
@@ -462,7 +494,7 @@ class MainActivity : AppCompatActivity() {
             cell.setOnClickListener { onGaugeTap(cellIndex, isCoupang) }
 
             // 모든 셀에 숫자 표시
-            val isThreshold = i == onTh || i == midTh || i == offTh
+            val isThreshold = i == onTh || i == midTh || i == midUpperTh || i == offTh
             val isCurrent = i == cur
             run {
                 val tv = TextView(this)
@@ -724,6 +756,8 @@ class MainActivity : AppCompatActivity() {
         binding.btnBaeminOffThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOffThreshold(AdManager.getBaeminOffThreshold() - 1) }
         binding.btnBaeminMidThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidThreshold(AdManager.getBaeminMidThreshold() + 1) }
         binding.btnBaeminMidThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidThreshold(AdManager.getBaeminMidThreshold() - 1) }
+        binding.btnBaeminMidUpperThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidUpperThreshold(AdManager.getBaeminMidUpperThreshold() + 1) }
+        binding.btnBaeminMidUpperThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidUpperThreshold(AdManager.getBaeminMidUpperThreshold() - 1) }
         binding.btnBaeminOnThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOnThreshold(AdManager.getBaeminOnThreshold() + 1) }
         binding.btnBaeminOnThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOnThreshold(AdManager.getBaeminOnThreshold() - 1) }
 
