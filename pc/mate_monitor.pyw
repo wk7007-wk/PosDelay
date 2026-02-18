@@ -216,9 +216,12 @@ def _count_delivery_processing(text):
     lines = text.split("\n")
     delivery_found = False
     count = 0
-    # 비활성 키워드: 이것만 제외, 나머지는 전부 카운트 (OCR 오인식 대응)
-    # 주의: "조리완료"는 "완료" 포함하지만 활성이므로 별도 체크
-    inactive_kw = ["거절", "취소", "픽업", "픽엄"]
+    # 카운트 대상: 조리시작, 처리중, 조리완료 (+ OCR 오인식 변형)만
+    active_kw = [
+        "처리중", "저리중", "처리종", "저디중",
+        "조리시작", "초리시작", "조리시직",
+        "조리완료", "초리완료", "조리완르",
+    ]
     header_kw = ["내점", "포장", "전체", "홀"]
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
@@ -230,9 +233,7 @@ def _count_delivery_processing(text):
         if tab_count >= 2:
             parts = line.split("전체")
             remainder = parts[-1] if len(parts) > 1 else ""
-            has_inactive = any(kw in remainder for kw in inactive_kw)
-            has_done = "완료" in remainder and "조리완료" not in remainder
-            if remainder.strip() and not has_inactive and not has_done:
+            if any(kw in remainder for kw in active_kw):
                 delivery_found = True
                 count += 1
                 log.info(f"배달행[O탭]: {line.strip()[:100]}")
@@ -240,21 +241,17 @@ def _count_delivery_processing(text):
                 log.info(f"배달행[헤더]: {line.strip()[:100]}")
             continue
 
-        # 컬럼 헤더 감지: "주문번호" 또는 "주문상태" 포함
+        # 컬럼 헤더 감지
         if "주문번호" in line or "주문상태" in line:
             log.info(f"배달행[헤더]: {line.strip()[:100]}")
             continue
 
         delivery_found = True
-        # 블랙리스트: 비활성 키워드 있으면 제외
-        has_inactive = any(kw in line for kw in inactive_kw)
-        # "완료"는 있지만 "조리완료"가 아닌 경우만 비활성
-        has_done = "완료" in line and "조리완료" not in line and "초리완료" not in line
-        if has_inactive or has_done:
-            log.info(f"배달행[X]: {line.strip()[:100]}")
-        else:
+        is_active = any(kw in line for kw in active_kw)
+        tag = "O" if is_active else "X"
+        log.info(f"배달행[{tag}]: {line.strip()[:100]}")
+        if is_active:
             count += 1
-            log.info(f"배달행[O]: {line.strip()[:100]}")
 
     if delivery_found:
         log.info(f"배달 결과: {count}건")
