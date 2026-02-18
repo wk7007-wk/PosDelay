@@ -216,23 +216,37 @@ def _count_delivery_processing(text):
     lines = text.split("\n")
     delivery_found = False
     count = 0
+    active_kw = [
+        "처리중", "저리중", "처리종", "저디중",
+        "조리시작", "초리시작", "조리시직",
+        "조리대기", "초리대기",
+        "조리완료", "초리완료", "조리완르",
+        "배달중", "배닫중", "베달중",
+        "배차", "배처",
+        "픽업", "픽엄",
+        "대기", "데기",
+        "로봇", "예약",
+    ]
+    inactive_kw = ["거절", "취소", "완료", "완르"]
+    all_kw = active_kw + inactive_kw
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
-        has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-                         or "조리시작" in line or "초리시작" in line or "조리시직" in line
-                         or "조리대기" in line or "초리대기" in line
-                         or "조리완료" in line or "초리완료" in line or "조리완르" in line
-                         or "배달중" in line or "배닫중" in line or "베달중" in line
-                         or "배차" in line or "배처" in line
-                         or "픽업" in line or "픽엄" in line
-                         or "대기" in line or "데기" in line
-                         or "로봇" in line or "예약" in line)
-        if has_delivery:
-            delivery_found = True
-            tag = "O" if has_processing else "X"
-            log.info(f"배달행[{tag}]: {line.strip()[:60]}")
-            if has_processing:
-                count += 1
+        if not has_delivery:
+            continue
+
+        # 상태 키워드 3개 이상 → 카테고리 헤더 행
+        matched_kw = [kw for kw in all_kw if kw in line]
+        if len(matched_kw) >= 3:
+            log.info(f"배달행[헤더]: {line.strip()[:60]}")
+            continue
+
+        delivery_found = True
+        # "조리완료"는 active (active_kw에 포함), "완료" 단독은 inactive
+        is_active = any(kw in line for kw in active_kw)
+        tag = "O" if is_active else "X"
+        log.info(f"배달행[{tag}]: {line.strip()[:60]}")
+        if is_active:
+            count += 1
 
     # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
