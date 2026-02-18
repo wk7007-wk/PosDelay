@@ -24,6 +24,7 @@ object AdManager {
     private const val KEY_AUTO_OFF_THRESHOLD = "auto_off_threshold"
     private const val KEY_LAST_AD_ACTION = "last_ad_action"
     private const val KEY_BAEMIN_CURRENT_BID = "baemin_current_bid"
+    private const val KEY_COUPANG_CURRENT_ON = "coupang_current_on"
 
     // Secure prefs keys
     private const val KEY_BAEMIN_ID = "baemin_id"
@@ -68,6 +69,9 @@ object AdManager {
     private val _baeminCurrentBid = MutableLiveData(0)
     val baeminCurrentBid: LiveData<Int> = _baeminCurrentBid
 
+    private val _coupangCurrentOn = MutableLiveData<Boolean?>(null)
+    val coupangCurrentOn: LiveData<Boolean?> = _coupangCurrentOn
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -98,6 +102,9 @@ object AdManager {
         _autoOffThreshold.postValue(prefs.getInt(KEY_AUTO_OFF_THRESHOLD, 5))
         _lastAdAction.postValue(prefs.getString(KEY_LAST_AD_ACTION, "") ?: "")
         _baeminCurrentBid.postValue(prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0))
+        if (prefs.contains(KEY_COUPANG_CURRENT_ON)) {
+            _coupangCurrentOn.postValue(prefs.getBoolean(KEY_COUPANG_CURRENT_ON, true))
+        }
     }
 
     // Getters
@@ -174,6 +181,11 @@ object AdManager {
     fun setBaeminCurrentBid(value: Int) {
         prefs.edit().putInt(KEY_BAEMIN_CURRENT_BID, value).apply()
         _baeminCurrentBid.postValue(value)
+    }
+
+    fun setCoupangCurrentOn(value: Boolean) {
+        prefs.edit().putBoolean(KEY_COUPANG_CURRENT_ON, value).apply()
+        _coupangCurrentOn.postValue(value)
     }
 
     // Credential setters

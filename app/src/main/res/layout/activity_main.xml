@@ -462,6 +462,36 @@
             android:checked="false" />
     </LinearLayout>
 
+    <!-- 모니터링 현황 패널 -->
+    <LinearLayout
+        android:id="@+id/layoutMonitorPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_card"
+        android:padding="14dp"
+        android:layout_marginBottom="10dp">
+
+        <TextView
+            android:id="@+id/tvMonitorSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="배민: -- | 쿠팡: -- | 처리중: --"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:id="@+id/tvMonitorTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="갱신: --"
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
     <!-- 배민 광고 금액 -->
     <LinearLayout
         android:id="@+id/layoutAdSection"

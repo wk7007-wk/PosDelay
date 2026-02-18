@@ -150,10 +150,12 @@ class MainActivity : AppCompatActivity() {
 
         OrderTracker.lastSyncTime.observe(this) { time ->
             updateSyncTime(time)
+            updateMonitorPanel()
         }
 
         OrderTracker.lastPcSyncTime.observe(this) { time ->
             updatePcSyncTime(time)
+            updateMonitorPanel()
         }
 
         // 광고 관리 LiveData
@@ -199,11 +201,50 @@ class MainActivity : AppCompatActivity() {
 
         AdManager.baeminCurrentBid.observe(this) { bid ->
             binding.tvBaeminAdStatus.text = if (bid > 0) "현재: ${bid}원" else "현재: --"
+            updateMonitorPanel()
         }
+
+        AdManager.coupangCurrentOn.observe(this) { _ -> updateMonitorPanel() }
 
         AdManager.lastAdAction.observe(this) { action ->
             binding.tvLastAdAction.text = if (action.isNullOrEmpty()) "마지막 동작: --" else "마지막: $action"
+            updateMonitorPanel()
         }
+    }
+
+    private fun updateMonitorPanel() {
+        val bid = AdManager.getBaeminCurrentBid()
+        val baeminStr = if (bid > 0) "${bid}원" else "--"
+
+        val coupangOn = AdManager.coupangCurrentOn.value
+        val coupangStr = when (coupangOn) {
+            true -> "ON"
+            false -> "OFF"
+            null -> "--"
+        }
+
+        val count = OrderTracker.getOrderCount()
+        val threshold = AdManager.getAutoOffThreshold()
+
+        binding.tvMonitorSummary.text = "배민: $baeminStr  |  쿠팡: $coupangStr  |  처리중: ${count}건/${threshold}건"
+
+        // 색상: 임계값 이상이면 빨강, 미만이면 초록
+        if (AdManager.isOrderAutoOffEnabled() && count >= threshold) {
+            binding.tvMonitorSummary.setTextColor(0xFFE74C3C.toInt())
+        } else {
+            binding.tvMonitorSummary.setTextColor(0xFF2AC1BC.toInt())
+        }
+
+        // 갱신 시간
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val mateTime = OrderTracker.lastSyncTime.value ?: 0L
+        val pcTime = OrderTracker.lastPcSyncTime.value ?: 0L
+        val mateStr = if (mateTime > 0) "MATE ${sdf.format(Date(mateTime))}" else "MATE --"
+        val pcStr = if (pcTime > 0) "PC ${sdf.format(Date(pcTime))}" else "PC --"
+
+        val lastAction = AdManager.lastAdAction.value ?: ""
+        val actionShort = if (lastAction.length > 30) lastAction.takeLast(30) else lastAction
+        binding.tvMonitorTime.text = "$mateStr | $pcStr | $actionShort"
     }
 
     private fun updateSyncTime(time: Long) {

@@ -562,6 +562,7 @@ class AdWebAutomation(private val activity: Activity) {
                 }
                 r.startsWith("OK") -> {
                     AdManager.setCoupangAdOn(turnOn)
+                    AdManager.setCoupangCurrentOn(turnOn)
                     finishWithSuccess("쿠팡 광고 $onOff 완료 ($r)")
                 }
                 else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API: $r")
