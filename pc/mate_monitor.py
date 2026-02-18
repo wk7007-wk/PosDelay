@@ -238,23 +238,30 @@ def _count_delivery_processing(text):
         if not has_delivery:
             continue
 
-        # 내점/포장이 같이 있으면 카테고리 헤더
-        has_other_type = "내점" in line or "포장" in line or "홀" in line
+        # 탭 바 감지: 내점/포장 + 전체 → 탭 바 뒤 주문 데이터 추출
+        has_other_type = ("내점" in line or "포장" in line) and "전체" in line
         if has_other_type:
-            print(f"  배달행[헤더]: {line.strip()[:60]}")
+            parts = line.split("전체")
+            remainder = parts[-1] if len(parts) > 1 else ""
+            if any(kw in remainder for kw in active_kw):
+                delivery_found = True
+                count += 1
+                print(f"  배달행[O탭]: {line.strip()[:100]}")
+            else:
+                print(f"  배달행[헤더]: {line.strip()[:100]}")
             continue
 
         # 상태 키워드 3개 이상 → 카테고리 헤더 행
         matched_kw = [kw for kw in all_kw if kw in line]
         if len(matched_kw) >= 3:
-            print(f"  배달행[헤더]: {line.strip()[:60]}")
+            print(f"  배달행[헤더]: {line.strip()[:100]}")
             continue
 
         delivery_found = True
         # "조리완료"는 active, "완료" 단독은 inactive
         is_active = any(kw in line for kw in active_kw)
         tag = "O" if is_active else "X"
-        print(f"  배달행[{tag}]: {line.strip()[:60]}")
+        print(f"  배달행[{tag}]: {line.strip()[:100]}")
         if is_active:
             count += 1
 
