@@ -214,7 +214,7 @@ def read_order_count(win, cfg):
 
 
 def _count_delivery_processing(text):
-    """OCR 텍스트에서 '배달' + '처리중' 조합 행 수 카운트"""
+    """OCR 텍스트에서 '배달' + 활성상태 조합 행 수 카운트"""
     if not text:
         return None
 
@@ -225,14 +225,23 @@ def _count_delivery_processing(text):
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
         has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
                          or "조리시작" in line or "초리시작" in line or "조리시직" in line
-                         or "조리완료" in line or "초리완료" in line or "조리완르" in line)
+                         or "조리대기" in line or "초리대기" in line
+                         or "조리완료" in line or "초리완료" in line or "조리완르" in line
+                         or "배달중" in line or "배닫중" in line or "베달중" in line
+                         or "배차" in line or "배처" in line
+                         or "픽업" in line or "픽엄" in line
+                         or "대기" in line or "데기" in line
+                         or "로봇" in line or "예약" in line)
         if has_delivery:
             delivery_found = True
+            tag = "O" if has_processing else "X"
+            print(f"  배달행[{tag}]: {line.strip()[:60]}")
             if has_processing:
                 count += 1
 
     # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
+        print(f"  배달 결과: {count}건")
         return count
     return None
 
