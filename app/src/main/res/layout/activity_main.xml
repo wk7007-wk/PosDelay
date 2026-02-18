@@ -157,7 +157,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="쿠팡"
-                android:textColor="#E74C3C"
+                android:textColor="#FFD700"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -311,11 +311,11 @@
         android:layout_marginBottom="6dp">
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="쿠팡" android:textColor="#E74C3C" android:textSize="13sp" android:textStyle="bold" />
+            android:text="쿠팡" android:textColor="#FFD700" android:textSize="13sp" android:textStyle="bold" />
         <Button android:id="@+id/btnCoupangMinus" android:layout_width="34dp" android:layout_height="34dp"
             android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555" android:layout_marginStart="6dp" />
         <TextView android:id="@+id/tvCoupangThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="10건" android:textColor="#E74C3C" android:textSize="18sp" android:textStyle="bold"
+            android:text="10건" android:textColor="#FFD700" android:textSize="18sp" android:textStyle="bold"
             android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
         <Button android:id="@+id/btnCoupangPlus" android:layout_width="34dp" android:layout_height="34dp"
             android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555" />
@@ -368,7 +368,7 @@
             android:text="초기화"
             android:textSize="13sp"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#2AC1BC"
+            android:backgroundTint="#7F8C8D"
             android:layout_marginStart="6dp" />
 
         <Button
@@ -394,7 +394,7 @@
         android:layout_marginBottom="6dp">
 
         <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-            android:text="광고 관리" android:textColor="#FFD700" android:textSize="16sp" android:textStyle="bold" />
+            android:text="광고 관리" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
         <Switch android:id="@+id/switchAdEnable" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="false" />
     </LinearLayout>
 
@@ -412,7 +412,7 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                    android:text="주문수 자동 광고조절" android:textColor="#FFD700" android:textSize="15sp" android:textStyle="bold" />
+                    android:text="주문수 자동 광고조절" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" />
                 <Switch android:id="@+id/switchOrderAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:checked="false" />
             </LinearLayout>
@@ -421,7 +421,7 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="10dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="쿠팡" android:textColor="#E74C3C" android:textSize="13sp" />
+                    android:text="쿠팡" android:textColor="#FFD700" android:textSize="13sp" />
                 <Switch android:id="@+id/switchCoupangAuto" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:checked="true" android:layout_marginEnd="20dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -434,7 +434,7 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="12dp">
                 <TextView android:layout_width="48dp" android:layout_height="wrap_content"
-                    android:text="쿠팡" android:textColor="#E74C3C" android:textSize="15sp" android:textStyle="bold" />
+                    android:text="쿠팡" android:textColor="#FFD700" android:textSize="15sp" android:textStyle="bold" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="끄기" android:textColor="#E74C3C" android:textSize="14sp" android:layout_marginEnd="4dp" />
                 <Button android:id="@+id/btnCoupangOffThMinus" android:layout_width="42dp" android:layout_height="42dp"
@@ -458,7 +458,7 @@
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
             </LinearLayout>
 
-            <!-- 배민 임계값 3단계: 2줄로 분리 -->
+            <!-- 배민 임계값 3단계: 각각 1줄 -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
                 <TextView android:layout_width="48dp" android:layout_height="wrap_content"
@@ -473,7 +473,11 @@
                 <Button android:id="@+id/btnBaeminOffThPlus" android:layout_width="42dp" android:layout_height="42dp"
                     android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+                <View android:layout_width="48dp" android:layout_height="0dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="중간" android:textColor="#E67E22" android:textSize="14sp" android:layout_marginEnd="4dp" />
                 <Button android:id="@+id/btnBaeminMidThMinus" android:layout_width="42dp" android:layout_height="42dp"
@@ -527,14 +531,14 @@
             <Button android:id="@+id/btnAdManualBaeminNormal" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
                 android:text="배민 최대" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#2ECC71" android:layout_marginEnd="3dp" />
             <Button android:id="@+id/btnAdManualCoupangOn" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
-                android:text="쿠팡 켜기" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#E74C3C" android:layout_marginStart="3dp" />
+                android:text="쿠팡 켜기" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#2ECC71" android:layout_marginStart="3dp" />
         </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="8dp">
             <Button android:id="@+id/btnAdManualBaeminReduced" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
-                android:text="배민 최소" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#C0392B" android:layout_marginEnd="3dp" />
+                android:text="배민 최소" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#E74C3C" android:layout_marginEnd="3dp" />
             <Button android:id="@+id/btnAdManualCoupangOff" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
-                android:text="쿠팡 끄기" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#C0392B" android:layout_marginStart="3dp" />
+                android:text="쿠팡 끄기" android:textSize="14sp" android:textColor="#FFF" android:backgroundTint="#E74C3C" android:layout_marginStart="3dp" />
         </LinearLayout>
 
         <!-- 4순위: 금액 설정 (확대) -->
@@ -589,7 +593,7 @@
             android:background="@drawable/bg_card" android:padding="10dp" android:layout_marginBottom="6dp">
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="쿠팡이츠 광고" android:textColor="#E74C3C" android:textSize="13sp" android:textStyle="bold" />
+                    android:text="쿠팡이츠 광고" android:textColor="#FFD700" android:textSize="13sp" android:textStyle="bold" />
                 <TextView android:id="@+id/tvCoupangAdStatus" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="상태: --" android:textColor="#888" android:textSize="11sp" />
             </LinearLayout>
