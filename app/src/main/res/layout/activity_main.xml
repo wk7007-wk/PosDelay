@@ -262,17 +262,40 @@
                 android:paddingEnd="6dp" />
         </LinearLayout>
 
-        <!-- Row 4: 마지막 동작 -->
-        <TextView
-            android:id="@+id/tvLastAdAction"
+        <!-- Row 4: 마지막 동작 + 정정 버튼 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="마지막: --"
-            android:textColor="#707088"
-            android:textSize="12sp"
-            android:singleLine="true"
-            android:ellipsize="end"
-            android:layout_marginTop="2dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp">
+
+            <TextView
+                android:id="@+id/tvLastAdAction"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="마지막: --"
+                android:textColor="#707088"
+                android:textSize="12sp"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <Button
+                android:id="@+id/btnRefreshAd"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:text="정정"
+                android:textSize="11sp"
+                android:textColor="#FFF"
+                android:backgroundTint="#3498DB"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ══════════ 2. 광고 관리 ══════════ -->

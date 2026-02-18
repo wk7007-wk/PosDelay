@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
+    private var pendingRefreshCorrection = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -723,6 +724,9 @@ class MainActivity : AppCompatActivity() {
 
         // 광고 로그 보기
         binding.btnAdLog.setOnClickListener { UsageTracker.track(UsageTracker.AD_LOG); showAdLog() }
+
+        // 정정 버튼: 서버 실제 상태 확인 후 불일치 시 정정
+        binding.btnRefreshAd.setOnClickListener { refreshAndCorrect() }
     }
 
     // ───────── 광고 자동화 실행 (순차 큐) ─────────
@@ -764,6 +768,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun processNextAdAction() {
         if (adActionQueue.isEmpty()) {
+            if (pendingRefreshCorrection) {
+                evaluateAndCorrect()
+                return
+            }
             if (pendingBackToBackground) {
                 pendingBackToBackground = false
                 moveTaskToBack(true)
@@ -783,6 +791,68 @@ class MainActivity : AppCompatActivity() {
             AdWebAutomation.Action.BAEMIN_SET_AMOUNT -> "배민 ${amount}원"
             AdWebAutomation.Action.COUPANG_AD_ON -> "쿠팡 켜기"
             AdWebAutomation.Action.COUPANG_AD_OFF -> "쿠팡 끄기"
+            AdWebAutomation.Action.BAEMIN_CHECK -> "배민 확인"
+            AdWebAutomation.Action.COUPANG_CHECK -> "쿠팡 확인"
+        }
+    }
+
+    /** 정정: 서버 실제 상태 확인 → 임계값 기준 목표와 비교 → 다르면 정정 */
+    private fun refreshAndCorrect() {
+        val hasBaemin = AdManager.hasBaeminCredentials()
+        val hasCoupang = AdManager.hasCoupangCredentials()
+        if (!hasBaemin && !hasCoupang) {
+            Toast.makeText(this, "로그인 정보 없음", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) {
+            Toast.makeText(this, "다른 작업 진행 중", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        pendingRefreshCorrection = true
+        Toast.makeText(this, "서버 상태 확인 중...", Toast.LENGTH_SHORT).show()
+
+        if (hasBaemin) executeAdAction(AdWebAutomation.Action.BAEMIN_CHECK)
+        if (hasCoupang) executeAdAction(AdWebAutomation.Action.COUPANG_CHECK)
+    }
+
+    /** CHECK 완료 후: 실제 상태 vs 임계값 목표 비교 → 불일치 시 정정 실행 */
+    private fun evaluateAndCorrect() {
+        pendingRefreshCorrection = false
+        val count = OrderTracker.getOrderCount()
+        var correctionNeeded = false
+
+        // 배민: 현재 bid vs 목표 금액
+        if (AdManager.hasBaeminCredentials()) {
+            val bid = AdManager.getBaeminCurrentBid()
+            val targetAmount = when {
+                count >= AdManager.getBaeminOffThreshold() -> AdManager.getBaeminReducedAmount()
+                count >= AdManager.getBaeminMidThreshold() -> AdManager.getBaeminMidAmount()
+                count <= AdManager.getBaeminOnThreshold() -> AdManager.getBaeminAmount()
+                else -> null
+            }
+            if (targetAmount != null && bid > 0 && bid != targetAmount) {
+                correctionNeeded = true
+                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, targetAmount)
+            }
+        }
+
+        // 쿠팡: 현재 ON/OFF vs 목표
+        if (AdManager.hasCoupangCredentials()) {
+            val isOn = AdManager.coupangCurrentOn.value
+            if (count >= AdManager.getCoupangOffThreshold() && isOn != false) {
+                correctionNeeded = true
+                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+            } else if (count <= AdManager.getCoupangOnThreshold() && isOn != true) {
+                correctionNeeded = true
+                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+            }
+        }
+
+        if (!correctionNeeded) {
+            Toast.makeText(this, "정상 — 정정 불필요", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "${count}건 기준 정정 실행", Toast.LENGTH_SHORT).show()
         }
     }
 

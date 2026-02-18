@@ -24,7 +24,7 @@ class AdWebAutomation(private val activity: Activity) {
         private const val MAX_RETRIES = 2
     }
 
-    enum class Action { BAEMIN_SET_AMOUNT, COUPANG_AD_ON, COUPANG_AD_OFF }
+    enum class Action { BAEMIN_SET_AMOUNT, COUPANG_AD_ON, COUPANG_AD_OFF, BAEMIN_CHECK, COUPANG_CHECK }
 
     enum class State {
         IDLE, LOADING_LOGIN, SUBMITTING_LOGIN, WAITING_LOGIN_RESULT,
@@ -42,8 +42,8 @@ class AdWebAutomation(private val activity: Activity) {
 
     private val platformName: String
         get() = when (currentAction) {
-            Action.BAEMIN_SET_AMOUNT -> "배민"
-            Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> "쿠팡"
+            Action.BAEMIN_SET_AMOUNT, Action.BAEMIN_CHECK -> "배민"
+            Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF, Action.COUPANG_CHECK -> "쿠팡"
             null -> "?"
         }
 
@@ -52,7 +52,7 @@ class AdWebAutomation(private val activity: Activity) {
     @SuppressLint("SetJavaScriptEnabled")
     private fun createWebView(): WebView {
         // 쿠팡 CMG 모듈은 데스크톱 해상도 + UA 필요
-        val isCoupang = currentAction == Action.COUPANG_AD_ON || currentAction == Action.COUPANG_AD_OFF
+        val isCoupang = currentAction == Action.COUPANG_AD_ON || currentAction == Action.COUPANG_AD_OFF || currentAction == Action.COUPANG_CHECK
         val vpWidth = if (isCoupang) 1280 else 480
         val vpHeight = if (isCoupang) 900 else 800
 
@@ -135,8 +135,8 @@ class AdWebAutomation(private val activity: Activity) {
                 (activity.window.decorView as ViewGroup).addView(webView)
                 startTimeout()
                 val mockUrl = when (action) {
-                    Action.BAEMIN_SET_AMOUNT -> "file:///android_asset/mock_baemin.html"
-                    Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> "file:///android_asset/mock_coupang.html"
+                    Action.BAEMIN_SET_AMOUNT, Action.BAEMIN_CHECK -> "file:///android_asset/mock_baemin.html"
+                    Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF, Action.COUPANG_CHECK -> "file:///android_asset/mock_coupang.html"
                 }
                 log(Code.INFO_STATE, "[테스트] 로드: $mockUrl")
                 webView?.loadUrl(mockUrl)
@@ -162,13 +162,13 @@ class AdWebAutomation(private val activity: Activity) {
                 (activity.window.decorView as ViewGroup).addView(webView)
                 startTimeout()
                 when (action) {
-                    Action.BAEMIN_SET_AMOUNT -> {
+                    Action.BAEMIN_SET_AMOUNT, Action.BAEMIN_CHECK -> {
                         if (!AdManager.hasBaeminCredentials()) {
                             finishWithError(Code.ERR_NO_CREDENTIALS, "배민 로그인 정보 없음"); return@post
                         }
                         webView?.loadUrl(BAEMIN_ENTRY_URL)
                     }
-                    Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> {
+                    Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF, Action.COUPANG_CHECK -> {
                         if (!AdManager.hasCoupangCredentials()) {
                             finishWithError(Code.ERR_NO_CREDENTIALS, "쿠팡 로그인 정보 없음"); return@post
                         }
@@ -187,12 +187,11 @@ class AdWebAutomation(private val activity: Activity) {
             if (state == State.NAVIGATING_TO_AD) {
                 handler.postDelayed({
                     when (currentAction) {
-                        Action.BAEMIN_SET_AMOUNT -> {
-                            // 배민은 API 직접 호출 방식이므로 테스트에서는 성공 시뮬레이션
+                        Action.BAEMIN_SET_AMOUNT, Action.BAEMIN_CHECK -> {
                             changeState(State.PERFORMING_ACTION)
                             finishWithSuccess("[테스트] 배민 API 호출 시뮬레이션 성공 (${targetAmount}원)")
                         }
-                        Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> {
+                        Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF, Action.COUPANG_CHECK -> {
                             changeState(State.PERFORMING_ACTION)
                             finishWithSuccess("[테스트] 쿠팡 API 호출 시뮬레이션 성공")
                         }
@@ -203,8 +202,8 @@ class AdWebAutomation(private val activity: Activity) {
             return
         }
         when (currentAction) {
-            Action.BAEMIN_SET_AMOUNT -> handleBaeminPage(url)
-            Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF -> handleCoupangPage(url)
+            Action.BAEMIN_SET_AMOUNT, Action.BAEMIN_CHECK -> handleBaeminPage(url)
+            Action.COUPANG_AD_ON, Action.COUPANG_AD_OFF, Action.COUPANG_CHECK -> handleCoupangPage(url)
             null -> {}
         }
     }
@@ -221,7 +220,7 @@ class AdWebAutomation(private val activity: Activity) {
             state == State.WAITING_LOGIN_RESULT || state == State.SUBMITTING_LOGIN -> {
                 log(Code.INFO_STATE, "배민 로그인 성공")
                 changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ callBaeminBidApi() }, 2000)
+                handler.postDelayed({ if (currentAction == Action.BAEMIN_CHECK) callBaeminCheckApi() else callBaeminBidApi() }, 2000)
             }
             state == State.LOADING_LOGIN -> {
                 handler.postDelayed({
@@ -230,7 +229,7 @@ class AdWebAutomation(private val activity: Activity) {
                         if (!cur.contains("/login") && !cur.contains("biz-member")) {
                             log(Code.INFO_STATE, "이미 로그인됨")
                             changeState(State.PERFORMING_ACTION)
-                            callBaeminBidApi()
+                            if (currentAction == Action.BAEMIN_CHECK) callBaeminCheckApi() else callBaeminBidApi()
                         }
                     }
                 }, 4000)
@@ -376,6 +375,93 @@ class AdWebAutomation(private val activity: Activity) {
         }
     }
 
+    /** 배민: 현재 입찰가만 확인 (변경하지 않음) */
+    private fun callBaeminCheckApi() {
+        if (state != State.PERFORMING_ACTION) return
+
+        val js = """
+            (function() {
+                window.__baeminApiResult = null;
+                var shopNo = null;
+                var m = window.location.href.match(/shops\/(\d+)/);
+                if (m) shopNo = m[1];
+                if (!shopNo) {
+                    var links = document.querySelectorAll('a[href*="/shops/"]');
+                    for (var i=0;i<links.length;i++) {
+                        var mm = links[i].href.match(/shops\/(\d+)/);
+                        if (mm) { shopNo = mm[1]; break; }
+                    }
+                }
+                if (!shopNo) { window.__baeminApiResult = 'ERR|shopNumber없음'; return 'NO_SHOP'; }
+
+                fetch('https://self-api.baemin.com/v2/ad-center/ad-campaigns/operating-ad-campaign/by-shop-number?shopNumber=' + shopNo, {
+                    method: 'GET', credentials: 'include',
+                    headers: {'Accept':'application/json','service-channel':'SELF_SERVICE_PC'}
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(campaigns) {
+                    if (!Array.isArray(campaigns) || campaigns.length === 0) {
+                        window.__baeminApiResult = 'ERR|캠페인없음';
+                        return;
+                    }
+                    var cpcCampaign = null;
+                    for (var i=0;i<campaigns.length;i++) {
+                        var c = campaigns[i];
+                        if (c.adInventoryKey === 'CENTRAL_CPC' ||
+                            (c.adKind && c.adKind.adType === 'CPC') ||
+                            (c.adKind && c.adKind.adKindKey === 'WOORI_SHOP_CLICK')) {
+                            cpcCampaign = c; break;
+                        }
+                    }
+                    if (!cpcCampaign) {
+                        window.__baeminApiResult = 'ERR|CPC캠페인없음';
+                        return;
+                    }
+                    var cid = cpcCampaign.id;
+                    return fetch('https://self-api.baemin.com/v4/cpc/bookings/by-shop-number?shopNumber=' + shopNo + '&adCampaignId=' + cid, {
+                        method: 'GET', credentials: 'include',
+                        headers: {'Accept':'application/json','service-channel':'SELF_SERVICE_PC'}
+                    })
+                    .then(function(r2) { return r2.json(); })
+                    .then(function(booking) {
+                        var curBid = (booking && booking.bid) || 0;
+                        window.__baeminApiResult = 'OK|bid=' + curBid;
+                    });
+                })
+                .catch(function(e) { window.__baeminApiResult = 'ERR|' + e.message; });
+                return 'STARTED|shop=' + shopNo;
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            log(Code.INFO_JS_RESULT, "배민확인시작: $result")
+            handler.postDelayed({ pollBaeminCheckResult(5) }, 3000)
+        }
+    }
+
+    private fun pollBaeminCheckResult(retries: Int) {
+        if (state != State.PERFORMING_ACTION) return
+        webView?.evaluateJavascript(
+            "(function(){ return window.__baeminApiResult || 'PENDING'; })()"
+        ) { result ->
+            val r = result?.removeSurrounding("\"") ?: "PENDING"
+            log(Code.INFO_JS_RESULT, "배민확인폴링($retries): $r")
+            when {
+                r == "PENDING" -> {
+                    if (retries > 0) handler.postDelayed({ pollBaeminCheckResult(retries - 1) }, 3000)
+                    else finishWithError(Code.ERR_NO_AD_FIELD, "배민 확인 응답 없음")
+                }
+                r.startsWith("OK") -> {
+                    val bidMatch = Regex("bid=(\\d+)").find(r)
+                    val bid = bidMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    AdManager.setBaeminCurrentBid(bid)
+                    finishWithSuccess("배민 현재 ${bid}원 확인")
+                }
+                else -> finishWithError(Code.ERR_NO_AD_FIELD, "배민 확인: $r")
+            }
+        }
+    }
+
     // ───────── 쿠팡이츠 ─────────
 
     private fun handleCoupangPage(url: String) {
@@ -394,7 +480,7 @@ class AdWebAutomation(private val activity: Activity) {
             state == State.WAITING_LOGIN_RESULT || state == State.SUBMITTING_LOGIN -> {
                 log(Code.INFO_STATE, "쿠팡 로그인 성공 → store 페이지에서 API 직접 호출")
                 changeState(State.PERFORMING_ACTION)
-                handler.postDelayed({ callCoupangToggleApi() }, 2000)
+                handler.postDelayed({ if (currentAction == Action.COUPANG_CHECK) callCoupangCheckApi() else callCoupangToggleApi() }, 2000)
             }
             state == State.LOADING_LOGIN -> {
                 // 이미 로그인된 상태
@@ -404,7 +490,7 @@ class AdWebAutomation(private val activity: Activity) {
                         if (!cur.contains("/login")) {
                             log(Code.INFO_STATE, "쿠팡 이미 로그인됨 → API 직접 호출")
                             changeState(State.PERFORMING_ACTION)
-                            callCoupangToggleApi()
+                            if (currentAction == Action.COUPANG_CHECK) callCoupangCheckApi() else callCoupangToggleApi()
                         }
                     }
                 }, 4000)
@@ -566,6 +652,90 @@ class AdWebAutomation(private val activity: Activity) {
                     finishWithSuccess("쿠팡 광고 $onOff 완료 ($r)")
                 }
                 else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 API: $r")
+            }
+        }
+    }
+
+    /** 쿠팡: 현재 캠페인 ON/OFF 상태만 확인 (토글하지 않음) */
+    private fun callCoupangCheckApi() {
+        if (state != State.PERFORMING_ACTION) return
+
+        val js = """
+            (function() {
+                window.__coupangApiResult = null;
+                var AD_API = 'https://advertising.coupangeats.com';
+
+                function apiCall(method, path, body, callback) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open(method, AD_API + path, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.setRequestHeader('Accept', 'application/json');
+                    xhr.withCredentials = true;
+                    xhr.onload = function() { callback(null, xhr.status, xhr.responseText); };
+                    xhr.onerror = function() { callback('네트워크오류', 0, ''); };
+                    xhr.send(body ? JSON.stringify(body) : null);
+                }
+
+                apiCall('POST', '/api/v1/auth/login',
+                    {deviceId:'NOT_USED', accessToken:'NOT_USED'},
+                    function(err1, s1, r1) {
+                    if (err1 || s1 !== 200) {
+                        window.__coupangApiResult = 'ERR|인증실패|status=' + s1;
+                        return;
+                    }
+                    var today = new Date();
+                    var y = today.getFullYear();
+                    var m = String(today.getMonth() + 1).padStart(2, '0');
+                    var d = String(today.getDate()).padStart(2, '0');
+
+                    apiCall('POST', '/api/v1/campaign/list',
+                        {size:10, page:0, dateRange:{startDate:y+'-'+m+'-01', endDate:y+'-'+m+'-'+d}},
+                        function(err2, s2, r2) {
+                        if (err2 || s2 !== 200) {
+                            window.__coupangApiResult = 'ERR|캠페인조회실패|status=' + s2;
+                            return;
+                        }
+                        var data = JSON.parse(r2);
+                        var campaigns = data.campaigns || data.content || [];
+                        if (!Array.isArray(campaigns) || campaigns.length === 0) {
+                            window.__coupangApiResult = 'ERR|캠페인없음';
+                            return;
+                        }
+                        var campaign = campaigns[0];
+                        var campaignId = String(campaign.id || '');
+                        var currentActive = campaign.isActive;
+                        window.__coupangApiResult = 'OK|isActive=' + currentActive + '|id=' + campaignId;
+                    });
+                });
+
+                return 'STARTED';
+            })();
+        """.trimIndent()
+
+        webView?.evaluateJavascript(js) { result ->
+            log(Code.INFO_JS_RESULT, "쿠팡확인시작: $result")
+            handler.postDelayed({ pollCoupangCheckResult(5) }, 3000)
+        }
+    }
+
+    private fun pollCoupangCheckResult(retries: Int) {
+        if (state != State.PERFORMING_ACTION) return
+        webView?.evaluateJavascript(
+            "(function(){ return window.__coupangApiResult || 'PENDING'; })()"
+        ) { result ->
+            val r = result?.removeSurrounding("\"") ?: "PENDING"
+            log(Code.INFO_JS_RESULT, "쿠팡확인폴링($retries): $r")
+            when {
+                r == "PENDING" -> {
+                    if (retries > 0) handler.postDelayed({ pollCoupangCheckResult(retries - 1) }, 3000)
+                    else finishWithError(Code.ERR_NO_AD_FIELD, "쿠팡 확인 응답 없음")
+                }
+                r.startsWith("OK") -> {
+                    val isActive = r.contains("isActive=true")
+                    AdManager.setCoupangCurrentOn(isActive)
+                    finishWithSuccess("쿠팡 현재 ${if (isActive) "ON" else "OFF"} 확인")
+                }
+                else -> finishWithError(Code.ERR_NO_TOGGLE, "쿠팡 확인: $r")
             }
         }
     }
