@@ -110,7 +110,7 @@ object AdScheduler {
     }
 
     private fun isAutoEnabled(): Boolean =
-        AdManager.isAdEnabled() && AdManager.isOrderAutoOffEnabled() && isWithinActiveWindow()
+        AdManager.isAdEnabled() && isWithinActiveWindow()
 
     /** 쿠팡: 끄기 임계값 초과? */
     fun shouldCoupangOff(): Boolean {
@@ -144,7 +144,7 @@ object AdScheduler {
 
     /** 백그라운드에서 주문 건수 변경 시 — 현재 상태 기반으로 필요시 실행 */
     fun checkFromBackground(context: Context, count: Int) {
-        if (!AdManager.isAdEnabled() || !AdManager.isOrderAutoOffEnabled()) return
+        if (!AdManager.isAdEnabled()) return
         if (!isWithinActiveWindow()) return
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()

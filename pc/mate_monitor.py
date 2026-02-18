@@ -377,8 +377,6 @@ def main():
     last_count = -1
     fail_count = 0
     last_update_slot = -1
-    last_upload_time = 0.0
-    HEARTBEAT_SEC = 180  # 3분: 건수 변동 없어도 강제 업로드
     while True:
         try:
             # 30분마다: git pull + 자동 재시작 (00분, 30분)
@@ -407,16 +405,11 @@ def main():
 
             if count is not None:
                 fail_count = 0
-                now = time.time()
                 changed = count != last_count
-                heartbeat = (now - last_upload_time) >= HEARTBEAT_SEC
-                if changed or heartbeat:
-                    reason = f"{last_count}→{count}" if changed else "heartbeat"
-                    print(f"[{time.strftime('%H:%M:%S')}] 주문: {count}건 ({reason}) [{matched}]")
-                    if update_gist(cfg, count):
-                        print(f"[{time.strftime('%H:%M:%S')}] Gist 업데이트 완료")
-                        last_upload_time = now
-                    last_count = count
+                if changed:
+                    print(f"[{time.strftime('%H:%M:%S')}] 주문: {last_count}→{count}건 [{matched}]")
+                update_gist(cfg, count)
+                last_count = count
             else:
                 fail_count += 1
                 if fail_count % 10 == 1:

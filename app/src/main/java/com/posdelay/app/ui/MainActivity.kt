@@ -10,8 +10,12 @@ import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.net.Uri
 import android.os.Environment
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -23,9 +27,7 @@ import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
 import android.widget.ScrollView
-import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -132,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         OrderTracker.orderCount.observe(this) { count ->
             binding.tvOrderCount.text = count.toString()
             updateStatus(count)
+            updateGauges()
             DelayNotificationHelper.update(this)
             // 주문 밀림 감지 → 플랫폼별 광고 자동 끄기/켜기
             checkPlatformThresholds()
@@ -200,40 +203,46 @@ class MainActivity : AppCompatActivity() {
         }
 
         AdManager.scheduleEnabled.observe(this) { enabled ->
-            binding.switchSchedule.isChecked = enabled
-        }
-
-        AdManager.orderAutoOffEnabled.observe(this) { enabled ->
-            binding.switchOrderAutoOff.isChecked = enabled
+            binding.tvScheduleLight.setTextColor(
+                if (enabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
+            )
         }
 
         AdManager.coupangAutoEnabled.observe(this) { enabled ->
-            binding.switchCoupangAuto.isChecked = enabled
+            binding.tvCoupangAutoLight.setTextColor(
+                if (enabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
+            )
         }
-
         AdManager.baeminAutoEnabled.observe(this) { enabled ->
-            binding.switchBaeminAuto.isChecked = enabled
+            binding.tvBaeminAutoLight.setTextColor(
+                if (enabled) 0xFF2ECC71.toInt() else 0xFFE74C3C.toInt()
+            )
         }
 
         AdManager.coupangOffThreshold.observe(this) { value ->
             binding.tvCoupangOffTh.text = "$value"
             binding.tvCoupangThresholdInfo.text = "(${value}/${AdManager.getCoupangOnThreshold()})"
+            updateGauges()
         }
         AdManager.coupangOnThreshold.observe(this) { value ->
             binding.tvCoupangOnTh.text = "$value"
             binding.tvCoupangThresholdInfo.text = "(${AdManager.getCoupangOffThreshold()}/${value})"
+            updateGauges()
         }
         AdManager.baeminOffThreshold.observe(this) { value ->
             binding.tvBaeminOffTh.text = "$value"
             binding.tvBaeminThresholdInfo.text = "(${value}/${AdManager.getBaeminMidThreshold()}/${AdManager.getBaeminOnThreshold()})"
+            updateGauges()
         }
         AdManager.baeminMidThreshold.observe(this) { value ->
             binding.tvBaeminMidTh.text = "$value"
             binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${value}/${AdManager.getBaeminOnThreshold()})"
+            updateGauges()
         }
         AdManager.baeminOnThreshold.observe(this) { value ->
             binding.tvBaeminOnTh.text = "$value"
             binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${AdManager.getBaeminMidThreshold()}/${value})"
+            updateGauges()
         }
         AdManager.baeminMidAmount.observe(this) { value ->
             binding.tvBaeminMidAmount.text = "${value}원"
@@ -256,15 +265,16 @@ class MainActivity : AppCompatActivity() {
         // 배민 신호등
         val bid = AdManager.getBaeminCurrentBid()
         val normalAmount = AdManager.getBaeminAmount()
+        val midAmount = AdManager.getBaeminMidAmount()
         if (bid > 0) {
             binding.tvMonitorBaemin.text = "${bid}원"
-            if (bid >= normalAmount) {
-                binding.tvBaeminLight.setTextColor(0xFF2ECC71.toInt()) // 초록 = 정상금액
-                binding.tvMonitorBaemin.setTextColor(0xFF2ECC71.toInt())
-            } else {
-                binding.tvBaeminLight.setTextColor(0xFFE74C3C.toInt()) // 빨강 = 축소금액
-                binding.tvMonitorBaemin.setTextColor(0xFFE74C3C.toInt())
+            val color = when {
+                bid >= normalAmount -> 0xFF2ECC71.toInt()  // 초록 = 최대
+                bid >= midAmount -> 0xFFE67E22.toInt()     // 주황 = 중간
+                else -> 0xFFE74C3C.toInt()                 // 빨강 = 최소
             }
+            binding.tvBaeminLight.setTextColor(color)
+            binding.tvMonitorBaemin.setTextColor(color)
         } else {
             binding.tvMonitorBaemin.text = "--"
             binding.tvBaeminLight.setTextColor(0xFF666666.toInt())
@@ -317,6 +327,7 @@ class MainActivity : AppCompatActivity() {
         if (pcTime == 0L) {
             binding.tvPcSync.text = "PC --"
             binding.tvPcSync.setTextColor(0xFF666666.toInt())
+            binding.tvPcLight.setTextColor(0xFF666666.toInt())
             return
         }
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -327,11 +338,13 @@ class MainActivity : AppCompatActivity() {
             else -> "${elapsed / 3600}시간"
         }
         binding.tvPcSync.text = "PC ${sdf.format(Date(pcTime))} (${agoStr})"
-        binding.tvPcSync.setTextColor(
-            if (elapsed < 300) 0xFF2ECC71.toInt()
-            else if (elapsed < 600) 0xFFE67E22.toInt()
-            else 0xFFE74C3C.toInt()
-        )
+        val color = when {
+            elapsed < 60 -> 0xFF2ECC71.toInt()    // 초록: 1분 이내
+            elapsed < 180 -> 0xFFE67E22.toInt()   // 주황: 3분 이내
+            else -> 0xFFE74C3C.toInt()             // 빨강: 3분 초과
+        }
+        binding.tvPcSync.setTextColor(color)
+        binding.tvPcLight.setTextColor(color)
     }
 
     private fun updateModeButtons(auto: Boolean) {
@@ -380,6 +393,126 @@ class MainActivity : AppCompatActivity() {
                 binding.tvStatus.text = "정상"
                 binding.tvStatus.setTextColor(0xFF2ECC71.toInt())
                 binding.tvOrderCount.setTextColor(0xFFFFFFFF.toInt())
+            }
+        }
+    }
+
+    // ───────── 게이지 ─────────
+
+    private fun updateGauges() {
+        val count = OrderTracker.getOrderCount()
+        val max = 15
+
+        // 쿠팡: 2구간 (켜기/끄기)
+        buildGauge(binding.gaugeCoupang, max, count,
+            onTh = AdManager.getCoupangOnThreshold(),
+            midTh = null,
+            offTh = AdManager.getCoupangOffThreshold(),
+            isCoupang = true)
+
+        // 배민: 3구간 (최대/중간/최소)
+        buildGauge(binding.gaugeBaemin, max, count,
+            onTh = AdManager.getBaeminOnThreshold(),
+            midTh = AdManager.getBaeminMidThreshold(),
+            offTh = AdManager.getBaeminOffThreshold(),
+            isCoupang = false)
+    }
+
+    private fun buildGauge(container: LinearLayout, max: Int, current: Int,
+                           onTh: Int, midTh: Int?, offTh: Int, isCoupang: Boolean) {
+        container.removeAllViews()
+        val dp = resources.displayMetrics.density
+        val dp1 = dp.toInt().coerceAtLeast(1)
+        val cur = current.coerceIn(0, max)
+
+        for (i in 0..max) {
+            val color = when {
+                i <= onTh -> 0xFF2ECC71.toInt()
+                midTh != null && i >= midTh && i < offTh -> 0xFFE67E22.toInt()
+                i >= offTh -> 0xFFE74C3C.toInt()
+                else -> 0xFF2A2A45.toInt()
+            }
+
+            val cell = FrameLayout(this)
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            if (i > 0) params.marginStart = dp1
+            cell.layoutParams = params
+
+            val gd = GradientDrawable()
+            gd.setColor(color)
+            gd.cornerRadius = dp * 3
+            if (i == cur) {
+                gd.setStroke((dp * 2).toInt(), 0xFFFFFFFF.toInt())
+            }
+            cell.background = gd
+
+            // 탭 → 임계값 설정 다이얼로그
+            val cellIndex = i
+            cell.setOnClickListener { onGaugeTap(cellIndex, isCoupang) }
+
+            // 모든 셀에 숫자 표시
+            val isThreshold = i == onTh || i == midTh || i == offTh
+            val isCurrent = i == cur
+            run {
+                val tv = TextView(this)
+                tv.text = "$i"
+                tv.textSize = if (isThreshold || isCurrent) 9f else 7f
+                val textColor = if (isThreshold || isCurrent || color != 0xFF2A2A45.toInt())
+                    0xFFFFFFFF.toInt() else 0xFF707088.toInt()
+                tv.setTextColor(textColor)
+                tv.gravity = Gravity.CENTER
+                tv.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT)
+                cell.addView(tv)
+            }
+            container.addView(cell)
+        }
+    }
+
+    private fun onGaugeTap(cellIndex: Int, isCoupang: Boolean) {
+        if (isCoupang) {
+            val onTh = AdManager.getCoupangOnThreshold()
+            val offTh = AdManager.getCoupangOffThreshold()
+            if (cellIndex <= onTh) {
+                // 초록 구간 → 쿠팡 켜기
+                if (!AdManager.hasCoupangCredentials()) {
+                    Toast.makeText(this, "쿠팡 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                lastCoupangAutoTime = System.currentTimeMillis()
+                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+            } else if (cellIndex >= offTh) {
+                // 빨강 구간 → 쿠팡 끄기
+                if (!AdManager.hasCoupangCredentials()) {
+                    Toast.makeText(this, "쿠팡 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                lastCoupangAutoTime = System.currentTimeMillis()
+                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+            }
+        } else {
+            val onTh = AdManager.getBaeminOnThreshold()
+            val midTh = AdManager.getBaeminMidThreshold()
+            val offTh = AdManager.getBaeminOffThreshold()
+            if (!AdManager.hasBaeminCredentials()) {
+                Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
+                return
+            }
+            lastBaeminAutoTime = System.currentTimeMillis()
+            when {
+                cellIndex <= onTh -> {
+                    // 초록 → 배민 최대
+                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+                }
+                cellIndex in midTh until offTh -> {
+                    // 주황 → 배민 중간
+                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminMidAmount())
+                }
+                cellIndex >= offTh -> {
+                    // 빨강 → 배민 최소
+                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
+                }
             }
         }
     }
@@ -489,7 +622,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPermissions.setOnClickListener { showPermissionMenu() }
         binding.btnViewLog.setOnClickListener { UsageTracker.track(UsageTracker.VIEW_LOG); showNotificationLog() }
-        binding.btnUpdate.setOnClickListener { GitHubUpdater(this).checkAndUpdate() }
+        // 업데이트 버튼 제거
     }
 
     // ───────── 광고 관리 버튼 설정 ─────────
@@ -536,36 +669,31 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 쿠팡 광고 켜기/끄기
-        binding.btnCoupangAdOn.setOnClickListener {
-            UsageTracker.track(UsageTracker.COUPANG_AD_TOGGLE)
-            lastCoupangAutoTime = System.currentTimeMillis()
-            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-        }
-        binding.btnCoupangAdOff.setOnClickListener {
-            UsageTracker.track(UsageTracker.COUPANG_AD_TOGGLE)
-            lastCoupangAutoTime = System.currentTimeMillis()
-            executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-        }
+        // 쿠팡 광고 켜기/끄기는 게이지 탭으로 대체 (onGaugeTap)
 
-        // 스케줄 ON/OFF
-        binding.switchSchedule.setOnCheckedChangeListener { _, isChecked ->
-            AdManager.setScheduleEnabled(isChecked)
+        // 스케줄 ON/OFF (텍스트 탭)
+        binding.layoutScheduleToggle.setOnClickListener {
+            val current = AdManager.isScheduleEnabled()
+            AdManager.setScheduleEnabled(!current)
             AdScheduler.scheduleAlarms(this)
+            Toast.makeText(this, "스케줄: ${if (!current) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
         }
 
         // 광고 끄기 시간 선택
         binding.btnAdOffTime.setOnClickListener { UsageTracker.track(UsageTracker.SCHEDULE_TIME); showTimePicker(true) }
         binding.btnAdOnTime.setOnClickListener { UsageTracker.track(UsageTracker.SCHEDULE_TIME); showTimePicker(false) }
 
-        // 주문 자동 끄기 ON/OFF
-        binding.switchOrderAutoOff.setOnCheckedChangeListener { _, isChecked ->
-            AdManager.setOrderAutoOffEnabled(isChecked)
+        // 쿠팡 개별 자동 토글 (텍스트 탭)
+        binding.layoutCoupangAutoToggle.setOnClickListener {
+            val current = AdManager.isCoupangAutoEnabled()
+            AdManager.setCoupangAutoEnabled(!current)
+            Toast.makeText(this, "쿠팡 자동: ${if (!current) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
         }
-        binding.switchCoupangAuto.setOnCheckedChangeListener { _, isChecked ->
-            AdManager.setCoupangAutoEnabled(isChecked)
-        }
-        binding.switchBaeminAuto.setOnCheckedChangeListener { _, isChecked ->
-            AdManager.setBaeminAutoEnabled(isChecked)
+        // 배민 개별 자동 토글 (텍스트 탭)
+        binding.layoutBaeminAutoToggle.setOnClickListener {
+            val current = AdManager.isBaeminAutoEnabled()
+            AdManager.setBaeminAutoEnabled(!current)
+            Toast.makeText(this, "배민 자동: ${if (!current) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
         }
 
         // 쿠팡 임계값
@@ -591,49 +719,7 @@ class MainActivity : AppCompatActivity() {
             openWebViewBrowser("쿠팡이츠 광고", "https://advertising.coupangeats.com")
         }
 
-        // 수동 실행: 배민 정상금액
-        binding.btnAdManualBaeminNormal.setOnClickListener {
-            UsageTracker.track(UsageTracker.MANUAL_BAEMIN_NORMAL)
-            if (!AdManager.hasBaeminCredentials()) {
-                Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            lastBaeminAutoTime = System.currentTimeMillis() // 수동 → 자동 쿨다운
-            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
-        }
-
-        // 수동 실행: 배민 축소금액
-        binding.btnAdManualBaeminReduced.setOnClickListener {
-            UsageTracker.track(UsageTracker.MANUAL_BAEMIN_REDUCED)
-            if (!AdManager.hasBaeminCredentials()) {
-                Toast.makeText(this, "배민 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            lastBaeminAutoTime = System.currentTimeMillis()
-            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
-        }
-
-        // 수동 실행: 쿠팡 켜기
-        binding.btnAdManualCoupangOn.setOnClickListener {
-            UsageTracker.track(UsageTracker.MANUAL_COUPANG_ON)
-            if (!AdManager.hasCoupangCredentials()) {
-                Toast.makeText(this, "쿠팡 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            lastCoupangAutoTime = System.currentTimeMillis()
-            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-        }
-
-        // 수동 실행: 쿠팡 끄기
-        binding.btnAdManualCoupangOff.setOnClickListener {
-            UsageTracker.track(UsageTracker.MANUAL_COUPANG_OFF)
-            if (!AdManager.hasCoupangCredentials()) {
-                Toast.makeText(this, "쿠팡 로그인 정보를 먼저 설정해주세요", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            lastCoupangAutoTime = System.currentTimeMillis()
-            executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-        }
+        // 수동 실행은 게이지 탭으로 대체 (onGaugeTap)
 
         // 로그인 설정
         binding.btnBaeminLogin.setOnClickListener { UsageTracker.track(UsageTracker.LOGIN_BAEMIN); showLoginDialog("배민") }
