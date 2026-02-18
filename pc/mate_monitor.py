@@ -221,29 +221,22 @@ def _count_delivery_processing(text):
     lines = text.split("\n")
     delivery_found = False
     count = 0
-    active_kw = [
-        "처리중", "저리중", "처리종", "저디중",
-        "조리시작", "초리시작", "조리시직",
-        "조리대기", "초리대기",
-        "조리완료", "초리완료", "조리완르",
-        "배달중", "배닫중", "베달중",
-        "배차", "배처",
-        "대기", "데기",
-        "로봇", "예약",
-    ]
-    inactive_kw = ["거절", "취소", "완료", "완르", "픽업", "픽엄"]
-    all_kw = active_kw + inactive_kw
+    # 비활성 키워드: 이것만 제외, 나머지는 전부 카운트 (OCR 오인식 대응)
+    inactive_kw = ["거절", "취소", "픽업", "픽엄"]
+    header_kw = ["내점", "포장", "전체", "홀"]
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
         if not has_delivery:
             continue
 
-        # 탭 바 감지: 내점/포장 + 전체 → 탭 바 뒤 주문 데이터 추출
-        has_other_type = ("내점" in line or "포장" in line) and "전체" in line
-        if has_other_type:
+        # 탭 바 감지: 내점/포장 + 전체 → 뒤에 주문 섞여 있을 수 있음
+        tab_count = sum(1 for kw in header_kw if kw in line)
+        if tab_count >= 2:
             parts = line.split("전체")
             remainder = parts[-1] if len(parts) > 1 else ""
-            if any(kw in remainder for kw in active_kw):
+            has_inactive = any(kw in remainder for kw in inactive_kw)
+            has_done = "완료" in remainder and "조리완료" not in remainder
+            if remainder.strip() and not has_inactive and not has_done:
                 delivery_found = True
                 count += 1
                 print(f"  배달행[O탭]: {line.strip()[:100]}")
@@ -251,19 +244,19 @@ def _count_delivery_processing(text):
                 print(f"  배달행[헤더]: {line.strip()[:100]}")
             continue
 
-        # 상태 키워드 3개 이상 → 카테고리 헤더 행
-        matched_kw = [kw for kw in all_kw if kw in line]
-        if len(matched_kw) >= 3:
+        # 컬럼 헤더 감지
+        if "주문번호" in line or "주문상태" in line:
             print(f"  배달행[헤더]: {line.strip()[:100]}")
             continue
 
         delivery_found = True
-        # "조리완료"는 active, "완료" 단독은 inactive
-        is_active = any(kw in line for kw in active_kw)
-        tag = "O" if is_active else "X"
-        print(f"  배달행[{tag}]: {line.strip()[:100]}")
-        if is_active:
+        has_inactive = any(kw in line for kw in inactive_kw)
+        has_done = "완료" in line and "조리완료" not in line and "초리완료" not in line
+        if has_inactive or has_done:
+            print(f"  배달행[X]: {line.strip()[:100]}")
+        else:
             count += 1
+            print(f"  배달행[O]: {line.strip()[:100]}")
 
     # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
