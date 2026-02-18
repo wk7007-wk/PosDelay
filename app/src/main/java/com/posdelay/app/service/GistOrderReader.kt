@@ -26,7 +26,8 @@ object GistOrderReader {
     // API 엔드포인트 사용 (raw URL은 CDN 캐싱 5분 문제)
     private const val GIST_API_URL =
         "https://api.github.com/gists/a67e5de3271d6d0716b276dc6a8391cb"
-    private const val INTERVAL_MS = 60_000L  // 60초 (API rate limit 60/h 한도 내)
+    private const val INTERVAL_NORMAL = 60_000L   // 60초 기본
+    private const val INTERVAL_SLOW = 120_000L    // 120초 (한도 근접 시)
 
     private const val STALE_MS = 3 * 60 * 1000L       // 3분: 갱신 없으면 MATE 열기
     private const val MATE_COOLDOWN_MS = 5 * 60 * 1000L // 5분: MATE 재시도 쿨다운
@@ -36,6 +37,7 @@ object GistOrderReader {
     private var running = false
     private var appContext: Context? = null
     private var consecutiveErrors = 0
+    private var currentInterval = INTERVAL_NORMAL
     private var lastMateAttempt = 0L
     private var pendingReturnHome = false
 
@@ -43,8 +45,9 @@ object GistOrderReader {
         if (running) return
         appContext = context.applicationContext
         running = true
+        currentInterval = INTERVAL_NORMAL
         handler.post(fetchRunnable)
-        Log.d(TAG, "Gist 모니터링 시작 (${INTERVAL_MS / 1000}초 간격, API 모드)")
+        Log.d(TAG, "Gist 모니터링 시작 (${currentInterval / 1000}초 간격, API 모드)")
     }
 
     fun stop() {
@@ -63,7 +66,7 @@ object GistOrderReader {
         override fun run() {
             fetchGist()
             handler.post { checkStaleAndRefresh() }
-            if (running) handler.postDelayed(this, INTERVAL_MS)
+            if (running) handler.postDelayed(this, currentInterval)
         }
     }
 
@@ -79,6 +82,25 @@ object GistOrderReader {
                 conn.setRequestProperty("User-Agent", "PosDelay-Android")
 
                 val responseCode = conn.responseCode
+
+                // Rate limit 자동 조절
+                val remaining = conn.getHeaderField("X-RateLimit-Remaining")?.toIntOrNull()
+                if (remaining != null) {
+                    val newInterval = if (remaining <= 10) INTERVAL_SLOW else INTERVAL_NORMAL
+                    if (newInterval != currentInterval) {
+                        currentInterval = newInterval
+                        Log.d(TAG, "API 잔여 $remaining → 간격 ${currentInterval/1000}초")
+                    }
+                }
+
+                if (responseCode == 403 || responseCode == 429) {
+                    consecutiveErrors++
+                    currentInterval = INTERVAL_SLOW
+                    Log.w(TAG, "Rate limit ($responseCode), 간격 ${currentInterval/1000}초로 감속")
+                    conn.disconnect()
+                    return@thread
+                }
+
                 if (responseCode != 200) {
                     consecutiveErrors++
                     Log.w(TAG, "HTTP $responseCode (연속오류: $consecutiveErrors)")
