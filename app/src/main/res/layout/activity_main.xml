@@ -267,122 +267,7 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- ══════════ 2. 지연 설정 ══════════ -->
-
-    <!-- 모드 선택 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="6dp">
-
-        <Button
-            android:id="@+id/btnModeSemi"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="반자동 (알림만)"
-            android:textSize="13sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#2ECC71"
-            android:layout_marginEnd="4dp" />
-
-        <Button
-            android:id="@+id/btnModeAuto"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="자동 (앱 조작)"
-            android:textSize="13sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#2A2A45"
-            android:layout_marginStart="4dp" />
-    </LinearLayout>
-
-    <!-- 지연 기준: 쿠팡/배민 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/bg_card"
-        android:padding="10dp"
-        android:layout_marginBottom="6dp">
-
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="쿠팡" android:textColor="#FFD700" android:textSize="13sp" android:textStyle="bold" />
-        <Button android:id="@+id/btnCoupangMinus" android:layout_width="34dp" android:layout_height="34dp"
-            android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
-        <TextView android:id="@+id/tvCoupangThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="10건" android:textColor="#FFD700" android:textSize="18sp" android:textStyle="bold"
-            android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
-        <Button android:id="@+id/btnCoupangPlus" android:layout_width="34dp" android:layout_height="34dp"
-            android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
-
-        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
-
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="배민" android:textColor="#2AC1BC" android:textSize="13sp" android:textStyle="bold" />
-        <Button android:id="@+id/btnBaeminMinus" android:layout_width="34dp" android:layout_height="34dp"
-            android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
-        <TextView android:id="@+id/tvBaeminThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="15건" android:textColor="#2AC1BC" android:textSize="18sp" android:textStyle="bold"
-            android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
-        <Button android:id="@+id/btnBaeminPlus" android:layout_width="34dp" android:layout_height="34dp"
-            android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
-    </LinearLayout>
-
-    <!-- 지연 시간 + 초기화/수동 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_card"
-            android:padding="10dp">
-
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="지연" android:textColor="#9090A8" android:textSize="13sp" />
-            <Button android:id="@+id/btnDelayMinus" android:layout_width="34dp" android:layout_height="34dp"
-                android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
-            <TextView android:id="@+id/tvDelayMinutes" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="10분" android:textColor="#FFF" android:textSize="18sp" android:textStyle="bold"
-                android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
-            <Button android:id="@+id/btnDelayPlus" android:layout_width="34dp" android:layout_height="34dp"
-                android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btnReset"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:text="초기화"
-            android:textSize="13sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#2A2A45"
-            android:layout_marginStart="6dp" />
-
-        <Button
-            android:id="@+id/btnManualDelay"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:text="수동지연"
-            android:textSize="13sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#E74C3C"
-            android:layout_marginStart="4dp" />
-    </LinearLayout>
-
-    <!-- ══════════ 3. 광고 관리 ══════════ -->
+    <!-- ══════════ 2. 광고 관리 ══════════ -->
     <View android:layout_width="match_parent" android:layout_height="1dp"
         android:background="#2A2A45" android:layout_marginBottom="8dp" />
 
@@ -622,6 +507,121 @@
         <!-- 6순위: 로그 -->
         <Button android:id="@+id/btnAdLog" android:layout_width="match_parent" android:layout_height="36dp"
             android:text="광고 자동화 로그" android:textSize="12sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
+    </LinearLayout>
+
+    <!-- ══════════ 3. 지연 설정 ══════════ -->
+
+    <!-- 모드 선택 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="6dp">
+
+        <Button
+            android:id="@+id/btnModeSemi"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="반자동 (알림만)"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2ECC71"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btnModeAuto"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="자동 (앱 조작)"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2A2A45"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 지연 기준: 쿠팡/배민 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_card"
+        android:padding="10dp"
+        android:layout_marginBottom="6dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="쿠팡" android:textColor="#FFD700" android:textSize="13sp" android:textStyle="bold" />
+        <Button android:id="@+id/btnCoupangMinus" android:layout_width="34dp" android:layout_height="34dp"
+            android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
+        <TextView android:id="@+id/tvCoupangThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="10건" android:textColor="#FFD700" android:textSize="18sp" android:textStyle="bold"
+            android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
+        <Button android:id="@+id/btnCoupangPlus" android:layout_width="34dp" android:layout_height="34dp"
+            android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="배민" android:textColor="#2AC1BC" android:textSize="13sp" android:textStyle="bold" />
+        <Button android:id="@+id/btnBaeminMinus" android:layout_width="34dp" android:layout_height="34dp"
+            android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
+        <TextView android:id="@+id/tvBaeminThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="15건" android:textColor="#2AC1BC" android:textSize="18sp" android:textStyle="bold"
+            android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
+        <Button android:id="@+id/btnBaeminPlus" android:layout_width="34dp" android:layout_height="34dp"
+            android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
+    </LinearLayout>
+
+    <!-- 지연 시간 + 초기화/수동 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card"
+            android:padding="10dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="지연" android:textColor="#9090A8" android:textSize="13sp" />
+            <Button android:id="@+id/btnDelayMinus" android:layout_width="34dp" android:layout_height="34dp"
+                android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" android:layout_marginStart="6dp" />
+            <TextView android:id="@+id/tvDelayMinutes" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="10분" android:textColor="#FFF" android:textSize="18sp" android:textStyle="bold"
+                android:paddingStart="6dp" android:paddingEnd="6dp" android:minWidth="48dp" android:gravity="center" />
+            <Button android:id="@+id/btnDelayPlus" android:layout_width="34dp" android:layout_height="34dp"
+                android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#2A2A45" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnReset"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="초기화"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2A2A45"
+            android:layout_marginStart="6dp" />
+
+        <Button
+            android:id="@+id/btnManualDelay"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="수동지연"
+            android:textSize="13sp"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#E74C3C"
+            android:layout_marginStart="4dp" />
     </LinearLayout>
 
     <!-- ══════════ 4. 접근성/권한 ══════════ -->
