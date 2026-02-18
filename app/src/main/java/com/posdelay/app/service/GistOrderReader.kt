@@ -26,7 +26,7 @@ object GistOrderReader {
     // API 엔드포인트 사용 (raw URL은 CDN 캐싱 5분 문제)
     private const val GIST_API_URL =
         "https://api.github.com/gists/a67e5de3271d6d0716b276dc6a8391cb"
-    private const val INTERVAL_MS = 90_000L  // 90초 (API rate limit 60/h 대응)
+    private const val INTERVAL_MS = 60_000L  // 60초 (API rate limit 60/h 한도 내)
 
     private const val STALE_MS = 3 * 60 * 1000L       // 3분: 갱신 없으면 MATE 열기
     private const val MATE_COOLDOWN_MS = 5 * 60 * 1000L // 5분: MATE 재시도 쿨다운
