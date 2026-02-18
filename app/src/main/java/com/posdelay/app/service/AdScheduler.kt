@@ -146,6 +146,8 @@ object AdScheduler {
     fun checkFromBackground(context: Context, count: Int) {
         if (!AdManager.isAdEnabled()) return
         if (!isWithinActiveWindow()) return
+        // 포그라운드면 checkPlatformThresholds()가 처리 → 중복 방지
+        if (MainActivity.isInForeground) return
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         var needOff = false

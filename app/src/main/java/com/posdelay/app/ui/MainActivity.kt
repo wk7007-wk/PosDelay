@@ -51,6 +51,12 @@ import com.posdelay.app.service.GitHubUpdater
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /** Activity가 포그라운드인지 (checkFromBackground 중복 방지) */
+        @Volatile var isInForeground = false
+            private set
+    }
+
     private lateinit var binding: ActivityMainBinding
     private val countdownHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val countdownRunnable = object : Runnable {
@@ -98,7 +104,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        isInForeground = true
         checkPermissions()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isInForeground = false
     }
 
     /** 스케줄러에서 보낸 광고 자동 동작 처리 */
