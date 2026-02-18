@@ -190,25 +190,36 @@ def read_order_count(win, cfg):
 
 
 def _count_delivery_processing(text):
-    """OCR 텍스트에서 '배달' + '처리중' 조합 행 수 카운트"""
+    """OCR 텍스트에서 배달 주문 행 수 카운트 (활성 상태만)"""
     if not text:
         return None
 
     lines = text.split("\n")
     delivery_found = False
     count = 0
+    unmatched = []
     for line in lines:
         has_delivery = "배달" in line or "배닫" in line or "베달" in line
-        has_processing = ("처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
-                         or "조리시작" in line or "초리시작" in line or "조리시직" in line
-                         or "조리완료" in line or "초리완료" in line or "조리완르" in line)
-        if has_delivery:
-            delivery_found = True
-            if has_processing:
-                count += 1
+        if not has_delivery:
+            continue
+        delivery_found = True
+        has_active = (
+            "접수" in line or "접쑤" in line or "점수" in line
+            or "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+            or "조리시작" in line or "초리시작" in line or "조리시직" in line
+            or "조리완료" in line or "초리완료" in line or "조리완르" in line
+            or "배달중" in line or "배닫중" in line or "베달중" in line
+            or "픽업" in line or "픽엄" in line
+            or "준비" in line
+        )
+        if has_active:
+            count += 1
+        else:
+            unmatched.append(line.strip()[:50])
 
-    # 배달 행이 하나라도 있었다면 유효한 카운트 (0 포함)
     if delivery_found:
+        if unmatched:
+            log.info(f"배달 미매칭 {len(unmatched)}행: {unmatched[:3]}")
         return count
     return None
 
