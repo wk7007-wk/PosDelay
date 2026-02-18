@@ -122,12 +122,18 @@ object AdScheduler {
         if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
         return OrderTracker.getOrderCount() <= AdManager.getCoupangOnThreshold()
     }
-    /** 배민: 끄기 임계값 초과? */
+    /** 배민: 끄기 임계값 이상 → 축소금액 */
     fun shouldBaeminOff(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
         return OrderTracker.getOrderCount() >= AdManager.getBaeminOffThreshold()
     }
-    /** 배민: 켜기 임계값 이하? */
+    /** 배민: 중간 임계값 이상 (끄기 미만) → 중간금액 */
+    fun shouldBaeminMid(): Boolean {
+        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
+        val count = OrderTracker.getOrderCount()
+        return count >= AdManager.getBaeminMidThreshold() && count < AdManager.getBaeminOffThreshold()
+    }
+    /** 배민: 켜기 임계값 이하 → 정상금액 */
     fun shouldBaeminOn(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
         return OrderTracker.getOrderCount() <= AdManager.getBaeminOnThreshold()
@@ -158,17 +164,22 @@ object AdScheduler {
             }
         }
 
-        // 배민: 개별 스위치 확인
+        // 배민: 3단계 (정상/중간/축소) — 현재 금액과 목표 금액이 다를 때만 실행
         val bid = AdManager.getBaeminCurrentBid()
         val normalAmount = AdManager.getBaeminAmount()
+        val midAmount = AdManager.getBaeminMidAmount()
+        val reducedAmount = AdManager.getBaeminReducedAmount()
         val lastBaemin = prefs.getLong(KEY_LAST_BG_BAEMIN, 0L)
         if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
-            if (count >= AdManager.getBaeminOffThreshold() && (bid <= 0 || bid >= normalAmount)) {
+            val targetAmount = when {
+                count >= AdManager.getBaeminOffThreshold() -> reducedAmount
+                count >= AdManager.getBaeminMidThreshold() -> midAmount
+                count <= AdManager.getBaeminOnThreshold() -> normalAmount
+                else -> null  // 구간 사이 → 변경 없음
+            }
+            if (targetAmount != null && bid > 0 && bid != targetAmount) {
                 prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()
-                needOff = true
-            } else if (count <= AdManager.getBaeminOnThreshold() && bid in 1 until normalAmount) {
-                prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()
-                needOn = true
+                if (targetAmount < normalAmount) needOff = true else needOn = true
             }
         }
 

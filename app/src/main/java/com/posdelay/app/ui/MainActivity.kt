@@ -225,11 +225,18 @@ class MainActivity : AppCompatActivity() {
         }
         AdManager.baeminOffThreshold.observe(this) { value ->
             binding.tvBaeminOffTh.text = "$value"
-            binding.tvBaeminThresholdInfo.text = "(${value}/${AdManager.getBaeminOnThreshold()})"
+            binding.tvBaeminThresholdInfo.text = "(${value}/${AdManager.getBaeminMidThreshold()}/${AdManager.getBaeminOnThreshold()})"
+        }
+        AdManager.baeminMidThreshold.observe(this) { value ->
+            binding.tvBaeminMidTh.text = "$value"
+            binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${value}/${AdManager.getBaeminOnThreshold()})"
         }
         AdManager.baeminOnThreshold.observe(this) { value ->
             binding.tvBaeminOnTh.text = "$value"
-            binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${value})"
+            binding.tvBaeminThresholdInfo.text = "(${AdManager.getBaeminOffThreshold()}/${AdManager.getBaeminMidThreshold()}/${value})"
+        }
+        AdManager.baeminMidAmount.observe(this) { value ->
+            binding.tvBaeminMidAmount.text = "${value}원"
         }
 
         AdManager.baeminCurrentBid.observe(this) { bid ->
@@ -508,6 +515,16 @@ class MainActivity : AppCompatActivity() {
             AdManager.setBaeminAmount(AdManager.getBaeminAmount() - 50)
         }
 
+        // 배민 중간 금액 +/- (50원 단위)
+        binding.btnBaeminMidAmountPlus.setOnClickListener {
+            UsageTracker.track(UsageTracker.AMOUNT_BAEMIN)
+            AdManager.setBaeminMidAmount(AdManager.getBaeminMidAmount() + 50)
+        }
+        binding.btnBaeminMidAmountMinus.setOnClickListener {
+            UsageTracker.track(UsageTracker.AMOUNT_BAEMIN)
+            AdManager.setBaeminMidAmount(AdManager.getBaeminMidAmount() - 50)
+        }
+
         // 배민 축소 금액 +/- (50원 단위)
         binding.btnBaeminReducedPlus.setOnClickListener {
             UsageTracker.track(UsageTracker.AMOUNT_BAEMIN_REDUCED)
@@ -559,6 +576,8 @@ class MainActivity : AppCompatActivity() {
         // 배민 임계값
         binding.btnBaeminOffThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOffThreshold(AdManager.getBaeminOffThreshold() + 1) }
         binding.btnBaeminOffThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOffThreshold(AdManager.getBaeminOffThreshold() - 1) }
+        binding.btnBaeminMidThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidThreshold(AdManager.getBaeminMidThreshold() + 1) }
+        binding.btnBaeminMidThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminMidThreshold(AdManager.getBaeminMidThreshold() - 1) }
         binding.btnBaeminOnThPlus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOnThreshold(AdManager.getBaeminOnThreshold() + 1) }
         binding.btnBaeminOnThMinus.setOnClickListener { UsageTracker.track(UsageTracker.AUTO_THRESHOLD_BAEMIN); AdManager.setBaeminOnThreshold(AdManager.getBaeminOnThreshold() - 1) }
 
@@ -708,19 +727,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 배민: 현재 정상금액인데 끄기 임계값 이상 → 축소
-        //       현재 축소금액인데 켜기 임계값 이하 → 정상 복원
+        // 배민: 3단계 (정상/중간/축소) — 현재 금액과 목표가 다르면 변경
         if (AdManager.hasBaeminCredentials() && now - lastBaeminAutoTime >= 5 * 60 * 1000) {
             val bid = AdManager.getBaeminCurrentBid()
-            val normalAmount = AdManager.getBaeminAmount()
-            if (AdScheduler.shouldBaeminOff() && (bid <= 0 || bid >= normalAmount)) {
+            val targetAmount = when {
+                AdScheduler.shouldBaeminOff() -> AdManager.getBaeminReducedAmount()
+                AdScheduler.shouldBaeminMid() -> AdManager.getBaeminMidAmount()
+                AdScheduler.shouldBaeminOn() -> AdManager.getBaeminAmount()
+                else -> null
+            }
+            if (targetAmount != null && bid > 0 && bid != targetAmount) {
                 lastBaeminAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "${count}건 배민 ${AdManager.getBaeminReducedAmount()}원")
-                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminReducedAmount())
-            } else if (AdScheduler.shouldBaeminOn() && bid in 1 until normalAmount) {
-                lastBaeminAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "${count}건 배민 ${AdManager.getBaeminAmount()}원")
-                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, AdManager.getBaeminAmount())
+                DelayNotificationHelper.showAdProgress(this, "${count}건 배민 ${targetAmount}원")
+                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, targetAmount)
             }
         }
     }
