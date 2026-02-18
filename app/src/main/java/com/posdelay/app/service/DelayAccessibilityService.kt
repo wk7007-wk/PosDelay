@@ -66,6 +66,28 @@ class DelayAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var stepBusy = false // step 처리 중 중복 방지
+    private var mateInForeground = false
+    private val MATE_POLL_INTERVAL = 15_000L  // 15초마다 MATE 화면 폴링
+
+    private val matePollRunnable = object : Runnable {
+        override fun run() {
+            if (!mateInForeground) return
+            if (!OrderTracker.isEnabled()) return
+            // MATE가 아직 포그라운드인지 확인
+            val root = rootInActiveWindow
+            if (root != null) {
+                val pkg = root.packageName?.toString()
+                if (pkg != MATE_PACKAGE) {
+                    mateInForeground = false
+                    root.recycle()
+                    return
+                }
+                root.recycle()
+            }
+            readMateOrderCount()
+            handler.postDelayed(this, MATE_POLL_INTERVAL)
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -79,11 +101,23 @@ class DelayAccessibilityService : AccessibilityService() {
 
         when (pkg) {
             MATE_PACKAGE -> {
+                if (!mateInForeground) {
+                    mateInForeground = true
+                    handler.removeCallbacks(matePollRunnable)
+                    handler.postDelayed(matePollRunnable, MATE_POLL_INTERVAL)
+                    log(Code.INFO_STATE, "MATE", "포그라운드 감지 → 15초 폴링 시작")
+                }
                 readMateOrderCount()
                 if (pendingBaeminDelay && !stepBusy) handleBaeminDelay()
             }
             COUPANG_EATS_PACKAGE -> {
+                mateInForeground = false
+                handler.removeCallbacks(matePollRunnable)
                 if (pendingCoupangDelay && !stepBusy) handleCoupangDelay()
+            }
+            else -> {
+                mateInForeground = false
+                handler.removeCallbacks(matePollRunnable)
             }
         }
     }
@@ -92,6 +126,7 @@ class DelayAccessibilityService : AccessibilityService() {
 
     private fun readMateOrderCount() {
         if (pendingBaeminDelay) return
+        if (OrderTracker.isMatePaused()) return
 
         val rootNode = rootInActiveWindow ?: return
 

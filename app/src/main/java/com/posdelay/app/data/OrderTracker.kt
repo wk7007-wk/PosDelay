@@ -17,8 +17,16 @@ object OrderTracker {
     private const val KEY_AUTO_MODE = "auto_mode"
     private const val KEY_LAST_SYNC_TIME = "last_sync_time"
     private const val KEY_LAST_PC_SYNC_TIME = "last_pc_sync_time"
+    private const val KEY_MATE_PAUSED = "mate_paused"
+    private const val KEY_PC_PAUSED = "pc_paused"
 
     private lateinit var prefs: SharedPreferences
+
+    private val _matePaused = MutableLiveData(false)
+    val matePaused: LiveData<Boolean> = _matePaused
+
+    private val _pcPaused = MutableLiveData(false)
+    val pcPaused: LiveData<Boolean> = _pcPaused
 
     private val _orderCount = MutableLiveData(0)
     val orderCount: LiveData<Int> = _orderCount
@@ -55,6 +63,8 @@ object OrderTracker {
         _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
         _lastSyncTime.postValue(prefs.getLong(KEY_LAST_SYNC_TIME, 0L))
         _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
+        _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, false))
+        _pcPaused.postValue(prefs.getBoolean(KEY_PC_PAUSED, false))
     }
 
     fun getOrderCount(): Int = prefs.getInt(KEY_ORDER_COUNT, 0)
@@ -64,6 +74,18 @@ object OrderTracker {
     fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, true)
     fun isAutoMode(): Boolean = prefs.getBoolean(KEY_AUTO_MODE, false)
     fun getLastSyncTime(): Long = prefs.getLong(KEY_LAST_SYNC_TIME, 0L)
+
+    fun isMatePaused(): Boolean = prefs.getBoolean(KEY_MATE_PAUSED, false)
+    fun setMatePaused(paused: Boolean) {
+        prefs.edit().putBoolean(KEY_MATE_PAUSED, paused).apply()
+        _matePaused.postValue(paused)
+    }
+
+    fun isPcPaused(): Boolean = prefs.getBoolean(KEY_PC_PAUSED, false)
+    fun setPcPaused(paused: Boolean) {
+        prefs.edit().putBoolean(KEY_PC_PAUSED, paused).apply()
+        _pcPaused.postValue(paused)
+    }
 
     fun setOrderCount(count: Int) {
         val value = maxOf(0, count)

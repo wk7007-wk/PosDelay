@@ -428,6 +428,34 @@ class MainActivity : AppCompatActivity() {
             OrderTracker.setDelayMinutes(OrderTracker.getDelayMinutes() - 5)
         }
 
+        // MATE/PC 갱신 중단/재개 버튼
+        fun updateMatePauseBtn(paused: Boolean) {
+            binding.btnPauseMate.text = if (paused) "M재개" else "M중단"
+            binding.btnPauseMate.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                if (paused) 0xFF2ECC71.toInt() else 0xFFE67E22.toInt()
+            )
+        }
+        fun updatePcPauseBtn(paused: Boolean) {
+            binding.btnPausePc.text = if (paused) "PC재개" else "PC중단"
+            binding.btnPausePc.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                if (paused) 0xFF2ECC71.toInt() else 0xFFE67E22.toInt()
+            )
+        }
+        updateMatePauseBtn(OrderTracker.isMatePaused())
+        updatePcPauseBtn(OrderTracker.isPcPaused())
+        OrderTracker.matePaused.observe(this) { updateMatePauseBtn(it) }
+        OrderTracker.pcPaused.observe(this) { updatePcPauseBtn(it) }
+        binding.btnPauseMate.setOnClickListener {
+            val newState = !OrderTracker.isMatePaused()
+            OrderTracker.setMatePaused(newState)
+            Toast.makeText(this, if (newState) "MATE 갱신 중단" else "MATE 갱신 재개", Toast.LENGTH_SHORT).show()
+        }
+        binding.btnPausePc.setOnClickListener {
+            val newState = !OrderTracker.isPcPaused()
+            OrderTracker.setPcPaused(newState)
+            Toast.makeText(this, if (newState) "PC 갱신 중단" else "PC 갱신 재개", Toast.LENGTH_SHORT).show()
+        }
+
         binding.switchEnable.setOnCheckedChangeListener { _, isChecked ->
             OrderTracker.setEnabled(isChecked)
             DelayNotificationHelper.update(this)

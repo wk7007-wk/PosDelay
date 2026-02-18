@@ -68,6 +68,7 @@ object GistOrderReader {
     }
 
     private fun fetchGist() {
+        if (OrderTracker.isPcPaused()) return
         kotlin.concurrent.thread {
             try {
                 val url = URL(GIST_API_URL)
