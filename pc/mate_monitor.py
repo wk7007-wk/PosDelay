@@ -226,13 +226,16 @@ def _count_delivery_processing(text):
             continue
         delivery_found = True
         has_active = (
-            "접수" in line or "접쑤" in line or "점수" in line
-            or "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
+            "처리중" in line or "저리중" in line or "처리종" in line or "저디중" in line
             or "조리시작" in line or "초리시작" in line or "조리시직" in line
+            or "조리대기" in line or "초리대기" in line or "조리데기" in line
             or "조리완료" in line or "초리완료" in line or "조리완르" in line
             or "배달중" in line or "배닫중" in line or "베달중" in line
+            or "배차" in line or "배처" in line
             or "픽업" in line or "픽엄" in line
-            or "준비" in line
+            or "대기" in line or "데기" in line
+            or "로봇" in line or "로봇도착" in line
+            or "예약" in line or "예역" in line
         )
         if has_active:
             count += 1
