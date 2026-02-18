@@ -567,10 +567,16 @@ class MainActivity : AppCompatActivity() {
 
         // MATE/PC 갱신 상태 버튼 (파랑=가동중, 빨강=정지중)
         fun updateMatePauseBtn(paused: Boolean) {
-            binding.btnPauseMate.text = if (paused) "M정지" else "M가동"
-            binding.btnPauseMate.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
-            )
+            val autoManaged = OrderTracker.isMateAutoManaged()
+            if (!paused && autoManaged) {
+                binding.btnPauseMate.text = "M자동"
+                binding.btnPauseMate.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF3498DB.toInt())
+            } else {
+                binding.btnPauseMate.text = if (paused) "M정지" else "M가동"
+                binding.btnPauseMate.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                    if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
+                )
+            }
         }
         fun updatePcPauseBtn(paused: Boolean) {
             binding.btnPausePc.text = if (paused) "PC정지" else "PC가동"
