@@ -435,17 +435,17 @@ class MainActivity : AppCompatActivity() {
             OrderTracker.setDelayMinutes(OrderTracker.getDelayMinutes() - 5)
         }
 
-        // MATE/PC 갱신 중단/재개 버튼
+        // MATE/PC 갱신 상태 버튼 (파랑=가동중, 빨강=정지중)
         fun updateMatePauseBtn(paused: Boolean) {
-            binding.btnPauseMate.text = if (paused) "M재개" else "M중단"
+            binding.btnPauseMate.text = if (paused) "M정지" else "M가동"
             binding.btnPauseMate.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                if (paused) 0xFF2ECC71.toInt() else 0xFFE67E22.toInt()
+                if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
             )
         }
         fun updatePcPauseBtn(paused: Boolean) {
-            binding.btnPausePc.text = if (paused) "PC재개" else "PC중단"
+            binding.btnPausePc.text = if (paused) "PC정지" else "PC가동"
             binding.btnPausePc.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                if (paused) 0xFF2ECC71.toInt() else 0xFFE67E22.toInt()
+                if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
             )
         }
         updateMatePauseBtn(OrderTracker.isMatePaused())
