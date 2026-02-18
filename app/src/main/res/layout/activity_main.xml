@@ -430,70 +430,74 @@
                     android:checked="true" />
             </LinearLayout>
 
-            <!-- 쿠팡 임계값 (확대) -->
+            <!-- 쿠팡 임계값 -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="10dp">
-                <TextView android:layout_width="44dp" android:layout_height="wrap_content"
-                    android:text="쿠팡" android:textColor="#E74C3C" android:textSize="14sp" android:textStyle="bold" />
+                android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="12dp">
+                <TextView android:layout_width="48dp" android:layout_height="wrap_content"
+                    android:text="쿠팡" android:textColor="#E74C3C" android:textSize="15sp" android:textStyle="bold" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="끄기" android:textColor="#E74C3C" android:textSize="13sp" android:layout_marginEnd="2dp" />
-                <Button android:id="@+id/btnCoupangOffThMinus" android:layout_width="36dp" android:layout_height="36dp"
-                    android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:text="끄기" android:textColor="#E74C3C" android:textSize="14sp" android:layout_marginEnd="4dp" />
+                <Button android:id="@+id/btnCoupangOffThMinus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="-" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <TextView android:id="@+id/tvCoupangOffTh" android:layout_width="36dp" android:layout_height="wrap_content"
-                    android:text="5" android:textColor="#E74C3C" android:textSize="20sp" android:textStyle="bold" android:gravity="center" />
-                <Button android:id="@+id/btnCoupangOffThPlus" android:layout_width="36dp" android:layout_height="36dp"
-                    android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555"
+                <TextView android:id="@+id/tvCoupangOffTh" android:layout_width="40dp" android:layout_height="wrap_content"
+                    android:text="5" android:textColor="#E74C3C" android:textSize="24sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnCoupangOffThPlus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="켜기" android:textColor="#2ECC71" android:textSize="13sp" android:layout_marginEnd="2dp" />
-                <Button android:id="@+id/btnCoupangOnThMinus" android:layout_width="36dp" android:layout_height="36dp"
-                    android:text="-" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:text="켜기" android:textColor="#2ECC71" android:textSize="14sp" android:layout_marginEnd="4dp" />
+                <Button android:id="@+id/btnCoupangOnThMinus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="-" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <TextView android:id="@+id/tvCoupangOnTh" android:layout_width="36dp" android:layout_height="wrap_content"
-                    android:text="3" android:textColor="#2ECC71" android:textSize="20sp" android:textStyle="bold" android:gravity="center" />
-                <Button android:id="@+id/btnCoupangOnThPlus" android:layout_width="36dp" android:layout_height="36dp"
-                    android:text="+" android:textSize="16sp" android:textColor="#FFF" android:backgroundTint="#555"
+                <TextView android:id="@+id/tvCoupangOnTh" android:layout_width="40dp" android:layout_height="wrap_content"
+                    android:text="3" android:textColor="#2ECC71" android:textSize="24sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnCoupangOnThPlus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
             </LinearLayout>
 
-            <!-- 배민 임계값 3단계 (최소 < 중간 < 최대) 확대 -->
+            <!-- 배민 임계값 3단계: 2줄로 분리 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="48dp" android:layout_height="wrap_content"
+                    android:text="배민" android:textColor="#2AC1BC" android:textSize="15sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="최소" android:textColor="#E74C3C" android:textSize="14sp" android:layout_marginEnd="4dp" />
+                <Button android:id="@+id/btnBaeminOffThMinus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="-" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+                <TextView android:id="@+id/tvBaeminOffTh" android:layout_width="40dp" android:layout_height="wrap_content"
+                    android:text="8" android:textColor="#E74C3C" android:textSize="24sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnBaeminOffThPlus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+                <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="중간" android:textColor="#E67E22" android:textSize="14sp" android:layout_marginEnd="4dp" />
+                <Button android:id="@+id/btnBaeminMidThMinus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="-" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+                <TextView android:id="@+id/tvBaeminMidTh" android:layout_width="40dp" android:layout_height="wrap_content"
+                    android:text="5" android:textColor="#E67E22" android:textSize="24sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnBaeminMidThPlus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
+            </LinearLayout>
+
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical">
-                <TextView android:layout_width="44dp" android:layout_height="wrap_content"
-                    android:text="배민" android:textColor="#2AC1BC" android:textSize="14sp" android:textStyle="bold" />
+                <View android:layout_width="48dp" android:layout_height="0dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="최소" android:textColor="#E74C3C" android:textSize="12sp" android:layout_marginEnd="1dp" />
-                <Button android:id="@+id/btnBaeminOffThMinus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="-" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
+                    android:text="최대" android:textColor="#2ECC71" android:textSize="14sp" android:layout_marginEnd="4dp" />
+                <Button android:id="@+id/btnBaeminOnThMinus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="-" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <TextView android:id="@+id/tvBaeminOffTh" android:layout_width="30dp" android:layout_height="wrap_content"
-                    android:text="8" android:textColor="#E74C3C" android:textSize="19sp" android:textStyle="bold" android:gravity="center" />
-                <Button android:id="@+id/btnBaeminOffThPlus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="+" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
-                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <View android:layout_width="4dp" android:layout_height="0dp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="중간" android:textColor="#E67E22" android:textSize="12sp" android:layout_marginEnd="1dp" />
-                <Button android:id="@+id/btnBaeminMidThMinus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="-" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
-                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <TextView android:id="@+id/tvBaeminMidTh" android:layout_width="30dp" android:layout_height="wrap_content"
-                    android:text="5" android:textColor="#E67E22" android:textSize="19sp" android:textStyle="bold" android:gravity="center" />
-                <Button android:id="@+id/btnBaeminMidThPlus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="+" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
-                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <View android:layout_width="4dp" android:layout_height="0dp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="최대" android:textColor="#2ECC71" android:textSize="12sp" android:layout_marginEnd="1dp" />
-                <Button android:id="@+id/btnBaeminOnThMinus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="-" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
-                    android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
-                <TextView android:id="@+id/tvBaeminOnTh" android:layout_width="30dp" android:layout_height="wrap_content"
-                    android:text="3" android:textColor="#2ECC71" android:textSize="19sp" android:textStyle="bold" android:gravity="center" />
-                <Button android:id="@+id/btnBaeminOnThPlus" android:layout_width="34dp" android:layout_height="34dp"
-                    android:text="+" android:textSize="15sp" android:textColor="#FFF" android:backgroundTint="#555"
+                <TextView android:id="@+id/tvBaeminOnTh" android:layout_width="40dp" android:layout_height="wrap_content"
+                    android:text="3" android:textColor="#2ECC71" android:textSize="24sp" android:textStyle="bold" android:gravity="center" />
+                <Button android:id="@+id/btnBaeminOnThPlus" android:layout_width="42dp" android:layout_height="42dp"
+                    android:text="+" android:textSize="20sp" android:textColor="#FFF" android:backgroundTint="#555"
                     android:minWidth="0dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" />
             </LinearLayout>
         </LinearLayout>
