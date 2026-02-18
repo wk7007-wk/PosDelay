@@ -19,6 +19,7 @@ object OrderTracker {
     private const val KEY_LAST_PC_SYNC_TIME = "last_pc_sync_time"
     private const val KEY_MATE_PAUSED = "mate_paused"
     private const val KEY_PC_PAUSED = "pc_paused"
+    private const val KEY_MATE_AUTO_MANAGED = "mate_auto_managed"
 
     private lateinit var prefs: SharedPreferences
 
@@ -63,7 +64,7 @@ object OrderTracker {
         _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
         _lastSyncTime.postValue(prefs.getLong(KEY_LAST_SYNC_TIME, 0L))
         _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
-        _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, false))
+        _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, true))  // MATE 기본 꺼짐 (보조역할)
         _pcPaused.postValue(prefs.getBoolean(KEY_PC_PAUSED, false))
     }
 
@@ -75,11 +76,18 @@ object OrderTracker {
     fun isAutoMode(): Boolean = prefs.getBoolean(KEY_AUTO_MODE, false)
     fun getLastSyncTime(): Long = prefs.getLong(KEY_LAST_SYNC_TIME, 0L)
 
-    fun isMatePaused(): Boolean = prefs.getBoolean(KEY_MATE_PAUSED, false)
+    fun isMatePaused(): Boolean = prefs.getBoolean(KEY_MATE_PAUSED, true)
     fun setMatePaused(paused: Boolean) {
         prefs.edit().putBoolean(KEY_MATE_PAUSED, paused).apply()
         _matePaused.postValue(paused)
     }
+
+    fun isMateAutoManaged(): Boolean = prefs.getBoolean(KEY_MATE_AUTO_MANAGED, false)
+    fun setMateAutoManaged(value: Boolean) {
+        prefs.edit().putBoolean(KEY_MATE_AUTO_MANAGED, value).apply()
+    }
+
+    fun getLastPcSyncTime(): Long = prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L)
 
     fun isPcPaused(): Boolean = prefs.getBoolean(KEY_PC_PAUSED, false)
     fun setPcPaused(paused: Boolean) {

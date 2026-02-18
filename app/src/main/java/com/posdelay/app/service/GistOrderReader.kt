@@ -113,6 +113,12 @@ object GistOrderReader {
                     // PC 데이터가 10분 이내일 때만 건수 반영
                     if (pcTime > 0 && age < 600) {
                         OrderTracker.syncPcOrderCount(count, pcTime)
+                        // PC 복귀 → MATE 자동 활성화 상태였으면 다시 비활성화
+                        if (OrderTracker.isMateAutoManaged()) {
+                            OrderTracker.setMatePaused(true)
+                            OrderTracker.setMateAutoManaged(false)
+                            Log.d(TAG, "PC 갱신 복구 → MATE 자동 비활성화")
+                        }
                         appContext?.let { ctx ->
                             handler.post { DelayNotificationHelper.update(ctx) }
                         }
@@ -128,19 +134,31 @@ object GistOrderReader {
         }
     }
 
-    /** 3분 이상 갱신 없으면 MATE 앱을 잠깐 열어서 건수 확인 */
+    /** PC 3분 미갱신 → MATE 자동 활성화 (보조역할) + 필요시 MATE 앱 열기 */
     private fun checkStaleAndRefresh() {
         val ctx = appContext ?: return
-        val lastSync = OrderTracker.getLastSyncTime()
+        val lastPcSync = OrderTracker.getLastPcSyncTime()
         val now = System.currentTimeMillis()
 
-        if (lastSync == 0L) return
-        if (now - lastSync < STALE_MS) return
-        if (now - lastMateAttempt < MATE_COOLDOWN_MS) return
+        if (lastPcSync == 0L) return
         if (!OrderTracker.isEnabled()) return
 
+        val pcStale = now - lastPcSync >= STALE_MS
+
+        // PC 3분 미갱신 → MATE 자동 활성화
+        if (pcStale && OrderTracker.isMatePaused()) {
+            OrderTracker.setMatePaused(false)
+            OrderTracker.setMateAutoManaged(true)
+            val staleMin = (now - lastPcSync) / 60000
+            Log.d(TAG, "PC ${staleMin}분 미갱신 → MATE 자동 활성화")
+            DelayNotificationHelper.showAdAlert(ctx, "PC ${staleMin}분 미갱신 → M활성화")
+        }
+
+        if (!pcStale) return
+        if (now - lastMateAttempt < MATE_COOLDOWN_MS) return
+
         lastMateAttempt = now
-        val staleMin = (now - lastSync) / 60000
+        val staleMin = (now - lastPcSync) / 60000
 
         // 화면 잠금/꺼짐 상태 확인
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager

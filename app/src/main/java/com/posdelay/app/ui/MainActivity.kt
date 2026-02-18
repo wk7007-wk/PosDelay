@@ -585,6 +585,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnPauseMate.setOnClickListener {
             val newState = !OrderTracker.isMatePaused()
             OrderTracker.setMatePaused(newState)
+            OrderTracker.setMateAutoManaged(false)  // 수동 조작 → 자동 관리 해제
             Toast.makeText(this, if (newState) "MATE 갱신 중단" else "MATE 갱신 재개", Toast.LENGTH_SHORT).show()
         }
         binding.btnPausePc.setOnClickListener {
