@@ -157,13 +157,13 @@ object AdManager {
     }
 
     fun setBaeminAmount(value: Int) {
-        val clamped = value.coerceIn(50, 300)
+        val clamped = value.coerceIn(50, 1000)
         prefs.edit().putInt(KEY_BAEMIN_AMOUNT, clamped).apply()
         _baeminAmount.postValue(clamped)
     }
 
     fun setBaeminReducedAmount(value: Int) {
-        val clamped = value.coerceIn(50, 300)
+        val clamped = value.coerceIn(50, 1000)
         prefs.edit().putInt(KEY_BAEMIN_REDUCED_AMOUNT, clamped).apply()
         _baeminReducedAmount.postValue(clamped)
     }
