@@ -127,6 +127,11 @@ class DelayAccessibilityService : AccessibilityService() {
     private fun readMateOrderCount() {
         if (pendingBaeminDelay) return
         if (OrderTracker.isMatePaused()) return
+        // KDS가 활성 + 최근 5분 이내 데이터면 MATE 읽기 스킵 (KDS 우선)
+        if (!OrderTracker.isKdsPaused()) {
+            val kdsAge = System.currentTimeMillis() - OrderTracker.getLastKdsSyncTime()
+            if (kdsAge < 5 * 60 * 1000L && OrderTracker.getLastKdsSyncTime() > 0) return
+        }
 
         val rootNode = rootInActiveWindow ?: return
 

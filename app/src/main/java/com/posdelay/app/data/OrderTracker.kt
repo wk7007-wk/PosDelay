@@ -21,6 +21,7 @@ object OrderTracker {
     private const val KEY_PC_PAUSED = "pc_paused"
     private const val KEY_MATE_AUTO_MANAGED = "mate_auto_managed"
     private const val KEY_LAST_KDS_SYNC_TIME = "last_kds_sync_time"
+    private const val KEY_KDS_PAUSED = "kds_paused"
 
     private lateinit var prefs: SharedPreferences
 
@@ -29,6 +30,9 @@ object OrderTracker {
 
     private val _pcPaused = MutableLiveData(false)
     val pcPaused: LiveData<Boolean> = _pcPaused
+
+    private val _kdsPaused = MutableLiveData(false)
+    val kdsPaused: LiveData<Boolean> = _kdsPaused
 
     private val _orderCount = MutableLiveData(0)
     val orderCount: LiveData<Int> = _orderCount
@@ -70,6 +74,7 @@ object OrderTracker {
         _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
         _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, true))  // MATE 기본 꺼짐 (보조역할)
         _pcPaused.postValue(prefs.getBoolean(KEY_PC_PAUSED, false))
+        _kdsPaused.postValue(prefs.getBoolean(KEY_KDS_PAUSED, false))
         _lastKdsSyncTime.postValue(prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L))
     }
 
@@ -98,6 +103,12 @@ object OrderTracker {
     fun setPcPaused(paused: Boolean) {
         prefs.edit().putBoolean(KEY_PC_PAUSED, paused).apply()
         _pcPaused.postValue(paused)
+    }
+
+    fun isKdsPaused(): Boolean = prefs.getBoolean(KEY_KDS_PAUSED, false)
+    fun setKdsPaused(paused: Boolean) {
+        prefs.edit().putBoolean(KEY_KDS_PAUSED, paused).apply()
+        _kdsPaused.postValue(paused)
     }
 
     fun setOrderCount(count: Int) {

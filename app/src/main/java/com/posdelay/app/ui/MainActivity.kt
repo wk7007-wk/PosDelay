@@ -46,6 +46,7 @@ import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayAccessibilityService
 import com.posdelay.app.service.DelayNotificationHelper
+import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.GistOrderReader
 import com.posdelay.app.service.GitHubUpdater
 
@@ -62,7 +63,7 @@ class MainActivity : AppCompatActivity() {
     private val countdownRunnable = object : Runnable {
         override fun run() {
             val remaining = ((GistOrderReader.nextFetchTime - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
-            binding.tvNextRefresh.text = "${remaining}s"
+            binding.tvNextRefresh.text = "수집 ${remaining}초"
             countdownHandler.postDelayed(this, 1000)
         }
     }
@@ -89,6 +90,7 @@ class MainActivity : AppCompatActivity() {
 
         handleScheduledAction(intent)
         GistOrderReader.start(this)
+        FirebaseKdsReader.start(this)
         countdownHandler.post(countdownRunnable)
     }
 
@@ -670,10 +672,24 @@ class MainActivity : AppCompatActivity() {
                 if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
             )
         }
+        fun updateKdsPauseBtn(paused: Boolean) {
+            binding.btnPauseKds.text = if (paused) "K정지" else "K가동"
+            binding.btnPauseKds.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                if (paused) 0xFFE74C3C.toInt() else 0xFF2ECC71.toInt()
+            )
+        }
+
+        updateKdsPauseBtn(OrderTracker.isKdsPaused())
         updateMatePauseBtn(OrderTracker.isMatePaused())
         updatePcPauseBtn(OrderTracker.isPcPaused())
+        OrderTracker.kdsPaused.observe(this) { updateKdsPauseBtn(it) }
         OrderTracker.matePaused.observe(this) { updateMatePauseBtn(it) }
         OrderTracker.pcPaused.observe(this) { updatePcPauseBtn(it) }
+        binding.btnPauseKds.setOnClickListener {
+            val newState = !OrderTracker.isKdsPaused()
+            OrderTracker.setKdsPaused(newState)
+            Toast.makeText(this, if (newState) "KDS 수신 중단" else "KDS 수신 재개", Toast.LENGTH_SHORT).show()
+        }
         binding.btnPauseMate.setOnClickListener {
             val newState = !OrderTracker.isMatePaused()
             OrderTracker.setMatePaused(newState)

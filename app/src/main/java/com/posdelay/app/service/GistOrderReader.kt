@@ -14,12 +14,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * GitHub Gist에서 주문 건수를 주기적으로 읽어옴.
- *
- * 우선순위:
- *   1. KDS (kds_status.json) — 주방 디스플레이 접근성 읽기, 가장 안정적
- *   2. PC  (order_status.json) — mate_monitor OCR, 보조
- *   3. MATE 앱 직접 열기 — 둘 다 미갱신 시 최후 수단
+ * GitHub Gist에서 PC 주문 건수를 주기적으로 읽어옴 (보조 소스).
+ * KDS는 Firebase 실시간으로 별도 수신 (FirebaseKdsReader).
  */
 object GistOrderReader {
 
@@ -29,8 +25,7 @@ object GistOrderReader {
     private const val INTERVAL_NORMAL = 60_000L
     private const val INTERVAL_SLOW = 120_000L
 
-    private const val KDS_STALE_MS = 5 * 60 * 1000L        // KDS 5분 미갱신 → PC 참조
-    private const val ALL_STALE_MS = 8 * 60 * 1000L         // 둘 다 8분 미갱신 → MATE 열기
+    private const val ALL_STALE_MS = 8 * 60 * 1000L         // KDS+PC 둘 다 8분 미갱신 → MATE 열기
     private const val MATE_COOLDOWN_MS = 5 * 60 * 1000L
     private const val MATE_PACKAGE = "com.foodtechkorea.posboss"
 
@@ -50,7 +45,7 @@ object GistOrderReader {
         running = true
         currentInterval = INTERVAL_NORMAL
         handler.post(fetchRunnable)
-        Log.d(TAG, "Gist 모니터링 시작 (KDS 우선, PC 보조)")
+        Log.d(TAG, "Gist PC 모니터링 시작")
     }
 
     fun stop() {
@@ -76,6 +71,7 @@ object GistOrderReader {
     }
 
     private fun fetchGist() {
+        if (!OrderTracker.isEnabled()) return
         if (OrderTracker.isPcPaused()) return
         kotlin.concurrent.thread {
             try {
@@ -122,36 +118,8 @@ object GistOrderReader {
                 val now = System.currentTimeMillis()
                 val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
 
-                // === 1순위: KDS 데이터 ===
-                var kdsApplied = false
-                if (files.has("kds_status.json")) {
-                    try {
-                        val kdsContent = files.getJSONObject("kds_status.json").getString("content")
-                        val kdsObj = JSONObject(kdsContent)
-                        val kdsCount = kdsObj.getInt("count")
-                        val kdsTimeStr = kdsObj.optString("time", "")
-                        val kdsTime = if (kdsTimeStr.isNotEmpty()) {
-                            try { sdf.parse(kdsTimeStr)?.time ?: 0L } catch (_: Exception) { 0L }
-                        } else 0L
-
-                        val kdsAge = if (kdsTime > 0) (now - kdsTime) / 1000 else -1L
-                        Log.d(TAG, "KDS: count=$kdsCount, age=${kdsAge}초")
-
-                        // KDS 데이터가 5분 이내면 적용
-                        if (kdsTime > 0 && kdsAge < KDS_STALE_MS / 1000) {
-                            OrderTracker.syncKdsOrderCount(kdsCount, kdsTime)
-                            kdsApplied = true
-                            appContext?.let { ctx ->
-                                handler.post { DelayNotificationHelper.update(ctx) }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "KDS 파싱 실패: ${e.message}")
-                    }
-                }
-
-                // === 2순위: PC 데이터 (KDS 미적용 시에만) ===
-                if (!kdsApplied && files.has("order_status.json")) {
+                // PC 데이터 (KDS는 Firebase로 별도 수신)
+                if (files.has("order_status.json")) {
                     try {
                         val pcContent = files.getJSONObject("order_status.json").getString("content")
                         val pcObj = JSONObject(pcContent)
@@ -164,7 +132,11 @@ object GistOrderReader {
                         val pcAge = if (pcTime > 0) (now - pcTime) / 1000 else -1L
                         Log.d(TAG, "PC(보조): count=$pcCount, age=${pcAge}초")
 
-                        if (pcTime > 0 && pcAge < 600) {
+                        // KDS가 최근 5분 이내면 PC 건수 덮어쓰기 않고 시간만 갱신
+                        val kdsAge = now - OrderTracker.getLastKdsSyncTime()
+                        val kdsActive = !OrderTracker.isKdsPaused() && kdsAge < 5 * 60 * 1000L && OrderTracker.getLastKdsSyncTime() > 0
+
+                        if (pcTime > 0 && pcAge < 600 && !kdsActive) {
                             OrderTracker.syncPcOrderCount(pcCount, pcTime)
                             appContext?.let { ctx ->
                                 handler.post { DelayNotificationHelper.update(ctx) }

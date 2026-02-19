@@ -252,30 +252,22 @@
                 android:textColor="#707088"
                 android:textSize="11sp" />
 
-            <TextView
-                android:id="@+id/tvNextRefresh"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="#3498DB"
-                android:textSize="10sp"
-                android:layout_marginStart="4dp" />
-
         </LinearLayout>
 
-        <!-- Row 3b: 중단 버튼 -->
+        <!-- Row 3b: K/M/PC 토글 버튼 + 수집 카운트다운 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical|end"
+            android:gravity="center_vertical"
             android:layout_marginTop="4dp">
 
             <Button
-                android:id="@+id/btnPauseMate"
-                android:layout_width="wrap_content"
+                android:id="@+id/btnPauseKds"
+                android:layout_width="0dp"
                 android:layout_height="28dp"
-                android:text="M정지"
+                android:layout_weight="1"
+                android:text="K가동"
                 android:textSize="11sp"
                 android:textColor="#FFF"
                 android:backgroundTint="#2ECC71"
@@ -283,15 +275,33 @@
                 android:minHeight="0dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnPauseMate"
+                android:layout_width="0dp"
+                android:layout_height="28dp"
+                android:layout_weight="1"
+                android:text="M가동"
+                android:textSize="11sp"
+                android:textColor="#FFF"
+                android:backgroundTint="#2ECC71"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btnPausePc"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="28dp"
-                android:text="PC정지"
+                android:layout_weight="1"
+                android:text="PC가동"
                 android:textSize="11sp"
                 android:textColor="#FFF"
                 android:backgroundTint="#2ECC71"
@@ -299,8 +309,17 @@
                 android:minHeight="0dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp" />
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/tvNextRefresh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="수집 --"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <!-- Row 4: 마지막 동작 + 정정 버튼 -->
