@@ -225,6 +225,10 @@ class MainActivity : AppCompatActivity() {
             updateMonitorPanel()
         }
 
+        OrderTracker.lastKdsSyncTime.observe(this) { time ->
+            updateKdsSyncTime(time)
+        }
+
         // 광고 관리 LiveData
         AdManager.adEnabled.observe(this) { enabled ->
             binding.switchAdEnable.isChecked = enabled
@@ -373,6 +377,30 @@ class MainActivity : AppCompatActivity() {
             else if (elapsed < 600) 0xFFE67E22.toInt()
             else 0xFFE74C3C.toInt()
         )
+    }
+
+    private fun updateKdsSyncTime(kdsTime: Long) {
+        if (kdsTime == 0L) {
+            binding.tvKdsSync.text = "KDS --"
+            binding.tvKdsSync.setTextColor(0xFF707088.toInt())
+            binding.tvKdsLight.setTextColor(0xFF707088.toInt())
+            return
+        }
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val elapsed = (System.currentTimeMillis() - kdsTime) / 1000
+        val agoStr = when {
+            elapsed < 60 -> "${elapsed}초"
+            elapsed < 3600 -> "${elapsed / 60}분"
+            else -> "${elapsed / 3600}시간"
+        }
+        binding.tvKdsSync.text = "KDS ${sdf.format(Date(kdsTime))} (${agoStr})"
+        val color = when {
+            elapsed < 180 -> 0xFF2ECC71.toInt()   // 초록: 3분 이내
+            elapsed < 300 -> 0xFFE67E22.toInt()    // 주황: 5분 이내
+            else -> 0xFFE74C3C.toInt()              // 빨강: 5분 초과
+        }
+        binding.tvKdsSync.setTextColor(color)
+        binding.tvKdsLight.setTextColor(color)
     }
 
     private fun updatePcSyncTime(pcTime: Long) {

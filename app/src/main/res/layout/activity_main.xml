@@ -189,7 +189,7 @@
                 android:layout_marginStart="2dp" />
         </LinearLayout>
 
-        <!-- Row 3: 갱신 시간 + 중단 버튼 -->
+        <!-- Row 3a: KDS 동기화 (1순위) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -198,10 +198,19 @@
             android:layout_marginTop="6dp">
 
             <TextView
-                android:id="@+id/tvLastSync"
+                android:id="@+id/tvKdsLight"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="MATE --"
+                android:text="●"
+                android:textColor="#707088"
+                android:textSize="12sp"
+                android:layout_marginEnd="3dp" />
+
+            <TextView
+                android:id="@+id/tvKdsSync"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="KDS --"
                 android:textColor="#707088"
                 android:textSize="12sp" />
 
@@ -209,8 +218,23 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="  |  "
-                android:textColor="#707088"
+                android:textColor="#2A2A45"
                 android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvLastSync"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MATE --"
+                android:textColor="#707088"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  |  "
+                android:textColor="#2A2A45"
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tvPcLight"
@@ -218,15 +242,15 @@
                 android:layout_height="wrap_content"
                 android:text="●"
                 android:textColor="#707088"
-                android:textSize="12sp"
-                android:layout_marginEnd="3dp" />
+                android:textSize="11sp"
+                android:layout_marginEnd="2dp" />
             <TextView
                 android:id="@+id/tvPcSync"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="PC --"
                 android:textColor="#707088"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tvNextRefresh"
@@ -234,8 +258,8 @@
                 android:layout_height="wrap_content"
                 android:text=""
                 android:textColor="#3498DB"
-                android:textSize="11sp"
-                android:layout_marginStart="6dp" />
+                android:textSize="10sp"
+                android:layout_marginStart="4dp" />
 
             <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
@@ -243,7 +267,7 @@
                 android:id="@+id/btnPauseMate"
                 android:layout_width="wrap_content"
                 android:layout_height="28dp"
-                android:text="M가동"
+                android:text="M정지"
                 android:textSize="11sp"
                 android:textColor="#FFF"
                 android:backgroundTint="#2ECC71"
@@ -259,7 +283,7 @@
                 android:id="@+id/btnPausePc"
                 android:layout_width="wrap_content"
                 android:layout_height="28dp"
-                android:text="PC가동"
+                android:text="PC정지"
                 android:textSize="11sp"
                 android:textColor="#FFF"
                 android:backgroundTint="#2ECC71"
