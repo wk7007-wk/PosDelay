@@ -3,6 +3,8 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def buildTime = new Date().format("MMdd.HHmm")
+
 android {
     namespace 'com.posdelay.app'
     compileSdk 33
@@ -11,8 +13,8 @@ android {
         applicationId "com.posdelay.app"
         minSdk 26
         targetSdk 33
-        versionCode 20
-        versionName "2.8"
+        versionCode ((int)(System.currentTimeMillis() / 60000))
+        versionName "$buildTime"
     }
 
     signingConfigs {

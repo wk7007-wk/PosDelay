@@ -20,6 +20,7 @@ object OrderTracker {
     private const val KEY_MATE_PAUSED = "mate_paused"
     private const val KEY_PC_PAUSED = "pc_paused"
     private const val KEY_MATE_AUTO_MANAGED = "mate_auto_managed"
+    private const val KEY_LAST_KDS_SYNC_TIME = "last_kds_sync_time"
 
     private lateinit var prefs: SharedPreferences
 
@@ -53,6 +54,9 @@ object OrderTracker {
     private val _lastPcSyncTime = MutableLiveData(0L)
     val lastPcSyncTime: LiveData<Long> = _lastPcSyncTime
 
+    private val _lastKdsSyncTime = MutableLiveData(0L)
+    val lastKdsSyncTime: LiveData<Long> = _lastKdsSyncTime
+
     fun init(context: Context) {
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -66,6 +70,7 @@ object OrderTracker {
         _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
         _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, true))  // MATE 기본 꺼짐 (보조역할)
         _pcPaused.postValue(prefs.getBoolean(KEY_PC_PAUSED, false))
+        _lastKdsSyncTime.postValue(prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L))
     }
 
     fun getOrderCount(): Int = prefs.getInt(KEY_ORDER_COUNT, 0)
@@ -129,6 +134,20 @@ object OrderTracker {
         prefs.edit().putLong(KEY_LAST_PC_SYNC_TIME, pcTime).apply()
         _lastPcSyncTime.postValue(pcTime)
     }
+
+    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스 */
+    fun syncKdsOrderCount(count: Int, kdsTime: Long) {
+        setOrderCount(count)
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putLong(KEY_LAST_SYNC_TIME, now)
+            .putLong(KEY_LAST_KDS_SYNC_TIME, kdsTime)
+            .apply()
+        _lastSyncTime.postValue(now)
+        _lastKdsSyncTime.postValue(kdsTime)
+    }
+
+    fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
 
     fun incrementOrder() {
         setOrderCount(getOrderCount() + 1)
