@@ -24,11 +24,9 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import android.speech.tts.TextToSpeech
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.collections.ArrayDeque
-import java.util.Locale
 import com.posdelay.app.R
 import com.posdelay.app.data.AdActionLog
 import com.posdelay.app.data.AdManager
@@ -41,7 +39,7 @@ import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.FirebaseSettingsSync
 import com.posdelay.app.service.GistOrderReader
 
-class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
+class MainActivity : AppCompatActivity() {
 
     companion object {
         @Volatile var isInForeground = false
@@ -49,7 +47,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private lateinit var webView: WebView
-    private var tts: TextToSpeech? = null
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
@@ -73,8 +70,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         webView.webChromeClient = WebChromeClient()
         webView.setBackgroundColor(0xFF121225.toInt())
         webView.loadUrl("https://wk7007-wk.github.io/PosKDS/")
-
-        tts = TextToSpeech(this, this)
 
         // 화면 꺼짐 방지
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -122,16 +117,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         isInForeground = false
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.KOREA
-        }
-    }
-
     override fun onDestroy() {
         if (wakeLock?.isHeld == true) wakeLock?.release()
         if (wifiLock?.isHeld == true) wifiLock?.release()
-        tts?.shutdown()
         super.onDestroy()
     }
 
@@ -238,7 +226,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         @JavascriptInterface
         fun speak(text: String) {
-            tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "ck_${System.currentTimeMillis()}")
+            DelayNotificationHelper.showAdAlert(this@MainActivity, text)
         }
 
         @JavascriptInterface
