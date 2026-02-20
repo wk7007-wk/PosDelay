@@ -298,20 +298,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAdAction(action: AdWebAutomation.Action, amount: Int) {
-        val cnt = OrderTracker.getOrderCount()
         val actionName = actionDisplayName(action, amount)
         if (pendingBackToBackground) {
-            DelayNotificationHelper.showAdProgress(this, "${cnt}건 $actionName")
+            DelayNotificationHelper.showAdProgress(this, actionName)
         } else {
-            Toast.makeText(this, "${cnt}건 $actionName", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, actionName, Toast.LENGTH_SHORT).show()
         }
 
         adWebAutomation = AdWebAutomation(this)
         adWebAutomation?.execute(action, amount) { success, message ->
             runOnUiThread {
                 val isCheck = action == AdWebAutomation.Action.BAEMIN_CHECK || action == AdWebAutomation.Action.COUPANG_CHECK
-                val c = OrderTracker.getOrderCount()
-                val result = if (success) "${c}건 $actionName 완료" else "${c}건 $actionName 실패"
+                val result = if (success) "$actionName 완료" else "$actionName 실패"
                 // CHECK 액션은 알림 생략 (변경 액션만 알림)
                 if (!isCheck) {
                     if (pendingBackToBackground || adActionQueue.isEmpty()) {
@@ -359,10 +357,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleScheduledAction(action: String) {
         val isBackground = action.startsWith("ad_auto_")
-        val cnt = OrderTracker.getOrderCount()
         when (action) {
             "ad_off", "ad_auto_off" -> {
-                notify(isBackground, "${cnt}건 광고끄기")
+                notify(isBackground, "광고끄기")
                 if (AdManager.hasCoupangCredentials()) executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
                 if (AdManager.hasBaeminCredentials()) {
                     val target = if (isBackground) calculateBaeminTarget() ?: AdManager.getBaeminReducedAmount()
@@ -371,7 +368,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "ad_on", "ad_auto_on" -> {
-                notify(isBackground, "${cnt}건 광고켜기")
+                notify(isBackground, "광고켜기")
                 if (AdManager.hasCoupangCredentials()) executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
                 if (AdManager.hasBaeminCredentials()) {
                     val target = if (isBackground) calculateBaeminTarget() ?: AdManager.getBaeminAmount()
@@ -397,18 +394,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPlatformThresholds() {
         if (!AdManager.isOrderAutoOffEnabled()) return
-        val count = OrderTracker.getOrderCount()
         val now = System.currentTimeMillis()
 
         if (AdManager.isCoupangAutoEnabled() && AdManager.hasCoupangCredentials() && now - lastCoupangAutoTime >= 5 * 60 * 1000) {
             val isOn = AdManager.coupangCurrentOn.value
             if (AdScheduler.shouldCoupangOff() && isOn != false) {
                 lastCoupangAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "${count}건 쿠팡 끄기")
+                DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
                 executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
             } else if (AdScheduler.shouldCoupangOn() && isOn == false) {
                 lastCoupangAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "${count}건 쿠팡 켜기")
+                DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
                 executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
             }
         }
@@ -418,7 +414,7 @@ class MainActivity : AppCompatActivity() {
             val targetAmount = calculateBaeminTarget()
             if (targetAmount != null && bid > 0 && bid != targetAmount) {
                 lastBaeminAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "${count}건 배민 ${targetAmount}원")
+                DelayNotificationHelper.showAdProgress(this, "배민 ${targetAmount}원")
                 executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, targetAmount)
             }
         }

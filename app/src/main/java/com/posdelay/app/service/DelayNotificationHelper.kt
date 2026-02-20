@@ -75,20 +75,11 @@ object DelayNotificationHelper {
     fun notifyDelayTriggered(context: Context, platform: String, auto: Boolean = false) {
         createChannels(context)
 
-        val count = OrderTracker.getOrderCount()
         val delayMin = OrderTracker.getDelayMinutes()
-
-        val message = if (platform == "배달의민족") {
-            "처리중 ${count}건 - 배민 POS에서 지연 설정 필요"
-        } else if (auto) {
-            "처리중 ${count}건 - ${platform} ${delayMin}분 자동 지연 처리 중..."
-        } else {
-            "처리중 ${count}건 - ${platform}에서 준비 지연 설정 필요"
-        }
+        val message = if (auto) "${platform} ${delayMin}분 지연" else "${platform} 지연 필요"
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("${platform} 지연 처리!")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -102,7 +93,6 @@ object DelayNotificationHelper {
     private const val NOTIFICATION_AD_PROGRESS_ID = 2004
     private const val NOTIFICATION_DELAY_ALERT_ID = 2005
 
-    /** 지연 알림 (상태표시줄 + TTS 읽기용, 제목+내용) */
     fun showDelayAlert(context: Context, title: String, message: String) {
         createChannels(context)
 
@@ -114,7 +104,6 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -136,7 +125,6 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("PosDelay")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
