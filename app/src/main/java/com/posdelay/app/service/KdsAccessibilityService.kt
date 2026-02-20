@@ -118,7 +118,21 @@ class KdsAccessibilityService : AccessibilityService() {
         if (root == null) return
 
         try {
-            // 수동 덤프 요청
+            // 건수 추출을 먼저 실행 (덤프보다 우선)
+            val count = extractCookingCount(root)
+            if (count != null && count != lastCount) {
+                log("조리중 건수 변경: $lastCount → $count")
+                lastCount = count
+                prefs.edit().putInt(KEY_LAST_COUNT, count).apply()
+
+                uploadKdsStatus(count)
+                lastUploadTime = System.currentTimeMillis()
+                prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, lastUploadTime).apply()
+
+                addHistory(count)
+            }
+
+            // 수동 덤프 요청 (건수 추출 후 실행)
             if (dumpRequested) {
                 dumpRequested = false
                 val sb = StringBuilder()
@@ -137,19 +151,6 @@ class KdsAccessibilityService : AccessibilityService() {
                 val result = sb.toString()
                 uploadKdsDump(result, result.lines().size)
                 log("자동 덤프 완료 (${result.lines().size}줄)")
-            }
-
-            val count = extractCookingCount(root)
-            if (count != null && count != lastCount) {
-                log("조리중 건수 변경: $lastCount → $count")
-                lastCount = count
-                prefs.edit().putInt(KEY_LAST_COUNT, count).apply()
-
-                uploadKdsStatus(count)
-                lastUploadTime = System.currentTimeMillis()
-                prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, lastUploadTime).apply()
-
-                addHistory(count)
             }
         } catch (e: Exception) {
             log("노드 탐색 실패: ${e.message}")
