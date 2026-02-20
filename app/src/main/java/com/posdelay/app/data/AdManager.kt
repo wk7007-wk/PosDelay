@@ -34,6 +34,14 @@ object AdManager {
     private const val KEY_BAEMIN_CURRENT_BID = "baemin_current_bid"
     private const val KEY_COUPANG_CURRENT_ON = "coupang_current_on"
 
+    // 지연 설정 keys (플랫폼별)
+    private const val KEY_BAEMIN_TARGET_TIME = "baemin_target_time"
+    private const val KEY_BAEMIN_FIXED_COOK_TIME = "baemin_fixed_cook_time"
+    private const val KEY_BAEMIN_DELAY_THRESHOLD = "baemin_delay_threshold"
+    private const val KEY_COUPANG_TARGET_TIME = "coupang_target_time"
+    private const val KEY_COUPANG_FIXED_COOK_TIME = "coupang_fixed_cook_time"
+    private const val KEY_COUPANG_DELAY_THRESHOLD = "coupang_delay_threshold"
+
     // Secure prefs keys
     private const val KEY_BAEMIN_ID = "baemin_id"
     private const val KEY_BAEMIN_PW = "baemin_pw"
@@ -101,6 +109,20 @@ object AdManager {
     private val _coupangCurrentOn = MutableLiveData<Boolean?>(null)
     val coupangCurrentOn: LiveData<Boolean?> = _coupangCurrentOn
 
+    // 지연 설정 LiveData
+    private val _baeminTargetTime = MutableLiveData(20)
+    val baeminTargetTime: LiveData<Int> = _baeminTargetTime
+    private val _baeminFixedCookTime = MutableLiveData(15)
+    val baeminFixedCookTime: LiveData<Int> = _baeminFixedCookTime
+    private val _baeminDelayThreshold = MutableLiveData(5)
+    val baeminDelayThreshold: LiveData<Int> = _baeminDelayThreshold
+    private val _coupangTargetTime = MutableLiveData(20)
+    val coupangTargetTime: LiveData<Int> = _coupangTargetTime
+    private val _coupangFixedCookTime = MutableLiveData(15)
+    val coupangFixedCookTime: LiveData<Int> = _coupangFixedCookTime
+    private val _coupangDelayThreshold = MutableLiveData(5)
+    val coupangDelayThreshold: LiveData<Int> = _coupangDelayThreshold
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -142,6 +164,13 @@ object AdManager {
         if (prefs.contains(KEY_COUPANG_CURRENT_ON)) {
             _coupangCurrentOn.postValue(prefs.getBoolean(KEY_COUPANG_CURRENT_ON, true))
         }
+        // 지연 설정 로드
+        _baeminTargetTime.postValue(prefs.getInt(KEY_BAEMIN_TARGET_TIME, 20))
+        _baeminFixedCookTime.postValue(prefs.getInt(KEY_BAEMIN_FIXED_COOK_TIME, 15))
+        _baeminDelayThreshold.postValue(prefs.getInt(KEY_BAEMIN_DELAY_THRESHOLD, 5))
+        _coupangTargetTime.postValue(prefs.getInt(KEY_COUPANG_TARGET_TIME, 20))
+        _coupangFixedCookTime.postValue(prefs.getInt(KEY_COUPANG_FIXED_COOK_TIME, 15))
+        _coupangDelayThreshold.postValue(prefs.getInt(KEY_COUPANG_DELAY_THRESHOLD, 5))
     }
 
     // Getters
@@ -319,4 +348,49 @@ object AdManager {
 
     fun hasBaeminCredentials(): Boolean = getBaeminId().isNotEmpty() && getBaeminPw().isNotEmpty()
     fun hasCoupangCredentials(): Boolean = getCoupangId().isNotEmpty() && getCoupangPw().isNotEmpty()
+
+    // 지연 설정 getter/setter
+    fun getBaeminTargetTime(): Int = prefs.getInt(KEY_BAEMIN_TARGET_TIME, 20)
+    fun getBaeminFixedCookTime(): Int = prefs.getInt(KEY_BAEMIN_FIXED_COOK_TIME, 15)
+    fun getBaeminDelayThreshold(): Int = prefs.getInt(KEY_BAEMIN_DELAY_THRESHOLD, 5)
+    fun getCoupangTargetTime(): Int = prefs.getInt(KEY_COUPANG_TARGET_TIME, 20)
+    fun getCoupangFixedCookTime(): Int = prefs.getInt(KEY_COUPANG_FIXED_COOK_TIME, 15)
+    fun getCoupangDelayThreshold(): Int = prefs.getInt(KEY_COUPANG_DELAY_THRESHOLD, 5)
+
+    fun setBaeminTargetTime(value: Int) {
+        val clamped = value.coerceIn(15, 30)
+        prefs.edit().putInt(KEY_BAEMIN_TARGET_TIME, clamped).apply()
+        _baeminTargetTime.postValue(clamped)
+        notifySettingsChanged()
+    }
+    fun setBaeminFixedCookTime(value: Int) {
+        val clamped = value.coerceIn(0, 20)
+        prefs.edit().putInt(KEY_BAEMIN_FIXED_COOK_TIME, clamped).apply()
+        _baeminFixedCookTime.postValue(clamped)
+        notifySettingsChanged()
+    }
+    fun setBaeminDelayThreshold(value: Int) {
+        val clamped = value.coerceIn(1, 10)
+        prefs.edit().putInt(KEY_BAEMIN_DELAY_THRESHOLD, clamped).apply()
+        _baeminDelayThreshold.postValue(clamped)
+        notifySettingsChanged()
+    }
+    fun setCoupangTargetTime(value: Int) {
+        val clamped = value.coerceIn(15, 30)
+        prefs.edit().putInt(KEY_COUPANG_TARGET_TIME, clamped).apply()
+        _coupangTargetTime.postValue(clamped)
+        notifySettingsChanged()
+    }
+    fun setCoupangFixedCookTime(value: Int) {
+        val clamped = value.coerceIn(0, 20)
+        prefs.edit().putInt(KEY_COUPANG_FIXED_COOK_TIME, clamped).apply()
+        _coupangFixedCookTime.postValue(clamped)
+        notifySettingsChanged()
+    }
+    fun setCoupangDelayThreshold(value: Int) {
+        val clamped = value.coerceIn(1, 10)
+        prefs.edit().putInt(KEY_COUPANG_DELAY_THRESHOLD, clamped).apply()
+        _coupangDelayThreshold.postValue(clamped)
+        notifySettingsChanged()
+    }
 }

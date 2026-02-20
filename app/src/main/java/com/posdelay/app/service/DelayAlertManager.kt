@@ -8,78 +8,129 @@ import com.posdelay.app.data.AdManager
 import com.posdelay.app.data.OrderTracker
 
 /**
- * 건수 임계값 초과 시 시간 기반 알림 시스템.
- * - 건수 >= 임계값 지속 시 → "지연요청" 알림 (예측 시간 포함)
- * - 건수 < 임계값 복귀 시 → "해제" 알림
+ * 지연 자동 계산 + 알림 시스템.
+ *
+ * 공식: 지연 = max(0, 건수 × 평균완료간격 + 고정조리시간 - 목표시간)
+ * - 평균완료간격: KDS 건수 감소 간격 (클램핑 2~4분)
+ * - 고정조리시간: KDS완료 후 실제 완성까지 (설정값)
+ * - 목표시간: 배달앱 약속 시간 (설정값)
+ * - 배민/쿠팡 별도 임계값 + 설정
  */
 object DelayAlertManager {
 
     private const val TAG = "DelayAlertManager"
-    private const val CHECK_INTERVAL = 60_000L // 1분마다 체크
-    private const val ALERT_DELAY_MS = 3 * 60_000L // 3분 초과 유지 시 알림
+    private const val CHECK_INTERVAL = 60_000L
+    private const val ALERT_DELAY_MS = 3 * 60_000L // 임계값 초과 3분 유지 시 알림
 
     private val handler = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
-    private var thresholdExceededSince = 0L // 임계값 초과 시작 시각
-    private var alertFired = false
-    private var lastCount = -1
+
+    // 플랫폼별 상태
+    private var baeminExceededSince = 0L
+    private var baeminAlertFired = false
+    private var coupangExceededSince = 0L
+    private var coupangAlertFired = false
+
+    // KDS 조리 속도 (Firebase에서 수신)
+    private var avgCompletionInterval = 3.0 // 분/건, 기본값
 
     fun init(context: Context) {
         appContext = context.applicationContext
     }
 
+    /** KDS 이력에서 계산된 평균 완료 간격 업데이트 */
+    fun updateAvgInterval(intervalMinutes: Double) {
+        // 클램핑 2~4분
+        avgCompletionInterval = intervalMinutes.coerceIn(2.0, 4.0)
+    }
+
     /** 건수 변경 시 호출 */
     fun onCountChanged(count: Int) {
-        val threshold = AdManager.getCoupangOffThreshold()
         val now = System.currentTimeMillis()
+        checkPlatform(
+            "배민", count,
+            AdManager.getBaeminDelayThreshold(),
+            AdManager.getBaeminTargetTime(),
+            AdManager.getBaeminFixedCookTime(),
+            now, baeminExceededSince, baeminAlertFired,
+            { baeminExceededSince = it }, { baeminAlertFired = it }
+        )
+        checkPlatform(
+            "쿠팡", count,
+            AdManager.getCoupangDelayThreshold(),
+            AdManager.getCoupangTargetTime(),
+            AdManager.getCoupangFixedCookTime(),
+            now, coupangExceededSince, coupangAlertFired,
+            { coupangExceededSince = it }, { coupangAlertFired = it }
+        )
+    }
 
+    private fun checkPlatform(
+        platform: String, count: Int, threshold: Int,
+        targetTime: Int, fixedCookTime: Int,
+        now: Long, exceededSince: Long, alertFired: Boolean,
+        setExceededSince: (Long) -> Unit, setAlertFired: (Boolean) -> Unit
+    ) {
         if (count >= threshold) {
-            if (thresholdExceededSince == 0L) {
-                thresholdExceededSince = now
-                Log.d(TAG, "임계값 초과 시작: $count >= $threshold")
+            if (exceededSince == 0L) {
+                setExceededSince(now)
+                Log.d(TAG, "$platform 임계값 초과: $count >= $threshold")
             }
 
-            val elapsed = now - thresholdExceededSince
+            val elapsed = now - (if (exceededSince == 0L) now else exceededSince)
             if (elapsed >= ALERT_DELAY_MS && !alertFired) {
-                alertFired = true
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA).format(java.util.Date(thresholdExceededSince))
-                val delayMin = OrderTracker.getDelayMinutes()
-                val msg = "${timeStr}이후 주문건 부터 지연 ${delayMin}분"
-                Log.d(TAG, "알림 발동: $msg (${count}건)")
+                setAlertFired(true)
+                val delayMin = calculateDelay(count, targetTime, fixedCookTime)
+                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA)
+                    .format(java.util.Date(if (exceededSince == 0L) now else exceededSince))
+                val msg = "$platform ${timeStr}이후 주문건 지연 ${delayMin}분 (${count}건)"
+                Log.d(TAG, "알림: $msg")
                 appContext?.let { DelayNotificationHelper.showAdAlert(it, msg) }
-                FirebaseSettingsSync.uploadLog("ALERT: $msg (${count}건)")
+                FirebaseSettingsSync.uploadLog("DELAY: $msg")
             }
         } else {
-            if (thresholdExceededSince > 0L) {
-                val elapsed = (now - thresholdExceededSince) / 60000
-                Log.d(TAG, "임계값 이하 복귀: $count < $threshold (${elapsed}분 경과)")
+            if (exceededSince > 0L) {
+                val elapsedMin = (now - exceededSince) / 60000
+                Log.d(TAG, "$platform 임계값 이하 복귀: $count < $threshold (${elapsedMin}분)")
                 if (alertFired) {
                     appContext?.let {
-                        DelayNotificationHelper.showAdResult(it, "정상 복귀 (${count}건, ${elapsed}분 소요)", true)
+                        DelayNotificationHelper.showAdResult(it, "$platform 정상 복귀 (${count}건, ${elapsedMin}분)", true)
                     }
-                    FirebaseSettingsSync.uploadLog("RESOLVED: ${count}건, ${elapsed}분 소요")
+                    FirebaseSettingsSync.uploadLog("RESOLVED: $platform ${count}건 (${elapsedMin}분)")
                 }
             }
-            thresholdExceededSince = 0L
-            alertFired = false
+            setExceededSince(0L)
+            setAlertFired(false)
         }
-
-        lastCount = count
     }
 
-    /** 조리 속도 기반 예측 텍스트 */
-    private fun getPredictionText(count: Int, threshold: Int): String {
-        // KDS history에서 조리 속도를 가져와야 하지만
-        // PosDelay 앱에서는 직접 접근 불가하므로 Firebase에서 가져옴
-        // 여기서는 간단히 빈 문자열 (웹 대시보드에서 예측 표시)
-        return ""
+    /** 지연 시간 계산: max(0, 건수 × 평균완료간격 + 고정조리시간 - 목표시간) */
+    fun calculateDelay(count: Int, targetTime: Int, fixedCookTime: Int): Int {
+        val total = count * avgCompletionInterval + fixedCookTime
+        return maxOf(0, (total - targetTime).toInt())
     }
+
+    /** 현재 배민 예상 지연 */
+    fun getBaeminDelay(): Int = calculateDelay(
+        OrderTracker.getOrderCount(),
+        AdManager.getBaeminTargetTime(),
+        AdManager.getBaeminFixedCookTime()
+    )
+
+    /** 현재 쿠팡 예상 지연 */
+    fun getCoupangDelay(): Int = calculateDelay(
+        OrderTracker.getOrderCount(),
+        AdManager.getCoupangTargetTime(),
+        AdManager.getCoupangFixedCookTime()
+    )
+
+    fun getAvgInterval(): Double = avgCompletionInterval
 
     private val checkRunnable = object : Runnable {
         override fun run() {
-            if (thresholdExceededSince > 0L && !alertFired) {
-                onCountChanged(OrderTracker.getOrderCount())
-            }
+            val count = OrderTracker.getOrderCount()
+            if (baeminExceededSince > 0L && !baeminAlertFired) onCountChanged(count)
+            if (coupangExceededSince > 0L && !coupangAlertFired) onCountChanged(count)
             handler.postDelayed(this, CHECK_INTERVAL)
         }
     }
