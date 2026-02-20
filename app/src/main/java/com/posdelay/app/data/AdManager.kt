@@ -271,7 +271,7 @@ object AdManager {
         notifySettingsChanged()
     }
     fun setCoupangOnThreshold(value: Int) {
-        val clamped = value.coerceIn(1, getCoupangOffThreshold() - 1)
+        val clamped = value.coerceIn(0, getCoupangOffThreshold() - 1)
         prefs.edit().putInt(KEY_COUPANG_ON_THRESHOLD, clamped).apply()
         _coupangOnThreshold.postValue(clamped)
         notifySettingsChanged()
@@ -294,7 +294,7 @@ object AdManager {
         notifySettingsChanged()
     }
     fun setBaeminOnThreshold(value: Int) {
-        val clamped = value.coerceIn(1, getBaeminMidThreshold() - 1)
+        val clamped = value.coerceIn(0, getBaeminMidThreshold() - 1)
         prefs.edit().putInt(KEY_BAEMIN_ON_THRESHOLD, clamped).apply()
         _baeminOnThreshold.postValue(clamped)
         notifySettingsChanged()
