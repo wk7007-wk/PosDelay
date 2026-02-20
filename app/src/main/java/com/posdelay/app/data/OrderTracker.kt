@@ -119,6 +119,14 @@ object OrderTracker {
         try {
             com.posdelay.app.service.AdScheduler.checkFromBackground(appContext, value)
         } catch (_: Exception) {}
+        // Firebase 상태 업로드
+        try {
+            com.posdelay.app.service.FirebaseSettingsSync.onOrderCountChanged()
+        } catch (_: Exception) {}
+        // 알림 체크
+        try {
+            com.posdelay.app.service.DelayAlertManager.onCountChanged(value)
+        } catch (_: Exception) {}
     }
 
     /** MATE 화면에서 읽은 정확한 건수로 동기화 (시간 기록) */

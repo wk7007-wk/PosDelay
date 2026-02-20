@@ -167,57 +167,71 @@ object AdManager {
     fun getCoupangId(): String = securePrefs.getString(KEY_COUPANG_ID, "") ?: ""
     fun getCoupangPw(): String = securePrefs.getString(KEY_COUPANG_PW, "") ?: ""
 
+    private fun notifySettingsChanged() {
+        try { com.posdelay.app.service.FirebaseSettingsSync.onSettingsChanged() } catch (_: Exception) {}
+    }
+
     // Setters
     fun setAdEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_AD_ENABLED, value).apply()
         _adEnabled.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setBaeminAmount(value: Int) {
         val clamped = value.coerceIn(50, 1000)
         prefs.edit().putInt(KEY_BAEMIN_AMOUNT, clamped).apply()
         _baeminAmount.postValue(clamped)
+        notifySettingsChanged()
     }
 
     fun setBaeminReducedAmount(value: Int) {
         val clamped = value.coerceIn(50, 1000)
         prefs.edit().putInt(KEY_BAEMIN_REDUCED_AMOUNT, clamped).apply()
         _baeminReducedAmount.postValue(clamped)
+        notifySettingsChanged()
     }
 
     fun setCoupangAdOn(value: Boolean) {
         prefs.edit().putBoolean(KEY_COUPANG_AD_ON, value).apply()
         _coupangAdOn.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setAdOffTime(value: String) {
         prefs.edit().putString(KEY_AD_OFF_TIME, value).apply()
         _adOffTime.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setAdOnTime(value: String) {
         prefs.edit().putString(KEY_AD_ON_TIME, value).apply()
         _adOnTime.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setScheduleEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_SCHEDULE_ENABLED, value).apply()
         _scheduleEnabled.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setOrderAutoOffEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_ORDER_AUTO_OFF_ENABLED, value).apply()
         _orderAutoOffEnabled.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setCoupangAutoEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_COUPANG_AUTO_ENABLED, value).apply()
         _coupangAutoEnabled.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setBaeminAutoEnabled(value: Boolean) {
         prefs.edit().putBoolean(KEY_BAEMIN_AUTO_ENABLED, value).apply()
         _baeminAutoEnabled.postValue(value)
+        notifySettingsChanged()
     }
 
     fun setCoupangOffThreshold(value: Int) {
@@ -225,11 +239,13 @@ object AdManager {
         prefs.edit().putInt(KEY_COUPANG_OFF_THRESHOLD, clamped).apply()
         _coupangOffThreshold.postValue(clamped)
         if (getCoupangOnThreshold() >= clamped) setCoupangOnThreshold(clamped - 1)
+        notifySettingsChanged()
     }
     fun setCoupangOnThreshold(value: Int) {
         val clamped = value.coerceIn(1, getCoupangOffThreshold() - 1)
         prefs.edit().putInt(KEY_COUPANG_ON_THRESHOLD, clamped).apply()
         _coupangOnThreshold.postValue(clamped)
+        notifySettingsChanged()
     }
     // 배민 임계값: 켜기 < 중간 < 끄기 순서 보장
     fun setBaeminOffThreshold(value: Int) {
@@ -238,6 +254,7 @@ object AdManager {
         _baeminOffThreshold.postValue(clamped)
         if (getBaeminMidUpperThreshold() >= clamped) setBaeminMidUpperThreshold(clamped - 1)
         if (getBaeminMidThreshold() >= clamped) setBaeminMidThreshold(clamped - 1)
+        notifySettingsChanged()
     }
     fun setBaeminMidThreshold(value: Int) {
         val clamped = value.coerceIn(2, getBaeminOffThreshold() - 1)
@@ -245,21 +262,25 @@ object AdManager {
         _baeminMidThreshold.postValue(clamped)
         if (getBaeminMidUpperThreshold() < clamped) setBaeminMidUpperThreshold(clamped)
         if (getBaeminOnThreshold() >= clamped) setBaeminOnThreshold(clamped - 1)
+        notifySettingsChanged()
     }
     fun setBaeminOnThreshold(value: Int) {
         val clamped = value.coerceIn(1, getBaeminMidThreshold() - 1)
         prefs.edit().putInt(KEY_BAEMIN_ON_THRESHOLD, clamped).apply()
         _baeminOnThreshold.postValue(clamped)
+        notifySettingsChanged()
     }
     fun setBaeminMidUpperThreshold(value: Int) {
         val clamped = value.coerceIn(getBaeminMidThreshold(), getBaeminOffThreshold() - 1)
         prefs.edit().putInt(KEY_BAEMIN_MID_UPPER_THRESHOLD, clamped).apply()
         _baeminMidUpperThreshold.postValue(clamped)
+        notifySettingsChanged()
     }
     fun setBaeminMidAmount(value: Int) {
         val clamped = value.coerceIn(50, 1000)
         prefs.edit().putInt(KEY_BAEMIN_MID_AMOUNT, clamped).apply()
         _baeminMidAmount.postValue(clamped)
+        notifySettingsChanged()
     }
 
     fun setLastAdAction(value: String) {
@@ -272,11 +293,13 @@ object AdManager {
     fun setBaeminCurrentBid(value: Int) {
         prefs.edit().putInt(KEY_BAEMIN_CURRENT_BID, value).apply()
         _baeminCurrentBid.postValue(value)
+        try { com.posdelay.app.service.FirebaseSettingsSync.onAdStateChanged() } catch (_: Exception) {}
     }
 
     fun setCoupangCurrentOn(value: Boolean) {
         prefs.edit().putBoolean(KEY_COUPANG_CURRENT_ON, value).apply()
         _coupangCurrentOn.postValue(value)
+        try { com.posdelay.app.service.FirebaseSettingsSync.onAdStateChanged() } catch (_: Exception) {}
     }
 
     // Credential setters

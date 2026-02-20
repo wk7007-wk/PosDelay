@@ -8,6 +8,8 @@ import com.posdelay.app.data.NotificationLog
 import com.posdelay.app.data.OrderTracker
 import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.DelayNotificationHelper
+import com.posdelay.app.service.DelayAlertManager
+import com.posdelay.app.service.FirebaseSettingsSync
 
 class PosDelayApp : Application() {
     override fun onCreate() {
@@ -19,5 +21,8 @@ class PosDelayApp : Application() {
         DelayActionLog.init(this)
         DelayNotificationHelper.createChannels(this)
         AdScheduler.scheduleAlarms(this)
+        FirebaseSettingsSync.start(this)
+        DelayAlertManager.init(this)
+        DelayAlertManager.startPeriodicCheck()
     }
 }
