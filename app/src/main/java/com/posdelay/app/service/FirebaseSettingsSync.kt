@@ -283,43 +283,30 @@ object FirebaseSettingsSync {
             val data = wrapper.opt("data") ?: return
             if (data.toString() == "null") return
 
-            // 전체 설정 객체
-            val obj = if (path == "/") {
-                if (data is JSONObject) data else JSONObject(data.toString())
-            } else return // 부분 업데이트는 무시 (전체만 처리)
+            val obj: JSONObject
+            if (path == "/") {
+                // 전체 설정 (초기 로드 또는 전체 PUT)
+                obj = if (data is JSONObject) data else JSONObject(data.toString())
+            } else {
+                // 부분 업데이트 (PATCH) — path="/baemin_amount" 등
+                obj = JSONObject()
+                val key = path.removePrefix("/")
+                obj.put(key, data)
+            }
 
             val updatedBy = obj.optString("_updated_by", "app")
-            if (updatedBy == "app") return // 자기 자신이 업로드한 것은 무시
+            if (updatedBy == "app") return
 
             val remoteVersion = obj.optLong("_version", 0)
-            if (remoteVersion <= settingsVersion) return // 이전 버전 무시
+            if (path == "/" && remoteVersion <= settingsVersion) return
 
-            Log.d(TAG, "웹에서 설정 변경 수신 (v$remoteVersion)")
+            Log.d(TAG, "웹에서 설정 변경 수신 (path=$path)")
 
             handler.post {
                 isApplyingRemote = true
                 try {
-                    if (obj.has("baemin_amount")) AdManager.setBaeminAmount(obj.getInt("baemin_amount"))
-                    if (obj.has("baemin_reduced_amount")) AdManager.setBaeminReducedAmount(obj.getInt("baemin_reduced_amount"))
-                    if (obj.has("baemin_mid_amount")) AdManager.setBaeminMidAmount(obj.getInt("baemin_mid_amount"))
-                    if (obj.has("coupang_ad_on")) AdManager.setCoupangAdOn(obj.getBoolean("coupang_ad_on"))
-                    if (obj.has("schedule_enabled")) AdManager.setScheduleEnabled(obj.getBoolean("schedule_enabled"))
-                    if (obj.has("ad_off_time")) AdManager.setAdOffTime(obj.getString("ad_off_time"))
-                    if (obj.has("ad_on_time")) AdManager.setAdOnTime(obj.getString("ad_on_time"))
-                    if (obj.has("order_auto_off_enabled")) AdManager.setOrderAutoOffEnabled(obj.getBoolean("order_auto_off_enabled"))
-                    if (obj.has("coupang_auto_enabled")) AdManager.setCoupangAutoEnabled(obj.getBoolean("coupang_auto_enabled"))
-                    if (obj.has("baemin_auto_enabled")) AdManager.setBaeminAutoEnabled(obj.getBoolean("baemin_auto_enabled"))
-                    if (obj.has("coupang_zones")) AdManager.setZonesFromJson("coupang", obj.getJSONArray("coupang_zones"))
-                    if (obj.has("baemin_zones")) AdManager.setZonesFromJson("baemin", obj.getJSONArray("baemin_zones"))
-                    if (obj.has("ad_enabled")) AdManager.setAdEnabled(obj.getBoolean("ad_enabled"))
-                    if (obj.has("delay_minutes")) OrderTracker.setDelayMinutes(obj.getInt("delay_minutes"))
-                    if (obj.has("baemin_target_time")) AdManager.setBaeminTargetTime(obj.getInt("baemin_target_time"))
-                    if (obj.has("baemin_fixed_cook_time")) AdManager.setBaeminFixedCookTime(obj.getInt("baemin_fixed_cook_time"))
-                    if (obj.has("baemin_delay_threshold")) AdManager.setBaeminDelayThreshold(obj.getInt("baemin_delay_threshold"))
-                    if (obj.has("coupang_target_time")) AdManager.setCoupangTargetTime(obj.getInt("coupang_target_time"))
-                    if (obj.has("coupang_fixed_cook_time")) AdManager.setCoupangFixedCookTime(obj.getInt("coupang_fixed_cook_time"))
-                    if (obj.has("coupang_delay_threshold")) AdManager.setCoupangDelayThreshold(obj.getInt("coupang_delay_threshold"))
-                    settingsVersion = remoteVersion
+                    applySettings(obj)
+                    if (remoteVersion > 0) settingsVersion = remoteVersion
                     Log.d(TAG, "웹 설정 적용 완료")
                 } finally {
                     isApplyingRemote = false
@@ -328,6 +315,29 @@ object FirebaseSettingsSync {
         } catch (e: Exception) {
             Log.w(TAG, "원격 설정 파싱 실패: ${e.message}")
         }
+    }
+
+    private fun applySettings(obj: JSONObject) {
+        if (obj.has("baemin_amount")) AdManager.setBaeminAmount(obj.getInt("baemin_amount"))
+        if (obj.has("baemin_reduced_amount")) AdManager.setBaeminReducedAmount(obj.getInt("baemin_reduced_amount"))
+        if (obj.has("baemin_mid_amount")) AdManager.setBaeminMidAmount(obj.getInt("baemin_mid_amount"))
+        if (obj.has("coupang_ad_on")) AdManager.setCoupangAdOn(obj.getBoolean("coupang_ad_on"))
+        if (obj.has("schedule_enabled")) AdManager.setScheduleEnabled(obj.getBoolean("schedule_enabled"))
+        if (obj.has("ad_off_time")) AdManager.setAdOffTime(obj.getString("ad_off_time"))
+        if (obj.has("ad_on_time")) AdManager.setAdOnTime(obj.getString("ad_on_time"))
+        if (obj.has("order_auto_off_enabled")) AdManager.setOrderAutoOffEnabled(obj.getBoolean("order_auto_off_enabled"))
+        if (obj.has("coupang_auto_enabled")) AdManager.setCoupangAutoEnabled(obj.getBoolean("coupang_auto_enabled"))
+        if (obj.has("baemin_auto_enabled")) AdManager.setBaeminAutoEnabled(obj.getBoolean("baemin_auto_enabled"))
+        if (obj.has("coupang_zones")) AdManager.setZonesFromJson("coupang", obj.getJSONArray("coupang_zones"))
+        if (obj.has("baemin_zones")) AdManager.setZonesFromJson("baemin", obj.getJSONArray("baemin_zones"))
+        if (obj.has("ad_enabled")) AdManager.setAdEnabled(obj.getBoolean("ad_enabled"))
+        if (obj.has("delay_minutes")) OrderTracker.setDelayMinutes(obj.getInt("delay_minutes"))
+        if (obj.has("baemin_target_time")) AdManager.setBaeminTargetTime(obj.getInt("baemin_target_time"))
+        if (obj.has("baemin_fixed_cook_time")) AdManager.setBaeminFixedCookTime(obj.getInt("baemin_fixed_cook_time"))
+        if (obj.has("baemin_delay_threshold")) AdManager.setBaeminDelayThreshold(obj.getInt("baemin_delay_threshold"))
+        if (obj.has("coupang_target_time")) AdManager.setCoupangTargetTime(obj.getInt("coupang_target_time"))
+        if (obj.has("coupang_fixed_cook_time")) AdManager.setCoupangFixedCookTime(obj.getInt("coupang_fixed_cook_time"))
+        if (obj.has("coupang_delay_threshold")) AdManager.setCoupangDelayThreshold(obj.getInt("coupang_delay_threshold"))
     }
 
     private fun scheduleReconnect() {
