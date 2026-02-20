@@ -3,13 +3,17 @@ package com.posdelay.app.ui
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.annotation.SuppressLint
 import android.app.Dialog
+import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -52,6 +56,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var pendingRefreshCorrection = false
     private var lastCoupangAutoTime = 0L
     private var lastBaeminAutoTime = 0L
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,6 +75,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         webView.loadUrl("https://wk7007-wk.github.io/PosKDS/")
 
         tts = TextToSpeech(this, this)
+
+        // 화면 꺼짐 방지
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Wake Lock (CPU 절전 방지)
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PosDelay:SSE").apply { acquire() }
+
+        // WiFi Lock (WiFi 절전 방지)
+        val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PosDelay:SSE").apply { acquire() }
 
         // 기존 서비스 시작
         GistOrderReader.start(this)
@@ -112,6 +129,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+        if (wifiLock?.isHeld == true) wifiLock?.release()
         tts?.shutdown()
         super.onDestroy()
     }

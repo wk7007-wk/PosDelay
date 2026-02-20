@@ -226,12 +226,6 @@ class KdsAccessibilityService : AccessibilityService() {
                     ?: Regex("조리중[\\s\\n]*(\\d+)").find(desc)
                 if (match != null) return match.groupValues[1].toIntOrNull()
             }
-            for (node in nodes) {
-                val parent = node.parent ?: continue
-                val count = findNumberInSiblings(parent)
-                parent.recycle()
-                if (count != null) return count
-            }
             // "조리중" 텍스트는 있지만 숫자 없음 → 0건
             return 0
         }
