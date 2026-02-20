@@ -117,21 +117,29 @@ object AdScheduler {
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val lastCheck = prefs.getLong("last_bg_eval", 0L)
-        if (now - lastCheck < 5 * 60 * 1000) return
+        val lastCount = prefs.getInt("last_bg_count", -1)
+        // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
+        if (count == lastCount && now - lastCheck < 2 * 60 * 1000) return
 
-        // Firebase 최신 설정으로 판단
-        val actions = AdDecisionEngine.evaluate(
-            count = count,
-            currentBaeminBid = AdManager.getBaeminCurrentBid(),
-            currentCoupangOn = AdManager.coupangCurrentOn.value,
-            hasBaemin = AdManager.hasBaeminCredentials(),
-            hasCoupang = AdManager.hasCoupangCredentials()
-        )
-        if (actions.isEmpty()) return
+        // 백그라운드 스레드에서 Firebase 조회 (메인 스레드 네트워크 금지)
+        kotlin.concurrent.thread {
+            try {
+                val actions = AdDecisionEngine.evaluate(
+                    count = count,
+                    currentBaeminBid = AdManager.getBaeminCurrentBid(),
+                    currentCoupangOn = AdManager.coupangCurrentOn.value,
+                    hasBaemin = AdManager.hasBaeminCredentials(),
+                    hasCoupang = AdManager.hasCoupangCredentials()
+                )
+                if (actions.isEmpty()) return@thread
 
-        prefs.edit().putLong("last_bg_eval", now).apply()
-        Log.d(TAG, "Background trigger: ${actions.size} actions")
-        launchAdAction(context, "ad_auto_eval")
+                prefs.edit().putLong("last_bg_eval", now).putInt("last_bg_count", count).apply()
+                Log.d(TAG, "Background trigger: ${actions.size} actions for count=$count")
+                launchAdAction(context, "ad_auto_eval")
+            } catch (e: Exception) {
+                Log.w(TAG, "Background eval failed: ${e.message}")
+            }
+        }
     }
 
     private fun launchAdAction(context: Context, action: String) {

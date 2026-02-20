@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
     private var lastAutoEvalTime = 0L
+    private var lastAutoEvalCount = -1
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
@@ -361,8 +362,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun evaluateAndExecute(reason: String, background: Boolean) {
         val now = System.currentTimeMillis()
-        // 5분 쿨다운 (너무 자주 실행 방지)
-        if (now - lastAutoEvalTime < 5 * 60 * 1000) return
+        val count = OrderTracker.getOrderCount()
+        // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
+        val countChanged = count != lastAutoEvalCount
+        if (!countChanged && now - lastAutoEvalTime < 2 * 60 * 1000) return
         if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) return
 
         val hasBaemin = AdManager.hasBaeminCredentials()
@@ -371,7 +374,6 @@ class MainActivity : AppCompatActivity() {
 
         val currentBid = AdManager.getBaeminCurrentBid()
         val currentCoupangOn = AdManager.coupangCurrentOn.value
-        val count = OrderTracker.getOrderCount()
 
         // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
         kotlin.concurrent.thread {
@@ -382,9 +384,13 @@ class MainActivity : AppCompatActivity() {
                 hasBaemin = hasBaemin,
                 hasCoupang = hasCoupang
             )
-            if (actions.isEmpty()) return@thread
+            if (actions.isEmpty()) {
+                lastAutoEvalCount = count
+                return@thread
+            }
 
             lastAutoEvalTime = now
+            lastAutoEvalCount = count
             runOnUiThread {
                 if (background) pendingBackToBackground = true
                 for (action in actions) {
