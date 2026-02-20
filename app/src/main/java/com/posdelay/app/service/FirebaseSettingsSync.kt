@@ -6,6 +6,7 @@ import android.os.Looper
 import android.util.Log
 import com.posdelay.app.data.AdManager
 import com.posdelay.app.data.OrderTracker
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -162,6 +163,68 @@ object FirebaseSettingsSync {
             }
         }
     }
+
+    // === KDS 업로드 (KdsAccessibilityService에서 호출) ===
+
+    fun uploadKdsStatus(count: Int) {
+        kotlin.concurrent.thread {
+            try {
+                val json = JSONObject().apply {
+                    put("count", count)
+                    put("time", dateFormat.format(Date()))
+                    put("source", "kds")
+                }.toString()
+                firebasePut("$FIREBASE_BASE/kds_status.json", json)
+            } catch (e: Exception) {
+                Log.w(TAG, "KDS 상태 업로드 에러: ${e.message}")
+            }
+        }
+    }
+
+    fun uploadKdsLog(logContent: String) {
+        kotlin.concurrent.thread {
+            try {
+                firebasePut("$FIREBASE_BASE/kds_log.json", "\"${escapeJson(logContent)}\"")
+            } catch (e: Exception) {
+                Log.w(TAG, "KDS 로그 업로드 에러: ${e.message}")
+            }
+        }
+    }
+
+    fun uploadKdsDump(tree: String, lineCount: Int) {
+        kotlin.concurrent.thread {
+            try {
+                val json = JSONObject().apply {
+                    put("tree", tree)
+                    put("time", dateFormat.format(Date()))
+                    put("lines", lineCount)
+                }.toString()
+                firebasePut("$FIREBASE_BASE/kds_dump.json", json)
+            } catch (e: Exception) {
+                Log.w(TAG, "KDS 덤프 업로드 에러: ${e.message}")
+            }
+        }
+    }
+
+    fun uploadKdsHistory(entries: JSONArray) {
+        kotlin.concurrent.thread {
+            try {
+                val json = JSONObject().apply {
+                    put("entries", entries)
+                }.toString()
+                firebasePut("$FIREBASE_BASE/kds_history.json", json)
+            } catch (e: Exception) {
+                Log.w(TAG, "KDS 이력 업로드 에러: ${e.message}")
+            }
+        }
+    }
+
+    private fun escapeJson(s: String): String =
+        s.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "")
+            .replace("\t", "\\t")
 
     // === SSE: Firebase → 앱 (웹에서 설정 변경 수신) ===
 

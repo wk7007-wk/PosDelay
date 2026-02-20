@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">PosDelay</string>
     <string name="accessibility_description">쿠팡이츠 앱에서 자동으로 지연 설정을 처리합니다. 처리 중 주문이 기준 건수를 초과하면 자동으로 지연을 설정합니다.</string>
+    <string name="kds_accessibility_description">MATE KDS 주방 화면에서 조리중 건수를 읽어 Firebase에 업로드합니다. 주방폰에서만 활성화하세요.</string>
 </resources>
