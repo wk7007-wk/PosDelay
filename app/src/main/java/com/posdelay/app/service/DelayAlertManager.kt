@@ -53,8 +53,11 @@ object DelayAlertManager {
         val cTh = AdManager.getCoupangDelayThreshold()
 
         val msgs = mutableListOf<String>()
-        if (count >= bTh && bDelay > 0) msgs.add("배민 ${bDelay}분")
-        if (count >= cTh && cDelay > 0) msgs.add("쿠팡 ${cDelay}분")
+        // 지연 건수 = 총건수 - 정상 처리 가능 건수
+        val bBreakeven = if (avgCompletionInterval > 0) ((AdManager.getBaeminTargetTime() - AdManager.getBaeminFixedCookTime()) / avgCompletionInterval).toInt() else 0
+        val cBreakeven = if (avgCompletionInterval > 0) ((AdManager.getCoupangTargetTime() - AdManager.getCoupangFixedCookTime()) / avgCompletionInterval).toInt() else 0
+        if (count >= bTh && bDelay > 0) msgs.add("배민 ${bDelay}분 ${maxOf(0, count - bBreakeven)}건")
+        if (count >= cTh && cDelay > 0) msgs.add("쿠팡 ${cDelay}분 ${maxOf(0, count - cBreakeven)}건")
 
         if (msgs.isNotEmpty()) {
             // 지연 상태
@@ -63,15 +66,17 @@ object DelayAlertManager {
                 isDelayed = true
                 delayStartTime = now
                 lastAlertTime = now
-                val msg = "지연 ${msgs.joinToString(", ")} (${count}건)"
+                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA).format(java.util.Date(now))
+                val msg = "${timeStr} 지연 ${msgs.joinToString(", ")}"
                 Log.d(TAG, "지연 진입: $msg")
                 sendAlert("주문 지연", msg)
                 FirebaseSettingsSync.uploadLog("DELAY: $msg")
             } else if (now - lastAlertTime >= ALERT_REPEAT_MS) {
                 // 3분마다 반복
                 lastAlertTime = now
+                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA).format(java.util.Date(delayStartTime))
                 val elapsedMin = (now - delayStartTime) / 60000
-                val msg = "지연 ${msgs.joinToString(", ")} (${count}건, ${elapsedMin}분 경과)"
+                val msg = "${timeStr} 지연 ${msgs.joinToString(", ")} (${elapsedMin}분 경과)"
                 Log.d(TAG, "지연 반복: $msg")
                 sendAlert("주문 지연 지속", msg)
                 FirebaseSettingsSync.uploadLog("DELAY: $msg")
@@ -82,14 +87,13 @@ object DelayAlertManager {
                 // 정상 복귀 1회 알림
                 isDelayed = false
                 val elapsedMin = (now - delayStartTime) / 60000
-                val msg = "정상 복귀 (${count}건, ${elapsedMin}분)"
+                val msg = "정상 복귀 (${elapsedMin}분만에)"
                 Log.d(TAG, "정상 복귀: $msg")
                 sendAlert("정상 복귀", msg)
                 FirebaseSettingsSync.uploadLog("RESOLVED: $msg")
                 delayStartTime = 0L
                 lastAlertTime = 0L
             }
-            // 정상 상태에서는 알림 없음
         }
     }
 

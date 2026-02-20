@@ -191,13 +191,14 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun toggleSource(source: String) {
-            when (source) {
-                "kds" -> OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
-                "mate" -> OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
-                "pc" -> OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
+            runOnUiThread {
+                when (source) {
+                    "kds" -> OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
+                    "mate" -> OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
+                    "pc" -> OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
+                }
+                FirebaseSettingsSync.onOrderCountChanged()
             }
-            // Firebase에 상태 업로드
-            FirebaseSettingsSync.onOrderCountChanged()
         }
 
         @JavascriptInterface
