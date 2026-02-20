@@ -220,7 +220,31 @@ class KdsAccessibilityService : AccessibilityService() {
             // "조리중" 텍스트는 있지만 숫자 없음 → 0건
             return 0
         }
-        return findCookingCountInTree(root)
+        val treeResult = findCookingCountInTree(root)
+        if (treeResult != null) return treeResult
+
+        // "조리할 주문이 없습니다" → 0건
+        val noOrderNodes = root.findAccessibilityNodeInfosByText("조리할 주문이 없습니다")
+        if (noOrderNodes != null && noOrderNodes.isNotEmpty()) return 0
+
+        // "주문수" 뒤 숫자 추출 (메뉴별 수량 화면)
+        return findOrderCountInTree(root)
+    }
+
+    private fun findOrderCountInTree(node: AccessibilityNodeInfo, depth: Int = 0): Int? {
+        if (depth > 15) return null
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        val combined = "$text $desc"
+        val match = Regex("주문수[\\s\\n]*(\\d+)").find(combined)
+        if (match != null) return match.groupValues[1].toIntOrNull()
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findOrderCountInTree(child, depth + 1)
+            child.recycle()
+            if (result != null) return result
+        }
+        return null
     }
 
     private fun findNumberInSiblings(parent: AccessibilityNodeInfo): Int? {
