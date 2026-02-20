@@ -58,6 +58,21 @@ class KdsAccessibilityService : AccessibilityService() {
 
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
+            // 하트비트마다 건수 재추출 (stale 방지)
+            val root = try { rootInActiveWindow } catch (_: Exception) { null }
+            if (root != null) {
+                try {
+                    val count = extractCookingCount(root)
+                    if (count != null && count != lastCount) {
+                        log("하트비트 건수 보정: $lastCount → $count")
+                        lastCount = count
+                        prefs.edit().putInt(KEY_LAST_COUNT, count).apply()
+                        addHistory(count)
+                    }
+                } catch (_: Exception) {}
+                root.recycle()
+            }
+
             val now = System.currentTimeMillis()
             if (now - lastUploadTime >= HEARTBEAT_MS && lastCount >= 0) {
                 log("하트비트 업로드 (건수=$lastCount)")
