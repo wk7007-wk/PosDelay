@@ -100,6 +100,30 @@ object DelayNotificationHelper {
 
     private const val NOTIFICATION_AD_ALERT_ID = 2003
     private const val NOTIFICATION_AD_PROGRESS_ID = 2004
+    private const val NOTIFICATION_DELAY_ALERT_ID = 2005
+
+    /** 지연 알림 (상태표시줄 + TTS 읽기용, 제목+내용) */
+    fun showDelayAlert(context: Context, title: String, message: String) {
+        createChannels(context)
+
+        val openIntent = Intent(context, MainActivity::class.java)
+        val openPendingIntent = PendingIntent.getActivity(
+            context, 0, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openPendingIntent)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_DELAY_ALERT_ID, notification)
+    }
 
     fun showAdAlert(context: Context, message: String) {
         createChannels(context)
@@ -112,6 +136,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("PosDelay")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
