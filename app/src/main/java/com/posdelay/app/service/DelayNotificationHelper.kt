@@ -60,7 +60,6 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
-            .setContentTitle("PosDelay · ${count}건")
             .setContentText(statusText)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -92,6 +91,7 @@ object DelayNotificationHelper {
     private const val NOTIFICATION_AD_ALERT_ID = 2003
     private const val NOTIFICATION_AD_PROGRESS_ID = 2004
     private const val NOTIFICATION_DELAY_ALERT_ID = 2005
+    private const val NOTIFICATION_COOK_ALERT_ID = 2006
 
     fun showDelayAlert(context: Context, title: String, message: String) {
         createChannels(context)
@@ -172,6 +172,21 @@ object DelayNotificationHelper {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(NOTIFICATION_AD_PROGRESS_ID)
         manager.notify(NOTIFICATION_AD_ALERT_ID, notification)
+    }
+
+    /** 조리모드 알림 (광고 알림과 별도 ID) */
+    fun showCookAlert(context: Context, message: String) {
+        createChannels(context)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_COOK_ALERT_ID, notification)
     }
 
     fun dismiss(context: Context) {

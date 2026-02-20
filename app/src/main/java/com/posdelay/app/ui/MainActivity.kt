@@ -229,6 +229,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun speakCook(text: String) {
+            DelayNotificationHelper.showCookAlert(this@MainActivity, text)
+        }
+
+        @JavascriptInterface
         fun getSourceStatus(): String {
             return """{"kds_paused":${OrderTracker.isKdsPaused()},"mate_paused":${OrderTracker.isMatePaused()},"pc_paused":${OrderTracker.isPcPaused()},"kds_sync":${OrderTracker.getLastKdsSyncTime()},"mate_sync":${OrderTracker.getLastSyncTime()},"pc_sync":${OrderTracker.getLastPcSyncTime()}}"""
         }
