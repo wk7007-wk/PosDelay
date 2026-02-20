@@ -112,31 +112,30 @@ object AdScheduler {
     private fun isAutoEnabled(): Boolean =
         AdManager.isAdEnabled() && isWithinActiveWindow()
 
-    /** 쿠팡: 끄기 임계값 초과? */
+    /** 쿠팡: zone=2(off)? */
     fun shouldCoupangOff(): Boolean {
         if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
-        return OrderTracker.getOrderCount() > AdManager.getCoupangOffThreshold()
+        return AdManager.getCoupangZoneAt(OrderTracker.getOrderCount()) == 2
     }
-    /** 쿠팡: 켜기 임계값 이하? */
+    /** 쿠팡: zone=1(on)? */
     fun shouldCoupangOn(): Boolean {
         if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
-        return OrderTracker.getOrderCount() <= AdManager.getCoupangOnThreshold()
+        return AdManager.getCoupangZoneAt(OrderTracker.getOrderCount()) == 1
     }
-    /** 배민: 끄기 임계값 초과 → 축소금액 */
+    /** 배민: zone=3(min) → 축소금액 */
     fun shouldBaeminOff(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return OrderTracker.getOrderCount() > AdManager.getBaeminOffThreshold()
+        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 3
     }
-    /** 배민: 중간 임계값 이상 ~ 중간상한 이하 → 중간금액 */
+    /** 배민: zone=2(mid) → 중간금액 */
     fun shouldBaeminMid(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        val count = OrderTracker.getOrderCount()
-        return count >= AdManager.getBaeminMidThreshold() && count <= AdManager.getBaeminMidUpperThreshold()
+        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 2
     }
-    /** 배민: 켜기 임계값 이하 → 정상금액 */
+    /** 배민: zone=1(max) → 정상금액 */
     fun shouldBaeminOn(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return OrderTracker.getOrderCount() <= AdManager.getBaeminOnThreshold()
+        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 1
     }
 
     private const val KEY_LAST_BG_COUPANG = "last_bg_coupang"
@@ -153,32 +152,33 @@ object AdScheduler {
         var needOff = false
         var needOn = false
 
-        // 쿠팡: 개별 스위치 확인
+        // 쿠팡: zone 기반
         val coupangOn = AdManager.coupangCurrentOn.value
+        val cZone = AdManager.getCoupangZoneAt(count)
         val lastCoupang = prefs.getLong(KEY_LAST_BG_COUPANG, 0L)
         if (AdManager.isCoupangAutoEnabled() && now - lastCoupang >= 5 * 60 * 1000) {
-            if (count > AdManager.getCoupangOffThreshold() && coupangOn != false) {
+            if (cZone == 2 && coupangOn != false) {
                 prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
                 needOff = true
-            } else if (count <= AdManager.getCoupangOnThreshold() && coupangOn == false) {
+            } else if (cZone == 1 && coupangOn == false) {
                 prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
                 needOn = true
             }
         }
 
-        // 배민: 3단계 (정상/중간/축소) — 현재 금액과 목표 금액이 다를 때만 실행
+        // 배민: zone 기반
         val bid = AdManager.getBaeminCurrentBid()
         val normalAmount = AdManager.getBaeminAmount()
         val midAmount = AdManager.getBaeminMidAmount()
         val reducedAmount = AdManager.getBaeminReducedAmount()
+        val bZone = AdManager.getBaeminZoneAt(count)
         val lastBaemin = prefs.getLong(KEY_LAST_BG_BAEMIN, 0L)
         if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
-            val targetAmount = when {
-                count > AdManager.getBaeminOffThreshold() -> reducedAmount
-                count > AdManager.getBaeminMidUpperThreshold() -> null  // 중간↔최소 회색
-                count >= AdManager.getBaeminMidThreshold() -> midAmount
-                count <= AdManager.getBaeminOnThreshold() -> normalAmount
-                else -> null  // 최대↔중간 회색
+            val targetAmount = when (bZone) {
+                3 -> reducedAmount
+                2 -> midAmount
+                1 -> normalAmount
+                else -> null  // hold
             }
             if (targetAmount != null && bid > 0 && bid != targetAmount) {
                 prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()

@@ -349,6 +349,55 @@ object AdManager {
     fun hasBaeminCredentials(): Boolean = getBaeminId().isNotEmpty() && getBaeminPw().isNotEmpty()
     fun hasCoupangCredentials(): Boolean = getCoupangId().isNotEmpty() && getCoupangPw().isNotEmpty()
 
+    // === Zone 배열 (게이지 셀별 색상) ===
+    // 쿠팡: 0=hold, 1=on, 2=off
+    // 배민: 0=hold, 1=max, 2=mid, 3=min
+    private val COUPANG_ZONES_DEF = intArrayOf(1,1,1,0,0,2,2,2,2,2,2)
+    private val BAEMIN_ZONES_DEF = intArrayOf(1,1,1,0,2,2,0,3,3,3,3)
+
+    fun getZones(platform: String): IntArray {
+        val key = if (platform == "coupang") "coupang_zones" else "baemin_zones"
+        val def = if (platform == "coupang") COUPANG_ZONES_DEF else BAEMIN_ZONES_DEF
+        val str = prefs.getString(key, null) ?: return def.copyOf()
+        return try {
+            val arr = org.json.JSONArray(str)
+            IntArray(11) { i -> if (i < arr.length()) arr.getInt(i) else 0 }
+        } catch (_: Exception) { def.copyOf() }
+    }
+
+    fun setZones(platform: String, zones: IntArray) {
+        val key = if (platform == "coupang") "coupang_zones" else "baemin_zones"
+        val arr = org.json.JSONArray()
+        zones.forEach { arr.put(it) }
+        prefs.edit().putString(key, arr.toString()).apply()
+        notifySettingsChanged()
+    }
+
+    fun getZonesJson(platform: String): org.json.JSONArray {
+        val zones = getZones(platform)
+        val arr = org.json.JSONArray()
+        zones.forEach { arr.put(it) }
+        return arr
+    }
+
+    fun setZonesFromJson(platform: String, jsonArray: org.json.JSONArray) {
+        val zones = IntArray(11) { i -> if (i < jsonArray.length()) jsonArray.getInt(i) else 0 }
+        val key = if (platform == "coupang") "coupang_zones" else "baemin_zones"
+        prefs.edit().putString(key, jsonArray.toString()).apply()
+    }
+
+    /** 현재 건수에 해당하는 쿠팡 zone 값 (0=hold, 1=on, 2=off) */
+    fun getCoupangZoneAt(count: Int): Int {
+        val idx = count.coerceIn(0, 10)
+        return getZones("coupang")[idx]
+    }
+
+    /** 현재 건수에 해당하는 배민 zone 값 (0=hold, 1=max, 2=mid, 3=min) */
+    fun getBaeminZoneAt(count: Int): Int {
+        val idx = count.coerceIn(0, 10)
+        return getZones("baemin")[idx]
+    }
+
     // 지연 설정 getter/setter
     fun getBaeminTargetTime(): Int = prefs.getInt(KEY_BAEMIN_TARGET_TIME, 20)
     fun getBaeminFixedCookTime(): Int = prefs.getInt(KEY_BAEMIN_FIXED_COOK_TIME, 15)
