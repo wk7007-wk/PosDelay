@@ -188,6 +188,22 @@ class MainActivity : AppCompatActivity() {
         fun openUrl(url: String) {
             startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
         }
+
+        @JavascriptInterface
+        fun toggleSource(source: String) {
+            when (source) {
+                "kds" -> OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
+                "mate" -> OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
+                "pc" -> OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
+            }
+            // Firebase에 상태 업로드
+            FirebaseSettingsSync.onOrderCountChanged()
+        }
+
+        @JavascriptInterface
+        fun getSourceStatus(): String {
+            return """{"kds_paused":${OrderTracker.isKdsPaused()},"mate_paused":${OrderTracker.isMatePaused()},"pc_paused":${OrderTracker.isPcPaused()},"kds_sync":${OrderTracker.getLastKdsSyncTime()},"mate_sync":${OrderTracker.getLastSyncTime()},"pc_sync":${OrderTracker.getLastPcSyncTime()}}"""
+        }
     }
 
     // ═══════ 권한 확인 ═══════
@@ -264,16 +280,20 @@ class MainActivity : AppCompatActivity() {
         adWebAutomation = AdWebAutomation(this)
         adWebAutomation?.execute(action, amount) { success, message ->
             runOnUiThread {
+                val isCheck = action == AdWebAutomation.Action.BAEMIN_CHECK || action == AdWebAutomation.Action.COUPANG_CHECK
                 val c = OrderTracker.getOrderCount()
                 val result = if (success) "${c}건 $actionName 완료" else "${c}건 $actionName 실패"
-                if (pendingBackToBackground || adActionQueue.isEmpty()) {
-                    DelayNotificationHelper.showAdResult(this, result, success)
+                // CHECK 액션은 알림 생략 (변경 액션만 알림)
+                if (!isCheck) {
+                    if (pendingBackToBackground || adActionQueue.isEmpty()) {
+                        DelayNotificationHelper.showAdResult(this, result, success)
+                    }
+                    if (!pendingBackToBackground) {
+                        Toast.makeText(this, result, Toast.LENGTH_SHORT).show()
+                    }
+                    // Firebase 로그도 변경 액션만
+                    FirebaseSettingsSync.uploadLog("$result: $message")
                 }
-                if (!pendingBackToBackground) {
-                    Toast.makeText(this, result, Toast.LENGTH_SHORT).show()
-                }
-                // Firebase 로그
-                FirebaseSettingsSync.uploadLog("$result: $message")
                 processNextAdAction()
             }
         }
