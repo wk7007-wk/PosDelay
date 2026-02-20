@@ -109,85 +109,29 @@ object AdScheduler {
         return h * 60 + m
     }
 
-    private fun isAutoEnabled(): Boolean =
-        AdManager.isAdEnabled() && isWithinActiveWindow()
-
-    /** 쿠팡: zone=2(off)? */
-    fun shouldCoupangOff(): Boolean {
-        if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
-        return AdManager.getCoupangZoneAt(OrderTracker.getOrderCount()) == 2
-    }
-    /** 쿠팡: zone=1(on)? */
-    fun shouldCoupangOn(): Boolean {
-        if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
-        return AdManager.getCoupangZoneAt(OrderTracker.getOrderCount()) == 1
-    }
-    /** 배민: zone=3(min) → 축소금액 */
-    fun shouldBaeminOff(): Boolean {
-        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 3
-    }
-    /** 배민: zone=2(mid) → 중간금액 */
-    fun shouldBaeminMid(): Boolean {
-        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 2
-    }
-    /** 배민: zone=1(max) → 정상금액 */
-    fun shouldBaeminOn(): Boolean {
-        if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return AdManager.getBaeminZoneAt(OrderTracker.getOrderCount()) == 1
-    }
-
-    private const val KEY_LAST_BG_COUPANG = "last_bg_coupang"
-    private const val KEY_LAST_BG_BAEMIN = "last_bg_baemin"
-
-    /** 백그라운드에서 주문 건수 변경 시 — 현재 상태 기반으로 필요시 실행 */
+    /** 백그라운드에서 주문 건수 변경 시 — Firebase 최신 설정 기반 판단 */
     fun checkFromBackground(context: Context, count: Int) {
         if (!AdManager.isAdEnabled()) return
-        if (!isWithinActiveWindow()) return
-        // 포그라운드면 checkPlatformThresholds()가 처리 → 중복 방지
         if (MainActivity.isInForeground) return
+
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        var needOff = false
-        var needOn = false
+        val lastCheck = prefs.getLong("last_bg_eval", 0L)
+        if (now - lastCheck < 5 * 60 * 1000) return
 
-        // 쿠팡: zone 기반
-        val coupangOn = AdManager.coupangCurrentOn.value
-        val cZone = AdManager.getCoupangZoneAt(count)
-        val lastCoupang = prefs.getLong(KEY_LAST_BG_COUPANG, 0L)
-        if (AdManager.isCoupangAutoEnabled() && now - lastCoupang >= 5 * 60 * 1000) {
-            if (cZone == 2 && coupangOn != false) {
-                prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
-                needOff = true
-            } else if (cZone == 1 && coupangOn == false) {
-                prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
-                needOn = true
-            }
-        }
+        // Firebase 최신 설정으로 판단
+        val actions = AdDecisionEngine.evaluate(
+            count = count,
+            currentBaeminBid = AdManager.getBaeminCurrentBid(),
+            currentCoupangOn = AdManager.coupangCurrentOn.value,
+            hasBaemin = AdManager.hasBaeminCredentials(),
+            hasCoupang = AdManager.hasCoupangCredentials()
+        )
+        if (actions.isEmpty()) return
 
-        // 배민: zone 기반
-        val bid = AdManager.getBaeminCurrentBid()
-        val normalAmount = AdManager.getBaeminAmount()
-        val midAmount = AdManager.getBaeminMidAmount()
-        val reducedAmount = AdManager.getBaeminReducedAmount()
-        val bZone = AdManager.getBaeminZoneAt(count)
-        val lastBaemin = prefs.getLong(KEY_LAST_BG_BAEMIN, 0L)
-        if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
-            val targetAmount = when (bZone) {
-                3 -> reducedAmount
-                2 -> midAmount
-                1 -> normalAmount
-                else -> null  // hold
-            }
-            if (targetAmount != null && bid > 0 && bid != targetAmount) {
-                prefs.edit().putLong(KEY_LAST_BG_BAEMIN, now).apply()
-                if (targetAmount < normalAmount) needOff = true else needOn = true
-            }
-        }
-
-        if (needOff) launchAdAction(context, "ad_auto_off")
-        else if (needOn) launchAdAction(context, "ad_auto_on")
+        prefs.edit().putLong("last_bg_eval", now).apply()
+        Log.d(TAG, "Background trigger: ${actions.size} actions")
+        launchAdAction(context, "ad_auto_eval")
     }
 
     private fun launchAdAction(context: Context, action: String) {
@@ -209,16 +153,14 @@ class AdAlarmReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             AdScheduler.ACTION_AD_OFF -> {
-                val cnt = OrderTracker.getOrderCount()
                 AdManager.setLastAdAction("스케줄 광고끄기")
-                DelayNotificationHelper.showAdAlert(context, "${cnt}건 광고끄기")
+                DelayNotificationHelper.showAdAlert(context, "스케줄 광고끄기")
                 launchWithAction(context, "ad_off")
                 AdScheduler.scheduleAlarms(context)
             }
             AdScheduler.ACTION_AD_ON -> {
-                val cnt = OrderTracker.getOrderCount()
                 AdManager.setLastAdAction("스케줄 광고켜기")
-                DelayNotificationHelper.showAdAlert(context, "${cnt}건 광고켜기")
+                DelayNotificationHelper.showAdAlert(context, "스케줄 광고켜기")
                 launchWithAction(context, "ad_on")
                 AdScheduler.scheduleAlarms(context)
             }

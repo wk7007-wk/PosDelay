@@ -32,6 +32,7 @@ import com.posdelay.app.data.AdActionLog
 import com.posdelay.app.data.AdManager
 import com.posdelay.app.data.OrderTracker
 import com.posdelay.app.data.UsageTracker
+import com.posdelay.app.service.AdDecisionEngine
 import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayNotificationHelper
@@ -50,9 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
-    private var pendingRefreshCorrection = false
-    private var lastCoupangAutoTime = 0L
-    private var lastBaeminAutoTime = 0L
+    private var lastAutoEvalTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
@@ -87,10 +86,10 @@ class MainActivity : AppCompatActivity() {
         FirebaseKdsReader.start(this)
         DelayNotificationHelper.update(this)
 
-        // 건수 변경 감지 → 광고 자동화
-        OrderTracker.orderCount.observe(this) { count ->
+        // 건수 변경 감지 → 광고 자동화 (Firebase에서 최신 설정 조회 후 판단)
+        OrderTracker.orderCount.observe(this) { _ ->
             DelayNotificationHelper.update(this)
-            checkPlatformThresholds()
+            evaluateAndExecute("건수변동", background = false)
         }
 
         handleIntent(intent)
@@ -328,10 +327,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun processNextAdAction() {
         if (adActionQueue.isEmpty()) {
-            if (pendingRefreshCorrection) {
-                evaluateAndCorrect()
-                return
-            }
             if (pendingBackToBackground) {
                 pendingBackToBackground = false
                 moveTaskToBack(true)
@@ -353,75 +348,68 @@ class MainActivity : AppCompatActivity() {
         AdWebAutomation.Action.COUPANG_CHECK -> "쿠팡 확인"
     }
 
-    // ═══════ 스케줄 / 자동 광고 ═══════
+    // ═══════ 통합 광고 판단 (AdDecisionEngine 기반) ═══════
 
+    /**
+     * 모든 트리거(건수변동/스케줄/백그라운드)에서 호출되는 단일 진입점.
+     * Firebase에서 최신 설정 GET → zone→금액 판단 → 필요한 액션만 실행.
+     */
+    private fun evaluateAndExecute(reason: String, background: Boolean) {
+        val now = System.currentTimeMillis()
+        // 5분 쿨다운 (너무 자주 실행 방지)
+        if (now - lastAutoEvalTime < 5 * 60 * 1000) return
+        if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) return
+
+        val hasBaemin = AdManager.hasBaeminCredentials()
+        val hasCoupang = AdManager.hasCoupangCredentials()
+        if (!hasBaemin && !hasCoupang) return
+
+        val currentBid = AdManager.getBaeminCurrentBid()
+        val currentCoupangOn = AdManager.coupangCurrentOn.value
+        val count = OrderTracker.getOrderCount()
+
+        // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
+        kotlin.concurrent.thread {
+            val actions = AdDecisionEngine.evaluate(
+                count = count,
+                currentBaeminBid = currentBid,
+                currentCoupangOn = currentCoupangOn,
+                hasBaemin = hasBaemin,
+                hasCoupang = hasCoupang
+            )
+            if (actions.isEmpty()) return@thread
+
+            lastAutoEvalTime = now
+            runOnUiThread {
+                if (background) pendingBackToBackground = true
+                for (action in actions) {
+                    when (action) {
+                        is AdDecisionEngine.AdAction.CoupangOn -> {
+                            DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
+                            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+                        }
+                        is AdDecisionEngine.AdAction.CoupangOff -> {
+                            DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
+                            executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+                        }
+                        is AdDecisionEngine.AdAction.BaeminSetAmount -> {
+                            DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
+                            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                        }
+                    }
+                }
+                FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
+            }
+        }
+    }
+
+    /** 스케줄 알람/백그라운드에서 호출 */
     private fun handleScheduledAction(action: String) {
         val isBackground = action.startsWith("ad_auto_")
-        when (action) {
-            "ad_off", "ad_auto_off" -> {
-                notify(isBackground, "광고끄기")
-                if (AdManager.hasCoupangCredentials()) executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-                if (AdManager.hasBaeminCredentials()) {
-                    val target = if (isBackground) calculateBaeminTarget() ?: AdManager.getBaeminReducedAmount()
-                    else AdManager.getBaeminReducedAmount()
-                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, target)
-                }
-            }
-            "ad_on", "ad_auto_on" -> {
-                notify(isBackground, "광고켜기")
-                if (AdManager.hasCoupangCredentials()) executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-                if (AdManager.hasBaeminCredentials()) {
-                    val target = if (isBackground) calculateBaeminTarget() ?: AdManager.getBaeminAmount()
-                    else AdManager.getBaeminAmount()
-                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, target)
-                }
-            }
-        }
-        if (isBackground) pendingBackToBackground = true
+        evaluateAndExecute("스케줄:$action", background = isBackground)
     }
 
-    private fun notify(isBackground: Boolean, message: String) {
-        if (isBackground) DelayNotificationHelper.showAdProgress(this, message)
-        else Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun calculateBaeminTarget(): Int? = when {
-        AdScheduler.shouldBaeminOff() -> AdManager.getBaeminReducedAmount()
-        AdScheduler.shouldBaeminMid() -> AdManager.getBaeminMidAmount()
-        AdScheduler.shouldBaeminOn() -> AdManager.getBaeminAmount()
-        else -> null
-    }
-
-    private fun checkPlatformThresholds() {
-        if (!AdManager.isOrderAutoOffEnabled()) return
-        val now = System.currentTimeMillis()
-
-        if (AdManager.isCoupangAutoEnabled() && AdManager.hasCoupangCredentials() && now - lastCoupangAutoTime >= 5 * 60 * 1000) {
-            val isOn = AdManager.coupangCurrentOn.value
-            if (AdScheduler.shouldCoupangOff() && isOn != false) {
-                lastCoupangAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
-                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-            } else if (AdScheduler.shouldCoupangOn() && isOn == false) {
-                lastCoupangAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
-                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-            }
-        }
-
-        if (AdManager.isBaeminAutoEnabled() && AdManager.hasBaeminCredentials() && now - lastBaeminAutoTime >= 5 * 60 * 1000) {
-            val bid = AdManager.getBaeminCurrentBid()
-            val targetAmount = calculateBaeminTarget()
-            if (targetAmount != null && bid > 0 && bid != targetAmount) {
-                lastBaeminAutoTime = now
-                DelayNotificationHelper.showAdProgress(this, "배민 ${targetAmount}원")
-                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, targetAmount)
-            }
-        }
-    }
-
-    // ═══════ 서버 상태 확인 + 정정 ═══════
-
+    /** 새로고침+정정 (수동) — Firebase 최신 설정 기반 */
     private fun doRefreshAndCorrect() {
         val hasBaemin = AdManager.hasBaeminCredentials()
         val hasCoupang = AdManager.hasCoupangCredentials()
@@ -433,38 +421,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "다른 작업 진행 중", Toast.LENGTH_SHORT).show()
             return
         }
-        pendingRefreshCorrection = true
-        Toast.makeText(this, "서버 상태 확인 중...", Toast.LENGTH_SHORT).show()
-        if (hasBaemin) executeAdAction(AdWebAutomation.Action.BAEMIN_CHECK)
-        if (hasCoupang) executeAdAction(AdWebAutomation.Action.COUPANG_CHECK)
-    }
-
-    private fun evaluateAndCorrect() {
-        pendingRefreshCorrection = false
-        val count = OrderTracker.getOrderCount()
-
-        if (AdManager.hasBaeminCredentials()) {
-            val bid = AdManager.getBaeminCurrentBid()
-            val bZone = AdManager.getBaeminZoneAt(count)
-            val targetAmount = when (bZone) {
-                3 -> AdManager.getBaeminReducedAmount()
-                2 -> AdManager.getBaeminMidAmount()
-                1 -> AdManager.getBaeminAmount()
-                else -> null
-            }
-            if (targetAmount != null && bid > 0 && bid != targetAmount) {
-                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, targetAmount)
-            }
-        }
-
-        if (AdManager.hasCoupangCredentials()) {
-            val isOn = AdManager.coupangCurrentOn.value
-            val cZone = AdManager.getCoupangZoneAt(count)
-            if (cZone == 2 && isOn != false) {
-                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-            } else if (cZone == 1 && isOn != true) {
-                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-            }
-        }
+        Toast.makeText(this, "확인 중...", Toast.LENGTH_SHORT).show()
+        // 수동 정정은 쿨다운 무시
+        lastAutoEvalTime = 0
+        evaluateAndExecute("수동정정", background = false)
     }
 }
