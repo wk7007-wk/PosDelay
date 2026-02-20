@@ -422,7 +422,7 @@ class MainActivity : AppCompatActivity() {
         if (AdManager.hasBaeminCredentials()) {
             val bid = AdManager.getBaeminCurrentBid()
             val targetAmount = when {
-                count >= AdManager.getBaeminOffThreshold() -> AdManager.getBaeminReducedAmount()
+                count > AdManager.getBaeminOffThreshold() -> AdManager.getBaeminReducedAmount()
                 count >= AdManager.getBaeminMidThreshold() -> AdManager.getBaeminMidAmount()
                 count <= AdManager.getBaeminOnThreshold() -> AdManager.getBaeminAmount()
                 else -> null
@@ -434,7 +434,7 @@ class MainActivity : AppCompatActivity() {
 
         if (AdManager.hasCoupangCredentials()) {
             val isOn = AdManager.coupangCurrentOn.value
-            if (count >= AdManager.getCoupangOffThreshold() && isOn != false) {
+            if (count > AdManager.getCoupangOffThreshold() && isOn != false) {
                 executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
             } else if (count <= AdManager.getCoupangOnThreshold() && isOn != true) {
                 executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)

@@ -115,17 +115,17 @@ object AdScheduler {
     /** 쿠팡: 끄기 임계값 초과? */
     fun shouldCoupangOff(): Boolean {
         if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
-        return OrderTracker.getOrderCount() >= AdManager.getCoupangOffThreshold()
+        return OrderTracker.getOrderCount() > AdManager.getCoupangOffThreshold()
     }
     /** 쿠팡: 켜기 임계값 이하? */
     fun shouldCoupangOn(): Boolean {
         if (!isAutoEnabled() || !AdManager.isCoupangAutoEnabled()) return false
         return OrderTracker.getOrderCount() <= AdManager.getCoupangOnThreshold()
     }
-    /** 배민: 끄기 임계값 이상 → 축소금액 */
+    /** 배민: 끄기 임계값 초과 → 축소금액 */
     fun shouldBaeminOff(): Boolean {
         if (!isAutoEnabled() || !AdManager.isBaeminAutoEnabled()) return false
-        return OrderTracker.getOrderCount() >= AdManager.getBaeminOffThreshold()
+        return OrderTracker.getOrderCount() > AdManager.getBaeminOffThreshold()
     }
     /** 배민: 중간 임계값 이상 ~ 중간상한 이하 → 중간금액 */
     fun shouldBaeminMid(): Boolean {
@@ -157,7 +157,7 @@ object AdScheduler {
         val coupangOn = AdManager.coupangCurrentOn.value
         val lastCoupang = prefs.getLong(KEY_LAST_BG_COUPANG, 0L)
         if (AdManager.isCoupangAutoEnabled() && now - lastCoupang >= 5 * 60 * 1000) {
-            if (count >= AdManager.getCoupangOffThreshold() && coupangOn != false) {
+            if (count > AdManager.getCoupangOffThreshold() && coupangOn != false) {
                 prefs.edit().putLong(KEY_LAST_BG_COUPANG, now).apply()
                 needOff = true
             } else if (count <= AdManager.getCoupangOnThreshold() && coupangOn == false) {
@@ -174,7 +174,7 @@ object AdScheduler {
         val lastBaemin = prefs.getLong(KEY_LAST_BG_BAEMIN, 0L)
         if (AdManager.isBaeminAutoEnabled() && now - lastBaemin >= 5 * 60 * 1000) {
             val targetAmount = when {
-                count >= AdManager.getBaeminOffThreshold() -> reducedAmount
+                count > AdManager.getBaeminOffThreshold() -> reducedAmount
                 count > AdManager.getBaeminMidUpperThreshold() -> null  // 중간↔최소 회색
                 count >= AdManager.getBaeminMidThreshold() -> midAmount
                 count <= AdManager.getBaeminOnThreshold() -> normalAmount
