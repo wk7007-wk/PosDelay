@@ -315,6 +315,7 @@ object AdManager {
     fun setLastAdAction(value: String) {
         prefs.edit().putString(KEY_LAST_AD_ACTION, value).apply()
         _lastAdAction.postValue(value)
+        try { com.posdelay.app.service.FirebaseSettingsSync.onAdStateChanged() } catch (_: Exception) {}
     }
 
     fun getBaeminCurrentBid(): Int = prefs.getInt(KEY_BAEMIN_CURRENT_BID, 0)
