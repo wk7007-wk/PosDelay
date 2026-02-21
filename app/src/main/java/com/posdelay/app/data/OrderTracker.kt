@@ -2,10 +2,17 @@ package com.posdelay.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 
 object OrderTracker {
+
+    private val kdsHandler = Handler(Looper.getMainLooper())
+    private var kdsStabilizeRunnable: Runnable? = null
+    private var kdsLastRawCount = -1
+    private const val KDS_STABILIZE_MS = 10_000L  // 10초 안정화
 
     private const val PREFS_NAME = "pos_delay_prefs"
     private lateinit var appContext: android.content.Context
@@ -154,17 +161,34 @@ object OrderTracker {
         _lastPcSyncTime.postValue(pcTime)
     }
 
-    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스 */
+    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스
+     *  10초 안정화: 건수 변동 후 10초간 같은 값 유지 시에만 반영
+     *  (SSE 재연결 시 0↔N 급변동으로 인한 광고 과다실행 방지) */
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
-        setOrderCount(count)
         val now = System.currentTimeMillis()
-        // Bug 6: KDS sync time = 수신 시각(now) 사용 (stale 판정 일관성)
+        // KDS sync 시간은 항상 업데이트 (stale 판정용)
         prefs.edit()
             .putLong(KEY_LAST_SYNC_TIME, now)
             .putLong(KEY_LAST_KDS_SYNC_TIME, now)
             .apply()
         _lastSyncTime.postValue(now)
         _lastKdsSyncTime.postValue(now)
+
+        // 건수가 현재와 동일하면 즉시 반영 (변동 아님)
+        if (count == getOrderCount()) {
+            kdsLastRawCount = count
+            return
+        }
+        // 건수 변동 → 10초 안정화 대기
+        kdsLastRawCount = count
+        kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
+        kdsStabilizeRunnable = Runnable {
+            if (kdsLastRawCount == count) {
+                setOrderCount(count)
+                android.util.Log.d("OrderTracker", "KDS 건수 안정화 반영: $count")
+            }
+        }
+        kdsHandler.postDelayed(kdsStabilizeRunnable!!, KDS_STABILIZE_MS)
     }
 
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
