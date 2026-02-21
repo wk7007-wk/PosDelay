@@ -177,7 +177,7 @@ object GistOrderReader {
             OrderTracker.setMateAutoManaged(true)
             val staleMin = (now - lastAny) / 60000
             Log.d(TAG, "KDS+PC ${staleMin}분 미갱신 → MATE 자동 활성화")
-            DelayNotificationHelper.showAdAlert(ctx, "KDS+PC ${staleMin}분 미갱신 → M활성화")
+            DelayNotificationHelper.showAdAlert(ctx, "KDS+PC ${staleMin}분미갱신 M활성화")
         }
 
         if (!allStale) return
@@ -189,12 +189,12 @@ object GistOrderReader {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
         val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         if (!pm.isInteractive || km.isKeyguardLocked) {
-            DelayNotificationHelper.showAdAlert(ctx, "${staleMin}분 갱신없음 확인필요")
+            DelayNotificationHelper.showAdAlert(ctx, "${staleMin}분갱신없음 확인필요")
             return
         }
 
         Log.d(TAG, "데이터 ${staleMin}분 경과 → MATE 자동 실행")
-        DelayNotificationHelper.showAdProgress(ctx, "${staleMin}분 갱신없음 MATE확인")
+        DelayNotificationHelper.showAdProgress(ctx, "${staleMin}분갱신없음 MATE확인")
 
         try {
             val launchIntent = ctx.packageManager.getLaunchIntentForPackage(MATE_PACKAGE)

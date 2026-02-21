@@ -84,7 +84,6 @@ class KdsKeepAliveService : Service() {
     private fun buildNotification(text: String) =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
-            .setContentTitle("PosDelay KDS")
             .setContentText(text)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

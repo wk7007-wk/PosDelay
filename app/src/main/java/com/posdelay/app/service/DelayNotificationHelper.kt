@@ -75,7 +75,7 @@ object DelayNotificationHelper {
         createChannels(context)
 
         val delayMin = OrderTracker.getDelayMinutes()
-        val message = if (auto) "${platform} ${delayMin}분 지연" else "${platform} 지연 필요"
+        val message = if (auto) "${platform} ${delayMin}분 지연완료" else "${platform} 지연필요"
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
@@ -93,7 +93,7 @@ object DelayNotificationHelper {
     private const val NOTIFICATION_DELAY_ALERT_ID = 2005
     private const val NOTIFICATION_COOK_ALERT_ID = 2006
 
-    fun showDelayAlert(context: Context, title: String, message: String) {
+    fun showDelayAlert(context: Context, message: String) {
         createChannels(context)
 
         val openIntent = Intent(context, MainActivity::class.java)

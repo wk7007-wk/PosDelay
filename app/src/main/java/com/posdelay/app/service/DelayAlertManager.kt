@@ -66,19 +66,17 @@ object DelayAlertManager {
                 isDelayed = true
                 delayStartTime = now
                 lastAlertTime = now
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA).format(java.util.Date(now))
-                val msg = "${timeStr} 지연 ${msgs.joinToString(", ")}"
+                val msg = "지연 ${msgs.joinToString(" ")}"
                 Log.d(TAG, "지연 진입: $msg")
-                sendAlert("주문 지연", msg)
+                sendAlert(msg)
                 FirebaseSettingsSync.uploadLog("DELAY: $msg")
             } else if (now - lastAlertTime >= ALERT_REPEAT_MS) {
                 // 3분마다 반복
                 lastAlertTime = now
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA).format(java.util.Date(delayStartTime))
                 val elapsedMin = (now - delayStartTime) / 60000
-                val msg = "${timeStr} 지연 ${msgs.joinToString(", ")} (${elapsedMin}분 경과)"
+                val msg = "지연 ${msgs.joinToString(" ")} ${elapsedMin}분경과"
                 Log.d(TAG, "지연 반복: $msg")
-                sendAlert("주문 지연 지속", msg)
+                sendAlert(msg)
                 FirebaseSettingsSync.uploadLog("DELAY: $msg")
             }
         } else {
@@ -87,9 +85,9 @@ object DelayAlertManager {
                 // 정상 복귀 1회 알림
                 isDelayed = false
                 val elapsedMin = (now - delayStartTime) / 60000
-                val msg = "정상 복귀 (${elapsedMin}분만에)"
+                val msg = "정상복귀 ${elapsedMin}분만에"
                 Log.d(TAG, "정상 복귀: $msg")
-                sendAlert("정상 복귀", msg)
+                sendAlert(msg)
                 FirebaseSettingsSync.uploadLog("RESOLVED: $msg")
                 delayStartTime = 0L
                 lastAlertTime = 0L
@@ -97,8 +95,8 @@ object DelayAlertManager {
         }
     }
 
-    private fun sendAlert(title: String, message: String) {
-        appContext?.let { DelayNotificationHelper.showDelayAlert(it, title, message) }
+    private fun sendAlert(message: String) {
+        appContext?.let { DelayNotificationHelper.showDelayAlert(it, message) }
     }
 
     /** 지연 시간 계산: max(0, 건수 × 평균완료간격 + 고정조리시간 - 목표시간) */

@@ -152,13 +152,13 @@ class AdAlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
             AdScheduler.ACTION_AD_OFF -> {
                 AdManager.setLastAdAction("스케줄 광고끄기")
-                DelayNotificationHelper.showAdAlert(context, "스케줄 광고끄기")
+                DelayNotificationHelper.showAdAlert(context, "광고끄기 스케줄")
                 launchWithAction(context, "ad_off")
                 AdScheduler.scheduleAlarms(context)
             }
             AdScheduler.ACTION_AD_ON -> {
                 AdManager.setLastAdAction("스케줄 광고켜기")
-                DelayNotificationHelper.showAdAlert(context, "스케줄 광고켜기")
+                DelayNotificationHelper.showAdAlert(context, "광고켜기 스케줄")
                 launchWithAction(context, "ad_on")
                 AdScheduler.scheduleAlarms(context)
             }

@@ -374,11 +374,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun actionDisplayName(action: AdWebAutomation.Action, amount: Int): String = when (action) {
-        AdWebAutomation.Action.BAEMIN_SET_AMOUNT -> "배민 ${amount}원"
-        AdWebAutomation.Action.COUPANG_AD_ON -> "쿠팡 켜기"
-        AdWebAutomation.Action.COUPANG_AD_OFF -> "쿠팡 끄기"
-        AdWebAutomation.Action.BAEMIN_CHECK -> "배민 확인"
-        AdWebAutomation.Action.COUPANG_CHECK -> "쿠팡 확인"
+        AdWebAutomation.Action.BAEMIN_SET_AMOUNT -> "배민광고 ${amount}원"
+        AdWebAutomation.Action.COUPANG_AD_ON -> "쿠팡광고 켜기"
+        AdWebAutomation.Action.COUPANG_AD_OFF -> "쿠팡광고 끄기"
+        AdWebAutomation.Action.BAEMIN_CHECK -> "배민확인"
+        AdWebAutomation.Action.COUPANG_CHECK -> "쿠팡확인"
     }
 
     // ═══════ 통합 광고 판단 (AdDecisionEngine 기반) ═══════
@@ -428,15 +428,15 @@ class MainActivity : AppCompatActivity() {
                         for (action in actions) {
                             when (action) {
                                 is AdDecisionEngine.AdAction.CoupangOn -> {
-                                    DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
+                                    DelayNotificationHelper.showAdProgress(this, "쿠팡광고 켜기")
                                     executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
                                 }
                                 is AdDecisionEngine.AdAction.CoupangOff -> {
-                                    DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
+                                    DelayNotificationHelper.showAdProgress(this, "쿠팡광고 끄기")
                                     executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
                                 }
                                 is AdDecisionEngine.AdAction.BaeminSetAmount -> {
-                                    DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
+                                    DelayNotificationHelper.showAdProgress(this, "배민광고 ${action.amount}원")
                                     executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
                                 }
                             }
