@@ -14,6 +14,7 @@ import java.net.URL
 /**
  * Firebase Realtime Database SSE 리스너.
  * KDS 건수를 실시간으로 수신 (폴링 없음).
+ * 25분 이상 조리중인 주문은 건수에서 제외.
  */
 object FirebaseKdsReader {
 
@@ -21,11 +22,15 @@ object FirebaseKdsReader {
     private const val FIREBASE_URL =
         "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app/kds_status.json"
     private const val RECONNECT_DELAY = 5_000L
+    private const val STALE_ORDER_MS = 25 * 60 * 1000L  // 25분
 
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var appContext: Context? = null
     private var sseThread: Thread? = null
+
+    // 주문번호별 최초 등장 시간 추적
+    private val orderFirstSeen = HashMap<Int, Long>()
 
     fun start(context: Context) {
         if (running) return
@@ -114,10 +119,35 @@ object FirebaseKdsReader {
                 catch (_: Exception) { System.currentTimeMillis() }
             } else System.currentTimeMillis()
 
-            Log.d(TAG, "KDS 실시간: count=$count, time=$timeStr")
+            // orders 배열 파싱 → 25분 초과 주문 제외
+            val ordersArr = obj.optJSONArray("orders")
+            val adjustedCount = if (ordersArr != null && ordersArr.length() > 0) {
+                val now = System.currentTimeMillis()
+                val currentOrders = HashSet<Int>()
+                for (i in 0 until ordersArr.length()) {
+                    currentOrders.add(ordersArr.optInt(i))
+                }
+                // 새 주문 등록, 사라진 주문 제거
+                orderFirstSeen.keys.retainAll(currentOrders)
+                for (orderId in currentOrders) {
+                    orderFirstSeen.putIfAbsent(orderId, now)
+                }
+                // 25분 초과 주문 제외
+                val staleCount = orderFirstSeen.count { now - it.value > STALE_ORDER_MS }
+                val filtered = maxOf(0, currentOrders.size - staleCount)
+                if (staleCount > 0) {
+                    val staleOrders = orderFirstSeen.filter { now - it.value > STALE_ORDER_MS }.keys
+                    Log.d(TAG, "KDS 25분초과 제외: ${staleOrders} → 건수 $count→$filtered")
+                }
+                filtered
+            } else {
+                count  // orders 배열 없으면 원본 count 사용
+            }
+
+            Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
 
             handler.post {
-                OrderTracker.syncKdsOrderCount(count, kdsTime)
+                OrderTracker.syncKdsOrderCount(adjustedCount, kdsTime)
                 appContext?.let { DelayNotificationHelper.update(it) }
             }
         } catch (e: Exception) {
