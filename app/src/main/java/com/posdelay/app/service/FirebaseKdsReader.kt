@@ -38,6 +38,9 @@ object FirebaseKdsReader {
     // 주문번호별 최초 등장 시간 추적 (SharedPreferences에 영구 저장)
     private val orderFirstSeen = HashMap<Int, Long>()
     private var lastLoggedCount = -1  // Firebase 로그 중복 방지
+    private var lastCountChangeTime = System.currentTimeMillis()  // 30분 강제보정용
+    private var lastCountValue = -1
+    private const val FORCE_ZERO_MS = 30 * 60 * 1000L  // 30분
 
     fun start(context: Context) {
         if (running) return
@@ -265,7 +268,19 @@ object FirebaseKdsReader {
                 Log.d(TAG, "KDS 교차검증: count=$count, orders=[] → 0건 보정")
                 0
             } else {
-                count
+                // 30분 강제보정: orders 없이 건수 변동 없으면 0
+                if (count != lastCountValue) {
+                    lastCountValue = count
+                    lastCountChangeTime = System.currentTimeMillis()
+                }
+                if (count > 0 && System.currentTimeMillis() - lastCountChangeTime >= FORCE_ZERO_MS) {
+                    Log.d(TAG, "KDS 30분 강제보정: count=$count → 0 (변동 없음 ${(System.currentTimeMillis() - lastCountChangeTime) / 60000}분)")
+                    lastCountValue = 0
+                    lastCountChangeTime = System.currentTimeMillis()
+                    0
+                } else {
+                    count
+                }
             }
 
             Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
