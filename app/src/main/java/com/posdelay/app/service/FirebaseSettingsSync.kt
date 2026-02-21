@@ -32,7 +32,7 @@ object FirebaseSettingsSync {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
     private var running = false
     private var sseThread: Thread? = null
-    private var settingsVersion = 0L
+    @Volatile private var settingsVersion = 0L  // Bug 8: 멀티스레드 접근
 
     // 원격 적용 중 무한루프 방지 플래그
     @Volatile var isApplyingRemote = false
@@ -240,7 +240,7 @@ object FirebaseSettingsSync {
                 val conn = URL("$FIREBASE_BASE/posdelay/ad_settings.json").openConnection() as HttpURLConnection
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 0
+                conn.readTimeout = 5 * 60 * 1000  // Bug 6: 5분 무응답 시 타임아웃 (staleness 방지)
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
@@ -253,7 +253,7 @@ object FirebaseSettingsSync {
                 var eventType = ""
 
                 while (running) {
-                    val line = reader.readLine() ?: break
+                    val line = reader.readLine() ?: break  // readTimeout 초과 시 null → 재연결
                     when {
                         line.startsWith("event:") -> eventType = line.substringAfter("event:").trim()
                         line.startsWith("data:") -> {
@@ -267,8 +267,11 @@ object FirebaseSettingsSync {
 
                 reader.close()
                 conn.disconnect()
+                Log.d(TAG, "설정 SSE 스트림 종료 (재연결)")
             } catch (e: InterruptedException) {
                 return@thread
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.d(TAG, "설정 SSE 타임아웃 (5분 무응답) → 재연결")  // Bug 6
             } catch (e: Exception) {
                 Log.w(TAG, "설정 SSE 에러: ${e.message}")
             }

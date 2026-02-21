@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
+    private var pendingForceAdOff = false
+    @Volatile private var isEvaluating = false
     private var lastAutoEvalTime = 0L
     private var lastAutoEvalCount = -1
 
@@ -331,6 +333,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun processNextAdAction() {
         if (adActionQueue.isEmpty()) {
+            if (pendingForceAdOff) {
+                pendingForceAdOff = false  // Bug 5: 큐 비면 강제 끄기 재시도
+                forceAdOff()
+                return
+            }
             if (pendingBackToBackground) {
                 pendingBackToBackground = false
                 moveTaskToBack(true)
@@ -359,6 +366,7 @@ class MainActivity : AppCompatActivity() {
      * Firebase에서 최신 설정 GET → zone→금액 판단 → 필요한 액션만 실행.
      */
     private fun evaluateAndExecute(reason: String, background: Boolean) {
+        if (isEvaluating) return  // Bug 3: 동시 실행 방지
         val now = System.currentTimeMillis()
         val count = OrderTracker.getOrderCount()
         // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
@@ -373,41 +381,46 @@ class MainActivity : AppCompatActivity() {
         val currentBid = AdManager.getBaeminCurrentBid()
         val currentCoupangOn = AdManager.coupangCurrentOn.value
 
+        isEvaluating = true  // Bug 3: guard 시작
         // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
         kotlin.concurrent.thread {
-            val actions = AdDecisionEngine.evaluate(
-                count = count,
-                currentBaeminBid = currentBid,
-                currentCoupangOn = currentCoupangOn,
-                hasBaemin = hasBaemin,
-                hasCoupang = hasCoupang
-            )
-            if (actions.isEmpty()) {
-                lastAutoEvalCount = count
-                return@thread
-            }
+            try {
+                val actions = AdDecisionEngine.evaluate(
+                    count = count,
+                    currentBaeminBid = currentBid,
+                    currentCoupangOn = currentCoupangOn,
+                    hasBaemin = hasBaemin,
+                    hasCoupang = hasCoupang
+                )
+                if (actions.isEmpty()) {
+                    lastAutoEvalCount = count
+                    return@thread
+                }
 
-            lastAutoEvalTime = now
-            lastAutoEvalCount = count
-            runOnUiThread {
-                if (background) pendingBackToBackground = true
-                for (action in actions) {
-                    when (action) {
-                        is AdDecisionEngine.AdAction.CoupangOn -> {
-                            DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
-                            executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-                        }
-                        is AdDecisionEngine.AdAction.CoupangOff -> {
-                            DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
-                            executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-                        }
-                        is AdDecisionEngine.AdAction.BaeminSetAmount -> {
-                            DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
-                            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                lastAutoEvalTime = now
+                lastAutoEvalCount = count
+                runOnUiThread {
+                    if (background) pendingBackToBackground = true
+                    for (action in actions) {
+                        when (action) {
+                            is AdDecisionEngine.AdAction.CoupangOn -> {
+                                DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
+                                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+                            }
+                            is AdDecisionEngine.AdAction.CoupangOff -> {
+                                DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
+                                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+                            }
+                            is AdDecisionEngine.AdAction.BaeminSetAmount -> {
+                                DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
+                                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                            }
                         }
                     }
+                    FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
                 }
-                FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
+            } finally {
+                isEvaluating = false  // Bug 3: guard 해제
             }
         }
     }
@@ -430,7 +443,10 @@ class MainActivity : AppCompatActivity() {
 
     /** 스케줄 종료 → 강제 광고 끄기 (쿠팡 OFF + 배민 최소) */
     private fun forceAdOff() {
-        if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) return
+        if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) {
+            pendingForceAdOff = true  // Bug 5: 작업 완료 후 재시도
+            return
+        }
         val hasCoupang = AdManager.hasCoupangCredentials()
         val hasBaemin = AdManager.hasBaeminCredentials()
         if (!hasCoupang && !hasBaemin) return

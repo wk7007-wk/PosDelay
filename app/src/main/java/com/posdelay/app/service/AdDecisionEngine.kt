@@ -91,7 +91,7 @@ object AdDecisionEngine {
                 3 -> settings.baeminReducedAmount
                 else -> null // hold
             }
-            if (targetAmount != null && currentBaeminBid > 0 && currentBaeminBid != targetAmount) {
+            if (targetAmount != null && currentBaeminBid != targetAmount) {  // Bug 10: bid=0(미확인)도 설정 허용
                 actions.add(AdAction.BaeminSetAmount(targetAmount))
             }
         }

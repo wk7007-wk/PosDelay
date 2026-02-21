@@ -49,6 +49,9 @@ class AdWebAutomation(private val activity: Activity) {
 
     fun isRunning(): Boolean = state != State.IDLE && state != State.DONE && state != State.ERROR
 
+    /** Bug 2: Activity가 유효한지 확인 */
+    private fun isActivityValid(): Boolean = !activity.isFinishing && !activity.isDestroyed
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun createWebView(): WebView {
         // 쿠팡 CMG 모듈은 데스크톱 해상도 + UA 필요
@@ -149,6 +152,7 @@ class AdWebAutomation(private val activity: Activity) {
     fun execute(action: Action, amount: Int = 200, callback: (Boolean, String) -> Unit) {
         testMode = false
         if (isRunning()) { callback(false, "이미 작업 진행 중"); return }
+        if (!isActivityValid()) { callback(false, "Activity 종료됨"); return }  // Bug 2
         currentAction = action
         targetAmount = amount
         onComplete = callback
@@ -157,6 +161,7 @@ class AdWebAutomation(private val activity: Activity) {
         changeState(State.LOADING_LOGIN)
 
         handler.post {
+            if (!isActivityValid()) { finishWithError(Code.ERR_WEBVIEW, "Activity 종료됨"); return@post }  // Bug 2
             try {
                 webView = createWebView()
                 (activity.window.decorView as ViewGroup).addView(webView)
@@ -794,11 +799,15 @@ class AdWebAutomation(private val activity: Activity) {
 
     private fun cleanup() {
         handler.post {
-            webView?.let {
-                it.stopLoading()
-                it.loadUrl("about:blank")
-                (it.parent as? ViewGroup)?.removeView(it)
-                it.destroy()
+            try {
+                webView?.let {
+                    it.stopLoading()
+                    it.loadUrl("about:blank")
+                    (it.parent as? ViewGroup)?.removeView(it)
+                    it.destroy()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "WebView cleanup 에러: ${e.message}")  // Bug 2: Activity 종료 시 안전 처리
             }
             webView = null
             state = State.IDLE
