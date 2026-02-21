@@ -29,6 +29,8 @@ object DelayAlertManager {
     private var isDelayed = false
     private var delayStartTime = 0L
     private var lastAlertTime = 0L
+    private var pendingAlertRunnable: Runnable? = null
+    private const val ALERT_STABILIZE_MS = 10_000L  // 10초 안정화
 
     // KDS 조리 속도 (Firebase에서 수신)
     private var avgCompletionInterval = 3.0 // 분/건, 기본값
@@ -62,14 +64,25 @@ object DelayAlertManager {
         if (msgs.isNotEmpty()) {
             // 지연 상태
             if (!isDelayed) {
-                // 최초 진입 → 즉시 알림
-                isDelayed = true
-                delayStartTime = now
-                lastAlertTime = now
+                // 최초 진입 → 10초 안정화 후 알림
+                pendingAlertRunnable?.let { handler.removeCallbacks(it) }
                 val msg = "지연 ${msgs.joinToString(" ")}"
-                Log.d(TAG, "지연 진입: $msg")
-                sendAlert(msg)
-                FirebaseSettingsSync.uploadLog("DELAY: $msg")
+                pendingAlertRunnable = Runnable {
+                    // 10초 후 재확인: 여전히 지연이면 알림
+                    val reCount = OrderTracker.getOrderCount()
+                    val reBDelay = calculateDelay(reCount, AdManager.getBaeminTargetTime(), AdManager.getBaeminFixedCookTime())
+                    val reCDelay = calculateDelay(reCount, AdManager.getCoupangTargetTime(), AdManager.getCoupangFixedCookTime())
+                    if (reCount >= bTh && reBDelay > 0 || reCount >= cTh && reCDelay > 0) {
+                        isDelayed = true
+                        delayStartTime = System.currentTimeMillis()
+                        lastAlertTime = System.currentTimeMillis()
+                        Log.d(TAG, "지연 진입 (안정화확인): $msg")
+                        sendAlert(msg)
+                        FirebaseSettingsSync.uploadLog("DELAY: $msg")
+                    }
+                    pendingAlertRunnable = null
+                }
+                handler.postDelayed(pendingAlertRunnable!!, ALERT_STABILIZE_MS)
             } else if (now - lastAlertTime >= ALERT_REPEAT_MS) {
                 // 3분마다 반복
                 lastAlertTime = now
@@ -81,16 +94,26 @@ object DelayAlertManager {
             }
         } else {
             // 정상 상태
+            pendingAlertRunnable?.let { handler.removeCallbacks(it); pendingAlertRunnable = null }
             if (isDelayed) {
-                // 정상 복귀 1회 알림
-                isDelayed = false
-                val elapsedMin = (now - delayStartTime) / 60000
-                val msg = "정상복귀 ${elapsedMin}분만에"
-                Log.d(TAG, "정상 복귀: $msg")
-                sendAlert(msg)
-                FirebaseSettingsSync.uploadLog("RESOLVED: $msg")
-                delayStartTime = 0L
-                lastAlertTime = 0L
+                // 정상 복귀 → 10초 안정화 후 알림
+                pendingAlertRunnable = Runnable {
+                    val reCount = OrderTracker.getOrderCount()
+                    val reBDelay = calculateDelay(reCount, AdManager.getBaeminTargetTime(), AdManager.getBaeminFixedCookTime())
+                    val reCDelay = calculateDelay(reCount, AdManager.getCoupangTargetTime(), AdManager.getCoupangFixedCookTime())
+                    if (!(reCount >= bTh && reBDelay > 0 || reCount >= cTh && reCDelay > 0)) {
+                        isDelayed = false
+                        val elapsedMin = (System.currentTimeMillis() - delayStartTime) / 60000
+                        val msg = "정상복귀 ${elapsedMin}분만에"
+                        Log.d(TAG, "정상 복귀 (안정화확인): $msg")
+                        sendAlert(msg)
+                        FirebaseSettingsSync.uploadLog("RESOLVED: $msg")
+                        delayStartTime = 0L
+                        lastAlertTime = 0L
+                    }
+                    pendingAlertRunnable = null
+                }
+                handler.postDelayed(pendingAlertRunnable!!, ALERT_STABILIZE_MS)
             }
         }
     }
