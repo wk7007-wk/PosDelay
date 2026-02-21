@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
 import android.content.Intent
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -36,9 +35,8 @@ import com.posdelay.app.service.AdDecisionEngine
 import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayNotificationHelper
-import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.FirebaseSettingsSync
-import com.posdelay.app.service.GistOrderReader
+import com.posdelay.app.service.PosDelayKeepAliveService
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,8 +51,6 @@ class MainActivity : AppCompatActivity() {
     private var pendingBackToBackground = false
     private var lastAutoEvalTime = 0L
     private var lastAutoEvalCount = -1
-    private var wakeLock: PowerManager.WakeLock? = null
-    private var wifiLock: WifiManager.WifiLock? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,17 +70,8 @@ class MainActivity : AppCompatActivity() {
         // 화면 꺼짐 방지
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Wake Lock (CPU 절전 방지)
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PosDelay:SSE").apply { acquire() }
-
-        // WiFi Lock (WiFi 절전 방지)
-        val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PosDelay:SSE").apply { acquire() }
-
-        // 기존 서비스 시작
-        GistOrderReader.start(this)
-        FirebaseKdsReader.start(this)
+        // 포그라운드 서비스 시작 (WakeLock + WifiLock + 데이터 수집 + 프로세스 유지)
+        PosDelayKeepAliveService.start(this)
         DelayNotificationHelper.update(this)
 
         // 건수 변경 감지 → 광고 자동화 (Firebase에서 최신 설정 조회 후 판단)
@@ -118,8 +105,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        if (wakeLock?.isHeld == true) wakeLock?.release()
-        if (wifiLock?.isHeld == true) wifiLock?.release()
         super.onDestroy()
     }
 
@@ -144,7 +129,9 @@ class MainActivity : AppCompatActivity() {
             val notif = isNotificationListenerEnabled()
             val delay = isAccessibilityEnabled("DelayAccessibilityService")
             val kds = isAccessibilityEnabled("KdsAccessibilityService")
-            return """{"notification":$notif,"delay":$delay,"kds":$kds}"""
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val battery = pm.isIgnoringBatteryOptimizations(packageName)
+            return """{"notification":$notif,"delay":$delay,"kds":$kds,"battery":$battery}"""
         }
 
         @JavascriptInterface
@@ -162,6 +149,17 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = android.net.Uri.parse("package:$packageName")
             })
+        }
+
+        @JavascriptInterface
+        fun openBatterySettings() {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.data = android.net.Uri.parse("package:$packageName")
+                startActivity(intent)
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
         }
 
         @JavascriptInterface

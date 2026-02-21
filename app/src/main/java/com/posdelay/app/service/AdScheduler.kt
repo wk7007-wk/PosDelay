@@ -174,6 +174,7 @@ class AdAlarmReceiver : BroadcastReceiver() {
             }
             Intent.ACTION_BOOT_COMPLETED -> {
                 AdScheduler.scheduleAlarms(context)
+                PosDelayKeepAliveService.start(context)
             }
         }
     }
