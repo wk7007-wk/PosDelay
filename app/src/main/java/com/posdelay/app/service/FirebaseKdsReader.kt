@@ -259,8 +259,9 @@ object FirebaseKdsReader {
                 }
                 saveOrderTracking()
                 filtered
-            } else if (count > 0 && (ordersArr == null || ordersArr.length() == 0)) {
-                // 교차검증: count>0인데 orders 비어있으면 0으로 보정
+            } else if (count > 0 && ordersArr != null && ordersArr.length() == 0) {
+                // 교차검증: count>0인데 orders=[] 빈배열이면 0으로 보정
+                // ordersArr==null(필드 없음)은 KDS가 orders를 안 보낸 것이므로 count 신뢰
                 Log.d(TAG, "KDS 교차검증: count=$count, orders=[] → 0건 보정")
                 0
             } else {
