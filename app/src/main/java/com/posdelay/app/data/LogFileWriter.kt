@@ -22,7 +22,8 @@ object LogFileWriter {
             if (logFile.exists() && logFile.length() > MAX_FILE_SIZE) {
                 trimFile()
             }
-            logFile.appendText("[$source] $entry\n")
+            val time = dateFormat.format(Date())
+            logFile.appendText("[$source] [$time] $entry\n")
         } catch (_: Exception) {
             // /sdcard 접근 실패 시 무시
         }

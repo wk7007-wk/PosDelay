@@ -46,6 +46,7 @@ object GistOrderReader {
         currentInterval = INTERVAL_NORMAL
         handler.post(fetchRunnable)
         Log.d(TAG, "Gist PC 모니터링 시작")
+        com.posdelay.app.data.LogFileWriter.append("GIST", "폴링 시작 (${currentInterval/1000}초 간격)")
     }
 
     fun stop() {
@@ -61,6 +62,7 @@ object GistOrderReader {
 
     private val fetchRunnable = object : Runnable {
         override fun run() {
+            Log.d(TAG, "fetchRunnable 실행")
             fetchGist()
             handler.post { checkStaleAndRefresh() }
             if (running) {
@@ -71,8 +73,12 @@ object GistOrderReader {
     }
 
     private fun fetchGist() {
-        if (!OrderTracker.isEnabled()) return
-        if (OrderTracker.isPcPaused()) return
+        if (!OrderTracker.isEnabled()) {
+            com.posdelay.app.data.LogFileWriter.append("GIST", "스킵: disabled")
+            return
+        }
+        // PC일시정지여도 KDS 교차 보정을 위해 Gist는 항상 읽음
+        val pcPaused = OrderTracker.isPcPaused()
         kotlin.concurrent.thread {
             try {
                 val url = URL(GIST_API_URL)
@@ -141,8 +147,8 @@ object GistOrderReader {
                     }
                 }
 
-                // PC 데이터 (KDS는 Firebase로 별도 수신)
-                if (files.has("order_status.json")) {
+                // PC 데이터 (PC일시정지면 스킵)
+                if (!pcPaused && files.has("order_status.json")) {
                     try {
                         val pcContent = files.getJSONObject("order_status.json").getString("content")
                         val pcObj = JSONObject(pcContent)
