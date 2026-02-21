@@ -32,6 +32,8 @@ object FirebaseSettingsSync {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
     private var running = false
     private var sseThread: Thread? = null
+    private var commandSseThread: Thread? = null
+    private var appContext: Context? = null
     @Volatile private var settingsVersion = 0L
     private var settingsUploadTimer: Runnable? = null  // 디바운스 타이머
 
@@ -41,11 +43,13 @@ object FirebaseSettingsSync {
 
     fun start(context: Context) {
         if (running) return
+        appContext = context.applicationContext
         running = true
         // 초기: 상태만 업로드 (설정은 SSE로 Firebase→앱 수신 후 판단)
         uploadStatus()
-        // SSE 리스너 시작 (설정 변경 수신)
+        // SSE 리스너 시작 (설정 변경 수신 + 웹 명령 수신)
         connectSettingsSSE()
+        connectCommandSSE()
         Log.d(TAG, "Firebase 설정 동기화 시작")
     }
 
@@ -53,6 +57,8 @@ object FirebaseSettingsSync {
         running = false
         sseThread?.interrupt()
         sseThread = null
+        commandSseThread?.interrupt()
+        commandSseThread = null
     }
 
     /** 설정 변경 시 호출 (AdManager setter에서) — 500ms 디바운스 */
@@ -356,7 +362,128 @@ object FirebaseSettingsSync {
 
     private fun scheduleReconnect() {
         if (!running) return
+        AnomalyDetector.recordSseReconnect("settings")
         handler.postDelayed({ connectSettingsSSE() }, RECONNECT_DELAY)
+    }
+
+    // === 웹 명령 SSE (웹 UI → Firebase → 앱 실행) ===
+
+    private fun connectCommandSSE() {
+        if (!running) return
+        commandSseThread = kotlin.concurrent.thread {
+            try {
+                val conn = URL("$FIREBASE_BASE/posdelay/command.json").openConnection() as HttpURLConnection
+                conn.setRequestProperty("Accept", "text/event-stream")
+                conn.connectTimeout = 15000
+                conn.readTimeout = 5 * 60 * 1000  // 5분 타임아웃
+
+                if (conn.responseCode != 200) {
+                    conn.disconnect()
+                    scheduleCommandReconnect()
+                    return@thread
+                }
+
+                Log.d(TAG, "명령 SSE 연결 성공")
+                val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                var eventType = ""
+
+                while (running) {
+                    val line = reader.readLine() ?: break
+                    when {
+                        line.startsWith("event:") -> eventType = line.substringAfter("event:").trim()
+                        line.startsWith("data:") -> {
+                            val data = line.substringAfter("data:").trim()
+                            if (eventType == "put" || eventType == "patch") {
+                                handleCommand(data)
+                            }
+                        }
+                    }
+                }
+
+                reader.close()
+                conn.disconnect()
+            } catch (e: InterruptedException) {
+                return@thread
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.d(TAG, "명령 SSE 타임아웃 → 재연결")
+            } catch (e: Exception) {
+                Log.w(TAG, "명령 SSE 에러: ${e.message}")
+            }
+            scheduleCommandReconnect()
+        }
+    }
+
+    private fun handleCommand(raw: String) {
+        try {
+            val wrapper = JSONObject(raw)
+            val path = wrapper.optString("path", "/")
+            val data = wrapper.opt("data") ?: return
+            if (data.toString() == "null") return  // 삭제 이벤트 무시
+            if (path != "/") return  // 부분 업데이트 무시
+
+            val obj = if (data is JSONObject) data else JSONObject(data.toString())
+            val action = obj.optString("action", "")
+            val amount = obj.optInt("amount", 0)
+            val time = obj.optLong("time", 0)
+            val source = obj.optString("source", "")
+
+            if (action.isEmpty() || source != "web") return
+
+            val now = System.currentTimeMillis()
+            if (now - time > 60_000) {
+                Log.d(TAG, "오래된 명령 무시: $action (${(now - time) / 1000}초 전)")
+                deleteCommand()
+                return
+            }
+
+            Log.d(TAG, "웹 명령 수신: $action amount=$amount")
+            deleteCommand()  // 즉시 삭제 (재실행 방지)
+
+            when (action) {
+                "TOGGLE_KDS" -> handler.post {
+                    OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
+                    onOrderCountChanged()
+                }
+                "TOGGLE_MATE" -> handler.post {
+                    OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
+                    onOrderCountChanged()
+                }
+                "TOGGLE_PC" -> handler.post {
+                    OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
+                    onOrderCountChanged()
+                }
+                else -> {
+                    // 광고 실행 명령 → MainActivity 필요
+                    val ctx = appContext ?: return
+                    val intent = android.content.Intent(ctx, com.posdelay.app.ui.MainActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra("remote_ad_command", action)
+                        putExtra("remote_ad_amount", amount)
+                    }
+                    ctx.startActivity(intent)
+                }
+            }
+
+            uploadLog("[웹명령] $action${if (amount > 0) " ${amount}원" else ""}")
+        } catch (e: Exception) {
+            Log.w(TAG, "명령 파싱 실패: ${e.message}")
+        }
+    }
+
+    private fun deleteCommand() {
+        kotlin.concurrent.thread {
+            try {
+                firebasePut("$FIREBASE_BASE/posdelay/command.json", "null")
+            } catch (e: Exception) {
+                Log.w(TAG, "명령 삭제 실패: ${e.message}")
+            }
+        }
+    }
+
+    private fun scheduleCommandReconnect() {
+        if (!running) return
+        AnomalyDetector.recordSseReconnect("command")
+        handler.postDelayed({ connectCommandSSE() }, RECONNECT_DELAY)
     }
 
     private fun firebasePut(url: String, json: String) {

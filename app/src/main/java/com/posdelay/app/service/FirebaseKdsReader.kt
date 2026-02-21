@@ -180,6 +180,7 @@ object FirebaseKdsReader {
 
     private fun scheduleReconnect() {
         if (!running) return
+        AnomalyDetector.recordSseReconnect("kds")
         Log.d(TAG, "SSE 재연결 ${RECONNECT_DELAY / 1000}초 후...")
         handler.postDelayed({ connectSSE() }, RECONNECT_DELAY)
     }

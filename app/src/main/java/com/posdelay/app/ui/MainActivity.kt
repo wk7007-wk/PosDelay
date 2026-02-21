@@ -91,9 +91,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        val action = intent.getStringExtra("ad_scheduled_action") ?: return
-        intent.removeExtra("ad_scheduled_action")
-        handleScheduledAction(action)
+        // 스케줄 알람 액션
+        intent.getStringExtra("ad_scheduled_action")?.let { action ->
+            intent.removeExtra("ad_scheduled_action")
+            handleScheduledAction(action)
+            return
+        }
+        // 웹 원격 명령 (Firebase command SSE → Intent)
+        intent.getStringExtra("remote_ad_command")?.let { action ->
+            val amount = intent.getIntExtra("remote_ad_amount", 0)
+            intent.removeExtra("remote_ad_command")
+            intent.removeExtra("remote_ad_amount")
+            handleRemoteCommand(action, amount)
+        }
     }
 
     override fun onResume() {
@@ -323,6 +333,10 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val isCheck = action == AdWebAutomation.Action.BAEMIN_CHECK || action == AdWebAutomation.Action.COUPANG_CHECK
                 val result = if (success) "$actionName 완료" else "$actionName 실패"
+                // 이상신호 감지 기록 (CHECK 제외)
+                if (!isCheck) {
+                    com.posdelay.app.service.AnomalyDetector.recordExecution(action.name, success)
+                }
                 // CHECK 액션은 알림 생략 (변경 액션만 알림)
                 if (!isCheck) {
                     if (pendingBackToBackground || adActionQueue.isEmpty()) {
@@ -434,6 +448,24 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 isEvaluating = false  // 예외 시 해제
+            }
+        }
+    }
+
+    /** 웹 UI에서 Firebase 경유로 수신한 원격 명령 실행 */
+    private fun handleRemoteCommand(action: String, amount: Int) {
+        when (action) {
+            "COUPANG_AD_ON" -> executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+            "COUPANG_AD_OFF" -> executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+            "BAEMIN_SET_AMOUNT" -> executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, amount)
+            "BAEMIN_CHECK" -> executeAdAction(AdWebAutomation.Action.BAEMIN_CHECK)
+            "COUPANG_CHECK" -> executeAdAction(AdWebAutomation.Action.COUPANG_CHECK)
+            "REFRESH_CORRECT" -> doRefreshAndCorrect()
+            "AD_OFF" -> forceAdOff()
+            "AD_ON" -> {
+                lastAutoEvalTime = 0
+                lastAutoEvalCount = -1
+                evaluateAndExecute("웹:켜기", background = false)
             }
         }
     }
