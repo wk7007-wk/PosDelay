@@ -8,6 +8,13 @@
 - **네이티브 최소화, 웹 동기화 우선**: 네이티브 코드는 최대한 줄이고, 웹으로 동기화(Firebase)되는 방식 위주로 코딩
 - **안정성 + 리미트 최우선**: Firebase 호출 횟수, API rate limit 등 리미트 관리와 안정성을 항상 최우선. 기능보다 안정성 우선
 
+## 빌드/배포 (코딩 완료 후 반드시 수행)
+1. 빌드: `./gradlew assembleDebug`
+2. APK 복사: `cp app/build/outputs/apk/debug/app-debug.apk /sdcard/Download/PosDelay.apk`
+3. Git 커밋 + 푸시
+4. GitHub Release: `gh release create "v${VER}" ... --repo wk7007-wk/PosDelay`
+5. 사용자에게 안내: "설치하세요"
+
 ## 컬러 팔레트 (11색, 이 외 사용 금지)
 배경=#1A1A30→#121225, 카드=#242444→#1A1A35+테두리#2E2E52, 중립=#2A2A45, 텍스트1=#E0E0EC, 텍스트2=#9090A8, 텍스트3=#707088, 배민=#2AC1BC, 쿠팡=#FFD700, ON=#2ECC71, OFF=#E74C3C, 중간=#E67E22, 수치=#FFFFFF
 
