@@ -22,6 +22,10 @@
 - 건수 >= 임계값: 배민 금액축소 + 쿠팡 OFF
 - 건수 < 임계값: 배민 금액원복 + 쿠팡 ON
 
+## 25분 필터
+- KDS orders 배열 유무와 관계없이 order_tracking 시간 기준으로 25분 초과 주문 차감
+- order_tracking은 Firebase에 영구 저장 (앱 재설치 대비)
+
 ## Firebase 구조
 - **DB**: `poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app`
 - KDS건수=`/kds_status.json`, 설정=`/posdelay/settings.json`, 명령=`/posdelay/command.json`, 주문추적=`/posdelay/order_tracking.json`, 이상신호=`/posdelay/alert.json`, 로그=`/posdelay/log.json`
