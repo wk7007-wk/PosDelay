@@ -225,8 +225,17 @@ object FirebaseKdsReader {
                 }
                 saveOrderTracking()
                 filtered
+            } else if (count > 0 && orderFirstSeen.isNotEmpty()) {
+                // orders 배열 없어도 order_tracking으로 25분 필터
+                val now = System.currentTimeMillis()
+                val staleCount = orderFirstSeen.count { now - it.value > STALE_ORDER_MS }
+                val filtered = maxOf(0, count - staleCount)
+                if (staleCount > 0) {
+                    Log.d(TAG, "KDS 25분초과(tracking): stale=$staleCount → 건수 $count→$filtered")
+                }
+                filtered
             } else {
-                count  // orders 배열 없으면 원본 count 사용
+                count
             }
 
             Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
