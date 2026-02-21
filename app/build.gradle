@@ -3,7 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-def buildTime = new Date().format("MMdd.HHmm")
+def buildTime = new Date().toInstant().atZone(java.time.ZoneId.of("Asia/Seoul")).format(java.time.format.DateTimeFormatter.ofPattern("MMdd.HHmm"))
 
 android {
     namespace 'com.posdelay.app'
