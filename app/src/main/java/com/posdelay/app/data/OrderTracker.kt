@@ -115,10 +115,8 @@ object OrderTracker {
         val value = maxOf(0, count)
         prefs.edit().putInt(KEY_ORDER_COUNT, value).apply()
         _orderCount.postValue(value)
-        // 백그라운드에서도 광고 임계값 체크
-        try {
-            com.posdelay.app.service.AdScheduler.checkFromBackground(appContext, value)
-        } catch (_: Exception) {}
+        // 포그라운드에서만 광고 판단 (LiveData observer)
+        // 백그라운드 화면 강제 전환 제거 — 스케줄 알람만 화면 전환
         // Firebase 상태 업로드
         try {
             com.posdelay.app.service.FirebaseSettingsSync.onOrderCountChanged()

@@ -1,6 +1,7 @@
 package com.posdelay.app.service
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -23,21 +24,42 @@ object FirebaseKdsReader {
         "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app/kds_status.json"
     private const val RECONNECT_DELAY = 5_000L
     private const val STALE_ORDER_MS = 25 * 60 * 1000L  // 25분
+    private const val PREFS_NAME = "kds_order_tracking"
 
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var appContext: Context? = null
     private var sseThread: Thread? = null
+    private lateinit var prefs: SharedPreferences
 
-    // 주문번호별 최초 등장 시간 추적
+    // 주문번호별 최초 등장 시간 추적 (SharedPreferences에 영구 저장)
     private val orderFirstSeen = HashMap<Int, Long>()
 
     fun start(context: Context) {
         if (running) return
         appContext = context.applicationContext
         running = true
+        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        loadOrderTracking()
         connectSSE()
         Log.d(TAG, "Firebase KDS 실시간 리스너 시작")
+    }
+
+    private fun loadOrderTracking() {
+        val saved = prefs.getString("order_first_seen", null) ?: return
+        try {
+            val obj = JSONObject(saved)
+            obj.keys().forEach { key ->
+                orderFirstSeen[key.toInt()] = obj.getLong(key)
+            }
+            Log.d(TAG, "주문 추적 복원: ${orderFirstSeen.size}건")
+        } catch (_: Exception) {}
+    }
+
+    private fun saveOrderTracking() {
+        val obj = JSONObject()
+        orderFirstSeen.forEach { (k, v) -> obj.put(k.toString(), v) }
+        prefs.edit().putString("order_first_seen", obj.toString()).apply()
     }
 
     fun stop() {
@@ -139,6 +161,7 @@ object FirebaseKdsReader {
                     val staleOrders = orderFirstSeen.filter { now - it.value > STALE_ORDER_MS }.keys
                     Log.d(TAG, "KDS 25분초과 제외: ${staleOrders} → 건수 $count→$filtered")
                 }
+                saveOrderTracking()
                 filtered
             } else {
                 count  // orders 배열 없으면 원본 count 사용
