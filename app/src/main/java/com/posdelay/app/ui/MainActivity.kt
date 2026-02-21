@@ -527,10 +527,12 @@ class MainActivity : AppCompatActivity() {
 
                 // 10초 안정화 대기: 건수가 변동 없으면 실행, 변동 시 취소
                 android.util.Log.d("AdEval", "액션 ${actions.size}개 대기 (10초 안정화, 건수=$count)")
+                com.posdelay.app.data.LogFileWriter.append("AD", "10초 안정화 대기 건수=$count 액션=${actions.size}개")
                 Thread.sleep(10_000L)
                 val confirmedCount = OrderTracker.getOrderCount()
                 if (confirmedCount != count) {
                     android.util.Log.d("AdEval", "안정화 실패: $count→$confirmedCount, 실행 취소")
+                    com.posdelay.app.data.LogFileWriter.append("AD", "안정화실패 ${count}→${confirmedCount} 취소")
                     FirebaseSettingsSync.uploadLog("[$reason] 안정화실패 ${count}→${confirmedCount} 취소")
                     runOnUiThread { isEvaluating = false }
                     return@thread

@@ -183,6 +183,7 @@ object OrderTracker {
         val corrected = if (count == 0 && gistKdsCount > 0 && gistAge < 120_000L) {
             // Firebase가 0인데 Gist에 2분 이내 양수 → Gist 값 사용
             android.util.Log.d("OrderTracker", "교차보정: Firebase=0, Gist=$gistKdsCount → $gistKdsCount 사용")
+            LogFileWriter.append("SYNC", "교차보정 FB=0→Gist=$gistKdsCount")
             gistKdsCount
         } else if (count > 0 && gistKdsCount == 0 && gistAge < 120_000L) {
             // Firebase 양수, Gist 0 → Firebase 값 신뢰 (Gist 업데이트 지연)
@@ -207,6 +208,7 @@ object OrderTracker {
             kdsStabilizeRunnable = null
             setOrderCount(corrected)
             android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $corrected")
+            LogFileWriter.append("SYNC", "건수=$corrected (즉시반영)")
         } else {
             // 0 → Gist도 0인지 재확인, 30초 대기 후 반영
             kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
@@ -214,10 +216,12 @@ object OrderTracker {
                 if (kdsLastRawCount == 0 && (gistKdsCount <= 0 || System.currentTimeMillis() - gistKdsTime > 120_000L)) {
                     setOrderCount(0)
                     android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영 (Gist도 0 확인)")
+                    LogFileWriter.append("SYNC", "건수=0 (30초안정화+Gist확인)")
                 } else if (kdsLastRawCount == 0 && gistKdsCount > 0) {
                     // 30초 후에도 Gist가 양수 → Gist 값 사용
                     setOrderCount(gistKdsCount)
                     android.util.Log.d("OrderTracker", "KDS 0 대기중 Gist=$gistKdsCount → Gist값 반영")
+                    LogFileWriter.append("SYNC", "건수=Gist $gistKdsCount (30초후 Gist양수)")
                 }
             }
             kdsHandler.postDelayed(kdsStabilizeRunnable!!, 30_000L)

@@ -101,6 +101,7 @@ object AdDecisionEngine {
                         actions.add(AdAction.CoupangOff)
                     } else {
                         Log.d(TAG, "쿠팡OFF 쿨다운 (ON후 ${(now - lastCoupangOnTime) / 1000}초)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡OFF 쿨다운차단 (${(now - lastCoupangOnTime) / 1000}초)")
                     }
                 }
                 cZone == 1 && currentCoupangOn == false -> {
@@ -109,6 +110,7 @@ object AdDecisionEngine {
                         actions.add(AdAction.CoupangOn)
                     } else {
                         Log.d(TAG, "쿠팡ON 쿨다운 (OFF후 ${(now - lastCoupangOffTime) / 1000}초)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡ON 쿨다운차단 (${(now - lastCoupangOffTime) / 1000}초)")
                     }
                 }
             }
@@ -129,6 +131,7 @@ object AdDecisionEngine {
                     actions.add(AdAction.BaeminSetAmount(targetAmount))
                 } else {
                     Log.d(TAG, "배민금액 쿨다운 (${lastBaeminAmount}원 후 ${(now - lastBaeminSetTime) / 1000}초)")
+                    com.posdelay.app.data.LogFileWriter.append("AD", "배민금액 쿨다운차단 (${lastBaeminAmount}원 ${(now - lastBaeminSetTime) / 1000}초)")
                 }
             }
         }

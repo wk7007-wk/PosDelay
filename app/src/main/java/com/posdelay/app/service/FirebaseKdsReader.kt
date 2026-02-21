@@ -183,6 +183,7 @@ object FirebaseKdsReader {
                 }
 
                 Log.d(TAG, "SSE 연결 성공")
+                com.posdelay.app.data.LogFileWriter.append("KDS", "SSE 연결 성공")
                 appContext?.let { FirebaseSettingsSync.uploadLog("[KDS] SSE 연결 성공") }
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
                 var eventType = ""
@@ -285,8 +286,9 @@ object FirebaseKdsReader {
 
             Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
 
-            // 건수 변동 시에만 Firebase 로그 (과다호출 방지)
+            // 건수 변동 시에만 로그 (과다호출 방지)
             if (adjustedCount != lastLoggedCount) {
+                com.posdelay.app.data.LogFileWriter.append("KDS", "건수=$adjustedCount" + if (count != adjustedCount) " (원본=$count 보정)" else "")
                 val ordersStr = if (ordersArr != null && ordersArr.length() > 0) {
                     val list = mutableListOf<Int>()
                     for (i in 0 until ordersArr.length()) list.add(ordersArr.optInt(i))
@@ -313,6 +315,7 @@ object FirebaseKdsReader {
     private fun scheduleReconnect() {
         if (!running) return
         AnomalyDetector.recordSseReconnect("kds")
+        com.posdelay.app.data.LogFileWriter.append("KDS", "SSE 재연결 대기")
         Log.d(TAG, "SSE 재연결 ${RECONNECT_DELAY / 1000}초 후...")
         appContext?.let { FirebaseSettingsSync.uploadLog("[KDS] SSE 재연결 대기") }
         handler.postDelayed({ connectSSE() }, RECONNECT_DELAY)

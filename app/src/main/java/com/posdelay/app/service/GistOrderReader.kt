@@ -135,6 +135,7 @@ object GistOrderReader {
                             OrderTracker.gistKdsTime = kdsTime
                         }
                         Log.d(TAG, "Gist KDS: count=$kdsCount, age=${kdsAge}초")
+                        com.posdelay.app.data.LogFileWriter.append("GIST", "KDS=$kdsCount PC=${if (files.has("order_status.json")) "있음" else "없음"} age=${kdsAge}초")
                     } catch (e: Exception) {
                         Log.w(TAG, "Gist KDS 파싱 실패: ${e.message}")
                     }
