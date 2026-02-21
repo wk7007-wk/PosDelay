@@ -416,8 +416,37 @@ class MainActivity : AppCompatActivity() {
 
     /** 스케줄 알람/백그라운드에서 호출 */
     private fun handleScheduledAction(action: String) {
-        val isBackground = action.startsWith("ad_auto_")
-        evaluateAndExecute("스케줄:$action", background = isBackground)
+        when (action) {
+            "ad_off" -> forceAdOff()
+            "ad_on" -> {
+                lastAutoEvalTime = 0
+                lastAutoEvalCount = -1
+                evaluateAndExecute("스케줄:켜기", background = false)
+            }
+            else -> {
+                val isBackground = action.startsWith("ad_auto_")
+                evaluateAndExecute("스케줄:$action", background = isBackground)
+            }
+        }
+    }
+
+    /** 스케줄 종료 → 강제 광고 끄기 (쿠팡 OFF + 배민 최소) */
+    private fun forceAdOff() {
+        if (adWebAutomation?.isRunning() == true || adActionQueue.isNotEmpty()) return
+        val hasCoupang = AdManager.hasCoupangCredentials()
+        val hasBaemin = AdManager.hasBaeminCredentials()
+        if (!hasCoupang && !hasBaemin) return
+
+        FirebaseSettingsSync.uploadLog("[스케줄:끄기] 강제 광고 종료")
+        if (hasCoupang) {
+            DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
+            executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+        }
+        if (hasBaemin) {
+            val minAmount = AdManager.getBaeminReducedAmount()
+            DelayNotificationHelper.showAdProgress(this, "배민 ${minAmount}원")
+            executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, minAmount)
+        }
     }
 
     /** 새로고침+정정 (수동) — Firebase 최신 설정 기반 */
