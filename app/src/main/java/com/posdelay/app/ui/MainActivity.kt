@@ -65,11 +65,12 @@ class MainActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         webView.addJavascriptInterface(NativeBridge(), "NativeBridge")
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
         webView.setBackgroundColor(0xFF121225.toInt())
-        webView.loadUrl("https://wk7007-wk.github.io/PosKDS/")
+        webView.loadUrl("https://wk7007-wk.github.io/PosKDS/?v=" + System.currentTimeMillis())
 
         // 화면 꺼짐 방지
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -215,7 +216,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { doRefreshAndCorrect() }
         }
 
-        /** 전체 새로고침: SSE 재연결 + KDS 즉시 조회 + 설정 리로드 */
+        /** 전체 새로고침: SSE 재연결 + KDS 즉시 조회 + 설정 리로드 + 웹 최신 로드 */
         @JavascriptInterface
         fun forceRefresh() {
             runOnUiThread {
@@ -224,6 +225,9 @@ class MainActivity : AppCompatActivity() {
                 FirebaseSettingsSync.restart()
                 FirebaseKdsReader.fetchOnce()
                 DelayNotificationHelper.update(this@MainActivity)
+                // 캐시 무시하고 최신 페이지 로드
+                webView.clearCache(true)
+                webView.loadUrl("https://wk7007-wk.github.io/PosKDS/?v=" + System.currentTimeMillis())
             }
         }
 
