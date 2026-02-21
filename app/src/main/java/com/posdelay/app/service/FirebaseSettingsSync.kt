@@ -61,6 +61,14 @@ object FirebaseSettingsSync {
         commandSseThread = null
     }
 
+    /** SSE 강제 재연결 */
+    fun restart() {
+        val ctx = appContext ?: return
+        stop()
+        Log.d(TAG, "강제 재시작")
+        start(ctx)
+    }
+
     /** 설정 변경 시 호출 (AdManager setter에서) — 500ms 디바운스 */
     fun onSettingsChanged() {
         if (isApplyingRemote) return

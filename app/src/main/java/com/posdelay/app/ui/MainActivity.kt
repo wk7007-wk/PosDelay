@@ -35,6 +35,7 @@ import com.posdelay.app.service.AdDecisionEngine
 import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayNotificationHelper
+import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.FirebaseSettingsSync
 import com.posdelay.app.service.PosDelayKeepAliveService
 
@@ -210,6 +211,18 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun refreshAndCorrect() {
             runOnUiThread { doRefreshAndCorrect() }
+        }
+
+        /** 전체 새로고침: SSE 재연결 + KDS 즉시 조회 + 설정 리로드 */
+        @JavascriptInterface
+        fun forceRefresh() {
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, "새로고침...", Toast.LENGTH_SHORT).show()
+                FirebaseKdsReader.restart()
+                FirebaseSettingsSync.restart()
+                FirebaseKdsReader.fetchOnce()
+                DelayNotificationHelper.update(this@MainActivity)
+            }
         }
 
         @JavascriptInterface

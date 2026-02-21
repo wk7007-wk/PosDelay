@@ -130,6 +130,38 @@ object FirebaseKdsReader {
         sseThread = null
     }
 
+    /** SSE 강제 재연결 + 즉시 1회 조회 */
+    fun restart() {
+        val ctx = appContext ?: return
+        stop()
+        Log.d(TAG, "강제 재시작")
+        start(ctx)
+    }
+
+    /** Firebase에서 KDS 건수 1회 직접 조회 (SSE와 별개) */
+    fun fetchOnce() {
+        kotlin.concurrent.thread {
+            try {
+                val conn = URL(FIREBASE_URL).openConnection() as HttpURLConnection
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                if (conn.responseCode in 200..299) {
+                    val json = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    if (json != "null" && json.isNotEmpty()) {
+                        val wrapper = JSONObject("{\"path\":\"/\",\"data\":$json}")
+                        handleData(wrapper.toString())
+                        Log.d(TAG, "1회 조회 완료")
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "1회 조회 실패: ${e.message}")
+            }
+        }
+    }
+
     private fun connectSSE() {
         if (!running) return
         sseThread = kotlin.concurrent.thread {
