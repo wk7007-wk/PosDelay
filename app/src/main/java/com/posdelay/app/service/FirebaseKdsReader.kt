@@ -43,8 +43,11 @@ object FirebaseKdsReader {
         appContext = context.applicationContext
         running = true
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        loadOrderTracking()
-        connectSSE()
+        // Firebase 로드 완료 후 SSE 연결 (동기 순서 보장)
+        kotlin.concurrent.thread {
+            loadOrderTracking()
+            connectSSE()
+        }
         Log.d(TAG, "Firebase KDS 실시간 리스너 시작")
     }
 
@@ -60,43 +63,50 @@ object FirebaseKdsReader {
                 Log.d(TAG, "주문 추적 복원 (로컬): ${orderFirstSeen.size}건")
             } catch (_: Exception) {}
         }
-        // 2차: Firebase에서 로드 (재설치 대비, 백그라운드)
-        kotlin.concurrent.thread {
-            try {
-                val conn = URL("$FIREBASE_BASE/posdelay/order_tracking.json").openConnection() as HttpURLConnection
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                if (conn.responseCode in 200..299) {
-                    val json = conn.inputStream.bufferedReader().readText()
-                    conn.disconnect()
-                    if (json != "null" && json.isNotEmpty()) {
-                        val obj = JSONObject(json)
-                        var restored = 0
-                        obj.keys().forEach { key ->
-                            val ts = obj.getLong(key)
-                            // Firebase 데이터가 로컬보다 오래됐으면 Firebase 우선 (원본 시간)
-                            orderFirstSeen.putIfAbsent(key.toInt(), ts)
+        // 2차: Firebase에서 동기 로드 (재설치 대비 — SSE 연결 전에 완료)
+        try {
+            val conn = URL("$FIREBASE_BASE/posdelay/order_tracking.json").openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            if (conn.responseCode in 200..299) {
+                val json = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                if (json != "null" && json.isNotEmpty()) {
+                    val obj = JSONObject(json)
+                    var restored = 0
+                    obj.keys().forEach { key ->
+                        val ts = obj.getLong(key)
+                        val orderId = key.toInt()
+                        // Firebase 시간이 더 오래됐으면 (=더 정확한 원본) Firebase 우선
+                        val existing = orderFirstSeen[orderId]
+                        if (existing == null || ts < existing) {
+                            orderFirstSeen[orderId] = ts
                             restored++
                         }
-                        if (restored > 0) {
-                            Log.d(TAG, "주문 추적 복원 (Firebase): ${restored}건")
-                            saveOrderTracking()  // 로컬에도 반영
-                        }
                     }
-                } else {
-                    conn.disconnect()
+                    if (restored > 0) {
+                        Log.d(TAG, "주문 추적 복원 (Firebase): ${restored}건")
+                        saveOrderTrackingLocal()  // 로컬에 반영 (Firebase 재업로드 불필요)
+                    }
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Firebase 주문 추적 로드 실패: ${e.message}")
+            } else {
+                conn.disconnect()
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Firebase 주문 추적 로드 실패: ${e.message}")
         }
+    }
+
+    private fun saveOrderTrackingLocal() {
+        val obj = JSONObject()
+        orderFirstSeen.forEach { (k, v) -> obj.put(k.toString(), v) }
+        prefs.edit().putString("order_first_seen", obj.toString()).apply()
     }
 
     private fun saveOrderTracking() {
         val obj = JSONObject()
         orderFirstSeen.forEach { (k, v) -> obj.put(k.toString(), v) }
         val json = obj.toString()
-        // 로컬 저장
         prefs.edit().putString("order_first_seen", json).apply()
         // Firebase 동기화 (재설치 대비)
         kotlin.concurrent.thread {
