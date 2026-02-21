@@ -48,6 +48,7 @@ class KdsAccessibilityService : AccessibilityService() {
 
     private lateinit var prefs: SharedPreferences
     private val handler = Handler(Looper.getMainLooper())
+    private val logLock = Any()  // Bug 1: 로그 파일 동시 접근 방지
     private var lastCount = -1
     private var lastUploadTime = 0L
     private val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.KOREA)
@@ -182,10 +183,12 @@ class KdsAccessibilityService : AccessibilityService() {
     }
 
     private fun uploadKdsLog() {
-        val logContent = try {
-            val f = File(logFile)
-            if (f.exists()) f.readLines().takeLast(100).joinToString("\n") else ""
-        } catch (_: Exception) { "" }
+        val logContent = synchronized(logLock) {  // Bug 1: 읽기도 lock
+            try {
+                val f = File(logFile)
+                if (f.exists()) f.readLines().takeLast(100).joinToString("\n") else ""
+            } catch (_: Exception) { "" }
+        }
         if (logContent.isNotEmpty()) {
             FirebaseSettingsSync.uploadKdsLog(logContent)
         }
@@ -206,8 +209,9 @@ class KdsAccessibilityService : AccessibilityService() {
                 put("count", count)
             })
             while (arr.length() > 100) arr.remove(0)
-            prefs.edit().putString(KEY_HISTORY, arr.toString()).apply()
-            FirebaseSettingsSync.uploadKdsHistory(arr)
+            val snapshot = arr.toString()  // Bug 4: 문자열 스냅샷 저장
+            prefs.edit().putString(KEY_HISTORY, snapshot).apply()
+            FirebaseSettingsSync.uploadKdsHistory(JSONArray(snapshot))  // 복사본 업로드
         } catch (e: Exception) {
             log("이력 기록 실패: ${e.message}")
         }
@@ -332,14 +336,16 @@ class KdsAccessibilityService : AccessibilityService() {
             prefs.edit().putString(KEY_LOG, updated).apply()
         }
 
-        try {
-            val file = File(logFile)
-            if (file.length() > MAX_LOG_SIZE) {
-                val keep = file.readText().takeLast(MAX_LOG_SIZE.toInt() / 2)
-                file.writeText(keep)
-            }
-            FileWriter(file, true).use { it.write("$entry\n") }
-        } catch (_: Exception) {}
+        synchronized(logLock) {  // Bug 1: 쓰기 lock
+            try {
+                val file = File(logFile)
+                if (file.length() > MAX_LOG_SIZE) {
+                    val keep = file.readText().takeLast(MAX_LOG_SIZE.toInt() / 2)
+                    file.writeText(keep)
+                }
+                FileWriter(file, true).use { it.write("$entry\n") }
+            } catch (_: Exception) {}
+        }
     }
 
     override fun onInterrupt() {

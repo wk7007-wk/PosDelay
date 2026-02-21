@@ -240,7 +240,7 @@ object FirebaseSettingsSync {
                 val conn = URL("$FIREBASE_BASE/posdelay/ad_settings.json").openConnection() as HttpURLConnection
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 5 * 60 * 1000  // Bug 6: 5분 무응답 시 타임아웃 (staleness 방지)
+                conn.readTimeout = 2 * 60 * 1000  // Bug 5: 2분 무응답 시 타임아웃 (staleness 방지)
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
@@ -271,7 +271,7 @@ object FirebaseSettingsSync {
             } catch (e: InterruptedException) {
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
-                Log.d(TAG, "설정 SSE 타임아웃 (5분 무응답) → 재연결")  // Bug 6
+                Log.d(TAG, "설정 SSE 타임아웃 (2분 무응답) → 재연결")
             } catch (e: Exception) {
                 Log.w(TAG, "설정 SSE 에러: ${e.message}")
             }
@@ -305,8 +305,8 @@ object FirebaseSettingsSync {
 
             Log.d(TAG, "웹에서 설정 변경 수신 (path=$path)")
 
+            isApplyingRemote = true  // Bug 2: SSE 스레드에서 즉시 설정 (handler.post 대기 간극 제거)
             handler.post {
-                isApplyingRemote = true
                 try {
                     applySettings(obj)
                     if (remoteVersion > 0) settingsVersion = remoteVersion

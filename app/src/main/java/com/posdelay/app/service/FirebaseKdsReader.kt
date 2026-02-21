@@ -48,7 +48,7 @@ object FirebaseKdsReader {
                 val conn = URL(FIREBASE_URL).openConnection() as HttpURLConnection
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 5 * 60 * 1000  // Bug 6: 5분 무응답 시 타임아웃 (staleness 방지)
+                conn.readTimeout = 2 * 60 * 1000  // Bug 5: 2분 무응답 시 타임아웃 (staleness 방지)
 
                 if (conn.responseCode != 200) {
                     Log.w(TAG, "SSE 연결 실패: HTTP ${conn.responseCode}")
@@ -84,7 +84,7 @@ object FirebaseKdsReader {
                 Log.d(TAG, "SSE 중단됨")
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
-                Log.d(TAG, "SSE 타임아웃 (5분 무응답) → 재연결")  // Bug 6
+                Log.d(TAG, "SSE 타임아웃 (2분 무응답) → 재연결")
             } catch (e: Exception) {
                 Log.w(TAG, "SSE 에러: ${e.message}")
             }

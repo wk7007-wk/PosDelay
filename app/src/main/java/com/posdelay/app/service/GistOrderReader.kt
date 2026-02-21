@@ -132,9 +132,10 @@ object GistOrderReader {
                         val pcAge = if (pcTime > 0) (now - pcTime) / 1000 else -1L
                         Log.d(TAG, "PC(보조): count=$pcCount, age=${pcAge}초")
 
-                        // KDS가 최근 5분 이내면 PC 건수 덮어쓰기 않고 시간만 갱신
-                        val kdsAge = now - OrderTracker.getLastKdsSyncTime()
-                        val kdsActive = !OrderTracker.isKdsPaused() && kdsAge < 5 * 60 * 1000L && OrderTracker.getLastKdsSyncTime() > 0
+                        // Bug 3: KDS 활성 판정 1분으로 단축 (5분 경계 타이밍 이슈 방지)
+                        val kdsSyncTime = OrderTracker.getLastKdsSyncTime()
+                        val kdsAge = now - kdsSyncTime
+                        val kdsActive = !OrderTracker.isKdsPaused() && kdsAge < 60_000L && kdsSyncTime > 0
 
                         if (pcTime > 0 && pcAge < 600 && !kdsActive) {
                             OrderTracker.syncPcOrderCount(pcCount, pcTime)

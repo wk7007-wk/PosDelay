@@ -140,12 +140,14 @@ object OrderTracker {
     /** PC (Gist)에서 읽은 건수로 동기화 — PC 시간 기록 */
     fun syncPcOrderCount(count: Int, pcTime: Long) {
         setOrderCount(count)
+        val now = System.currentTimeMillis()
+        // Bug 6: sync time = 수신 시각(now) 사용 (stale 판정 일관성)
         prefs.edit()
-            .putLong(KEY_LAST_SYNC_TIME, System.currentTimeMillis())
-            .putLong(KEY_LAST_PC_SYNC_TIME, pcTime)
+            .putLong(KEY_LAST_SYNC_TIME, now)
+            .putLong(KEY_LAST_PC_SYNC_TIME, now)
             .apply()
-        _lastSyncTime.postValue(System.currentTimeMillis())
-        _lastPcSyncTime.postValue(pcTime)
+        _lastSyncTime.postValue(now)
+        _lastPcSyncTime.postValue(now)
     }
 
     /** PC 동기화 시간만 업데이트 (오래된 데이터용 — 건수는 변경 안 함) */
@@ -158,12 +160,13 @@ object OrderTracker {
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
         setOrderCount(count)
         val now = System.currentTimeMillis()
+        // Bug 6: KDS sync time = 수신 시각(now) 사용 (stale 판정 일관성)
         prefs.edit()
             .putLong(KEY_LAST_SYNC_TIME, now)
-            .putLong(KEY_LAST_KDS_SYNC_TIME, kdsTime)
+            .putLong(KEY_LAST_KDS_SYNC_TIME, now)
             .apply()
         _lastSyncTime.postValue(now)
-        _lastKdsSyncTime.postValue(kdsTime)
+        _lastKdsSyncTime.postValue(now)
     }
 
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
