@@ -142,7 +142,7 @@ object FirebaseSettingsSync {
                     put("_updated_by", "app")
                     put("_updated_at", dateFormat.format(Date()))
                 }.toString()
-                firebasePut("$FIREBASE_BASE/posdelay/ad_settings.json", json)
+                firebasePatch("$FIREBASE_BASE/posdelay/ad_settings.json", json)
             } catch (e: Exception) {
                 Log.w(TAG, "설정 업로드 에러: ${e.message}")
             }
@@ -506,6 +506,21 @@ object FirebaseSettingsSync {
         conn.disconnect()
         if (code !in 200..299) {
             Log.w(TAG, "Firebase PUT 실패: HTTP $code ($url)")
+        }
+    }
+
+    private fun firebasePatch(url: String, json: String) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.requestMethod = "PATCH"
+        conn.connectTimeout = 5000
+        conn.readTimeout = 5000
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.doOutput = true
+        OutputStreamWriter(conn.outputStream).use { it.write(json) }
+        val code = conn.responseCode
+        conn.disconnect()
+        if (code !in 200..299) {
+            Log.w(TAG, "Firebase PATCH 실패: HTTP $code ($url)")
         }
     }
 
