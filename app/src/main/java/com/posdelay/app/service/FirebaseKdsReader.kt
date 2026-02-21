@@ -9,6 +9,7 @@ import com.posdelay.app.data.OrderTracker
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -22,6 +23,8 @@ object FirebaseKdsReader {
     private const val TAG = "FirebaseKdsReader"
     private const val FIREBASE_URL =
         "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app/kds_status.json"
+    private const val FIREBASE_BASE =
+        "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app"
     private const val RECONNECT_DELAY = 5_000L
     private const val STALE_ORDER_MS = 25 * 60 * 1000L  // 25분
     private const val PREFS_NAME = "kds_order_tracking"
@@ -46,20 +49,69 @@ object FirebaseKdsReader {
     }
 
     private fun loadOrderTracking() {
-        val saved = prefs.getString("order_first_seen", null) ?: return
-        try {
-            val obj = JSONObject(saved)
-            obj.keys().forEach { key ->
-                orderFirstSeen[key.toInt()] = obj.getLong(key)
+        // 1차: 로컬 SharedPreferences
+        val saved = prefs.getString("order_first_seen", null)
+        if (saved != null) {
+            try {
+                val obj = JSONObject(saved)
+                obj.keys().forEach { key ->
+                    orderFirstSeen[key.toInt()] = obj.getLong(key)
+                }
+                Log.d(TAG, "주문 추적 복원 (로컬): ${orderFirstSeen.size}건")
+            } catch (_: Exception) {}
+        }
+        // 2차: Firebase에서 로드 (재설치 대비, 백그라운드)
+        kotlin.concurrent.thread {
+            try {
+                val conn = URL("$FIREBASE_BASE/posdelay/order_tracking.json").openConnection() as HttpURLConnection
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                if (conn.responseCode in 200..299) {
+                    val json = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    if (json != "null" && json.isNotEmpty()) {
+                        val obj = JSONObject(json)
+                        var restored = 0
+                        obj.keys().forEach { key ->
+                            val ts = obj.getLong(key)
+                            // Firebase 데이터가 로컬보다 오래됐으면 Firebase 우선 (원본 시간)
+                            orderFirstSeen.putIfAbsent(key.toInt(), ts)
+                            restored++
+                        }
+                        if (restored > 0) {
+                            Log.d(TAG, "주문 추적 복원 (Firebase): ${restored}건")
+                            saveOrderTracking()  // 로컬에도 반영
+                        }
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase 주문 추적 로드 실패: ${e.message}")
             }
-            Log.d(TAG, "주문 추적 복원: ${orderFirstSeen.size}건")
-        } catch (_: Exception) {}
+        }
     }
 
     private fun saveOrderTracking() {
         val obj = JSONObject()
         orderFirstSeen.forEach { (k, v) -> obj.put(k.toString(), v) }
-        prefs.edit().putString("order_first_seen", obj.toString()).apply()
+        val json = obj.toString()
+        // 로컬 저장
+        prefs.edit().putString("order_first_seen", json).apply()
+        // Firebase 동기화 (재설치 대비)
+        kotlin.concurrent.thread {
+            try {
+                val conn = URL("$FIREBASE_BASE/posdelay/order_tracking.json").openConnection() as HttpURLConnection
+                conn.requestMethod = "PUT"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                OutputStreamWriter(conn.outputStream).use { it.write(json) }
+                conn.responseCode
+                conn.disconnect()
+            } catch (_: Exception) {}
+        }
     }
 
     fun stop() {
