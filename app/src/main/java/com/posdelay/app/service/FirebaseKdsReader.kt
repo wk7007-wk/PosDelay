@@ -37,6 +37,7 @@ object FirebaseKdsReader {
 
     // 주문번호별 최초 등장 시간 추적 (SharedPreferences에 영구 저장)
     private val orderFirstSeen = HashMap<Int, Long>()
+    private var lastLoggedCount = -1  // Firebase 로그 중복 방지
 
     fun start(context: Context) {
         if (running) return
@@ -179,6 +180,7 @@ object FirebaseKdsReader {
                 }
 
                 Log.d(TAG, "SSE 연결 성공")
+                appContext?.let { FirebaseSettingsSync.uploadLog("[KDS] SSE 연결 성공") }
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
                 var eventType = ""
 
@@ -267,6 +269,22 @@ object FirebaseKdsReader {
 
             Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
 
+            // 건수 변동 시에만 Firebase 로그 (과다호출 방지)
+            if (adjustedCount != lastLoggedCount) {
+                val ordersStr = if (ordersArr != null && ordersArr.length() > 0) {
+                    val list = mutableListOf<Int>()
+                    for (i in 0 until ordersArr.length()) list.add(ordersArr.optInt(i))
+                    list.toString()
+                } else "[]"
+                val msg = if (count != adjustedCount) {
+                    "[KDS] 건수 $count→$adjustedCount (보정) orders=$ordersStr"
+                } else {
+                    "[KDS] 건수=$adjustedCount orders=$ordersStr"
+                }
+                lastLoggedCount = adjustedCount
+                appContext?.let { FirebaseSettingsSync.uploadLog(msg) }
+            }
+
             handler.post {
                 OrderTracker.syncKdsOrderCount(adjustedCount, kdsTime)
                 appContext?.let { DelayNotificationHelper.update(it) }
@@ -280,6 +298,7 @@ object FirebaseKdsReader {
         if (!running) return
         AnomalyDetector.recordSseReconnect("kds")
         Log.d(TAG, "SSE 재연결 ${RECONNECT_DELAY / 1000}초 후...")
+        appContext?.let { FirebaseSettingsSync.uploadLog("[KDS] SSE 재연결 대기") }
         handler.postDelayed({ connectSSE() }, RECONNECT_DELAY)
     }
 }
