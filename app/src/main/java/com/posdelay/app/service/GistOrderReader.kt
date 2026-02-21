@@ -118,6 +118,28 @@ object GistOrderReader {
                 val now = System.currentTimeMillis()
                 val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
 
+                // KDS 보조 데이터 (Firebase 교차 보정용)
+                if (files.has("kds_status.json")) {
+                    try {
+                        val kdsContent = files.getJSONObject("kds_status.json").getString("content")
+                        val kdsObj = JSONObject(kdsContent)
+                        val kdsCount = kdsObj.getInt("count")
+                        val kdsTimeStr = kdsObj.optString("time", "")
+                        val kdsTime = if (kdsTimeStr.isNotEmpty()) {
+                            try { sdf.parse(kdsTimeStr)?.time ?: 0L } catch (_: Exception) { 0L }
+                        } else 0L
+                        val kdsAge = if (kdsTime > 0) (now - kdsTime) / 1000 else -1L
+                        // 2분 이내 데이터만 교차 보정용으로 저장
+                        if (kdsTime > 0 && kdsAge < 120) {
+                            OrderTracker.gistKdsCount = kdsCount
+                            OrderTracker.gistKdsTime = kdsTime
+                        }
+                        Log.d(TAG, "Gist KDS: count=$kdsCount, age=${kdsAge}초")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Gist KDS 파싱 실패: ${e.message}")
+                    }
+                }
+
                 // PC 데이터 (KDS는 Firebase로 별도 수신)
                 if (files.has("order_status.json")) {
                     try {

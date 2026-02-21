@@ -14,6 +14,10 @@ object OrderTracker {
     private var kdsLastRawCount = -1
     private const val KDS_STABILIZE_MS = 10_000L  // 10초 안정화
 
+    // Gist KDS 교차 보정용
+    @Volatile var gistKdsCount = -1       // Gist에서 읽은 KDS 건수
+    @Volatile var gistKdsTime = 0L        // Gist KDS 데이터 시간
+
     private const val PREFS_NAME = "pos_delay_prefs"
     private lateinit var appContext: android.content.Context
     private const val KEY_ORDER_COUNT = "order_count"
@@ -162,8 +166,8 @@ object OrderTracker {
     }
 
     /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스
-     *  10초 안정화: 건수 변동 후 10초간 같은 값 유지 시에만 반영
-     *  (SSE 재연결 시 0↔N 급변동으로 인한 광고 과다실행 방지) */
+     *  교차 보정: Firebase 값과 Gist 값 비교 → 한쪽이라도 양수면 양수 신뢰
+     *  안정화: 보정 후에도 양수→즉시, 0→30초 대기 */
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
         val now = System.currentTimeMillis()
         // KDS sync 시간은 항상 업데이트 (stale 판정용)
@@ -174,21 +178,50 @@ object OrderTracker {
         _lastSyncTime.postValue(now)
         _lastKdsSyncTime.postValue(now)
 
-        // 건수가 현재와 동일하면 즉시 반영 (변동 아님)
-        if (count == getOrderCount()) {
-            kdsLastRawCount = count
+        // 교차 보정: Firebase 0 + Gist 양수 → Gist 값 신뢰
+        val gistAge = now - gistKdsTime
+        val corrected = if (count == 0 && gistKdsCount > 0 && gistAge < 120_000L) {
+            // Firebase가 0인데 Gist에 2분 이내 양수 → Gist 값 사용
+            android.util.Log.d("OrderTracker", "교차보정: Firebase=0, Gist=$gistKdsCount → $gistKdsCount 사용")
+            gistKdsCount
+        } else if (count > 0 && gistKdsCount == 0 && gistAge < 120_000L) {
+            // Firebase 양수, Gist 0 → Firebase 값 신뢰 (Gist 업데이트 지연)
+            count
+        } else {
+            count
+        }
+
+        // 건수가 현재와 동일하면 무시
+        if (corrected == getOrderCount()) {
+            kdsLastRawCount = corrected
+            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
+            kdsStabilizeRunnable = null
             return
         }
-        // 건수 변동 → 10초 안정화 대기
-        kdsLastRawCount = count
-        kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
-        kdsStabilizeRunnable = Runnable {
-            if (kdsLastRawCount == count) {
-                setOrderCount(count)
-                android.util.Log.d("OrderTracker", "KDS 건수 안정화 반영: $count")
+
+        kdsLastRawCount = corrected
+
+        if (corrected > 0) {
+            // 양수 → 즉시 반영 (0 대기 취소)
+            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
+            kdsStabilizeRunnable = null
+            setOrderCount(corrected)
+            android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $corrected")
+        } else {
+            // 0 → Gist도 0인지 재확인, 30초 대기 후 반영
+            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
+            kdsStabilizeRunnable = Runnable {
+                if (kdsLastRawCount == 0 && (gistKdsCount <= 0 || System.currentTimeMillis() - gistKdsTime > 120_000L)) {
+                    setOrderCount(0)
+                    android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영 (Gist도 0 확인)")
+                } else if (kdsLastRawCount == 0 && gistKdsCount > 0) {
+                    // 30초 후에도 Gist가 양수 → Gist 값 사용
+                    setOrderCount(gistKdsCount)
+                    android.util.Log.d("OrderTracker", "KDS 0 대기중 Gist=$gistKdsCount → Gist값 반영")
+                }
             }
+            kdsHandler.postDelayed(kdsStabilizeRunnable!!, 30_000L)
         }
-        kdsHandler.postDelayed(kdsStabilizeRunnable!!, KDS_STABILIZE_MS)
     }
 
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
