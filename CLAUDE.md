@@ -35,6 +35,13 @@
 - **기능 추가 시마다**: 해당 기능의 알림도 같은 조건으로 함께 추가
 - 예: `배민광고 300원완료`, `쿠팡광고 켜기완료`, `37번 3분 지연완료`, `50번 조리`
 
+## WebView 로딩 관리
+- **DashboardWebViewClient**: 로딩 시작/완료/실패를 Firebase 로그에 기록 (`[WebView] 로딩 완료: 1200ms` 형태)
+- **서버 다운 fallback**: 마지막 성공 페이지를 `dashboard_cache.html`에 로컬 저장 → 로딩 실패 시 캐시에서 로드 + "오프라인 모드" 표시
+- **캐시 없을 때**: "서버 연결 실패" 안내 + 새로고침 버튼 표시
+- **로그 분석**: Firebase `/posdelay/logs.json`에서 `[WebView]` 태그로 로딩 성공률/속도/실패 원인 분석 가능
+- **새로고침(↻) 버튼**: `clearCache` + 원본 URL 재로드 → 서버 복구 시 즉시 최신 페이지 로드
+
 ## 이상신호 감지 (AnomalyDetector)
 - 중복실행, 과다호출, 연속실패, SSE빈번재연결 → Firebase alert + 웹 표시
 

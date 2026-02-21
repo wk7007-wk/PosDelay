@@ -15,7 +15,10 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.JavascriptInterface
+import android.graphics.Bitmap
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
@@ -47,6 +50,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+    private var pageLoadStartTime = 0L
+    private var pageLoadFailed = false
+    private val DASHBOARD_URL = "https://wk7007-wk.github.io/PosKDS/"
+    private val CACHE_FILE = "dashboard_cache.html"
     private var adWebAutomation: AdWebAutomation? = null
     private val adActionQueue = ArrayDeque<Pair<AdWebAutomation.Action, Int>>()
     private var pendingBackToBackground = false
@@ -67,10 +74,10 @@ class MainActivity : AppCompatActivity() {
         webView.settings.databaseEnabled = true
         webView.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
         webView.addJavascriptInterface(NativeBridge(), "NativeBridge")
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = DashboardWebViewClient()
         webView.webChromeClient = WebChromeClient()
         webView.setBackgroundColor(0xFF121225.toInt())
-        webView.loadUrl("https://wk7007-wk.github.io/PosKDS/")
+        webView.loadUrl(DASHBOARD_URL)
 
         // 화면 꺼짐 방지
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -127,6 +134,84 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack()
         else super.onBackPressed()
+    }
+
+    // ═══════ WebView 로딩 관리 ═══════
+
+    inner class DashboardWebViewClient : WebViewClient() {
+        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            super.onPageStarted(view, url, favicon)
+            pageLoadStartTime = System.currentTimeMillis()
+            pageLoadFailed = false
+            webLog("로딩 시작: $url")
+        }
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            if (!pageLoadFailed) {
+                val duration = System.currentTimeMillis() - pageLoadStartTime
+                webLog("로딩 완료: ${duration}ms")
+                // 성공 시 로컬 캐시 저장
+                view?.evaluateJavascript("document.documentElement.outerHTML") { html ->
+                    if (html != null && html.length > 500) saveDashboardCache(html)
+                }
+            }
+        }
+
+        override fun onReceivedError(view: WebView?, request: WebResourceRequest?,
+                                     error: WebResourceError?) {
+            // 메인 페이지 로딩 실패만 처리 (서브 리소스 무시)
+            if (request?.isForMainFrame == true) {
+                pageLoadFailed = true
+                val code = if (android.os.Build.VERSION.SDK_INT >= 23) error?.errorCode else -1
+                val desc = if (android.os.Build.VERSION.SDK_INT >= 23) error?.description else "unknown"
+                webLog("로딩 실패: code=$code desc=$desc → 캐시 fallback")
+                loadFromCache()
+            }
+        }
+    }
+
+    private fun loadFromCache() {
+        try {
+            val file = java.io.File(filesDir, CACHE_FILE)
+            if (file.exists()) {
+                val html = file.readText()
+                webView.loadDataWithBaseURL(DASHBOARD_URL, html, "text/html", "UTF-8", null)
+                Toast.makeText(this, "오프라인 모드 (캐시)", Toast.LENGTH_LONG).show()
+                webLog("캐시 로드 성공: ${file.length() / 1024}KB")
+            } else {
+                webView.loadData(
+                    "<html><body style='background:#121225;color:#E0E0EC;text-align:center;padding:40px;font-family:sans-serif'>" +
+                    "<h2>서버 연결 실패</h2><p>인터넷 연결을 확인하고<br>새로고침 버튼을 눌러주세요</p>" +
+                    "<button onclick='location.reload()' style='padding:12px 24px;background:#2ECC71;color:#FFF;border:none;border-radius:8px;font-size:16px;margin-top:20px'>새로고침</button>" +
+                    "</body></html>",
+                    "text/html", "UTF-8"
+                )
+                webLog("캐시 없음 → 오류 페이지 표시")
+            }
+        } catch (e: Exception) {
+            webLog("캐시 로드 실패: ${e.message}")
+        }
+    }
+
+    private fun saveDashboardCache(rawHtml: String) {
+        kotlin.concurrent.thread {
+            try {
+                // evaluateJavascript 결과는 JSON 문자열 (따옴표+이스케이프)
+                val html = rawHtml.trim().removeSurrounding("\"")
+                    .replace("\\n", "\n").replace("\\t", "\t")
+                    .replace("\\\"", "\"").replace("\\\\/", "/")
+                    .replace("\\\\", "\\").replace("\\u003C", "<")
+                    .replace("\\u003E", ">").replace("\\u0026", "&")
+                if (html.length < 500) return@thread
+                java.io.File(filesDir, CACHE_FILE).writeText(html)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun webLog(msg: String) {
+        android.util.Log.d("PosDelay-WebView", msg)
+        FirebaseSettingsSync.uploadLog("[WebView] $msg")
     }
 
     // ═══════ JavaScript Bridge ═══════
@@ -225,9 +310,8 @@ class MainActivity : AppCompatActivity() {
                 FirebaseSettingsSync.restart()
                 FirebaseKdsReader.fetchOnce()
                 DelayNotificationHelper.update(this@MainActivity)
-                // 페이지 새로고침
                 webView.clearCache(true)
-                webView.reload()
+                webView.loadUrl(DASHBOARD_URL)
             }
         }
 
