@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var isEvaluating = false
     @Volatile private var lastAutoEvalTime = 0L
     @Volatile private var lastAutoEvalCount = -1
+    private var bgTriggerPending = false  // checkFromBackground 이중 트리거 방지
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,6 +81,7 @@ class MainActivity : AppCompatActivity() {
         // 건수 변경 감지 → 광고 자동화 (Firebase에서 최신 설정 조회 후 판단)
         OrderTracker.orderCount.observe(this) { _ ->
             DelayNotificationHelper.update(this)
+            if (bgTriggerPending) return@observe  // Fix 2: 백그라운드 Intent가 이미 평가 예정
             evaluateAndExecute("건수변동", background = false)
         }
 
@@ -401,7 +403,7 @@ class MainActivity : AppCompatActivity() {
      * Firebase에서 최신 설정 GET → zone→금액 판단 → 필요한 액션만 실행.
      */
     private fun evaluateAndExecute(reason: String, background: Boolean) {
-        if (isEvaluating) return  // Bug 3: 동시 실행 방지
+        if (isEvaluating) return  // 동시 실행 방지
         val now = System.currentTimeMillis()
         val count = OrderTracker.getOrderCount()
         // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
@@ -417,6 +419,7 @@ class MainActivity : AppCompatActivity() {
         val currentCoupangOn = AdManager.coupangCurrentOn.value
 
         isEvaluating = true
+        bgTriggerPending = false  // Fix 2: 평가 시작 → 이중 트리거 방지 해제
         // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
         kotlin.concurrent.thread {
             try {
@@ -429,7 +432,8 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (actions.isEmpty()) {
                     lastAutoEvalCount = count
-                    isEvaluating = false  // 액션 없음 → 즉시 해제
+                    // Fix 1: UI 스레드에서 해제 (백그라운드 해제 → LiveData 재진입 race 방지)
+                    runOnUiThread { isEvaluating = false }
                     return@thread
                 }
 
@@ -460,7 +464,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                isEvaluating = false  // 예외 시 해제
+                runOnUiThread { isEvaluating = false }  // Fix 1: 예외도 UI 스레드에서 해제
             }
         }
     }
@@ -494,6 +498,7 @@ class MainActivity : AppCompatActivity() {
             }
             else -> {
                 val isBackground = action.startsWith("ad_auto_")
+                if (isBackground) bgTriggerPending = true  // Fix 2: LiveData 이중 트리거 방지
                 evaluateAndExecute("스케줄:$action", background = isBackground)
             }
         }
