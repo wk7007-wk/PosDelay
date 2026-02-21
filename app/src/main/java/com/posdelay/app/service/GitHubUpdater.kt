@@ -125,7 +125,7 @@ class GitHubUpdater(private val activity: Activity) {
 
         val dm = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-            setTitle("PosDelay $version 다운로드")
+            setTitle("$version 업데이트")
             setDescription("GitHub에서 최신 APK 다운로드 중...")
             setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, APK_NAME)
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
