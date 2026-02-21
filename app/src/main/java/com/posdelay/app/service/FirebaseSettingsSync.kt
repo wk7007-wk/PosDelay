@@ -32,7 +32,8 @@ object FirebaseSettingsSync {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
     private var running = false
     private var sseThread: Thread? = null
-    @Volatile private var settingsVersion = 0L  // Bug 8: 멀티스레드 접근
+    @Volatile private var settingsVersion = 0L
+    private var settingsUploadTimer: Runnable? = null  // 디바운스 타이머
 
     // 원격 적용 중 무한루프 방지 플래그
     @Volatile var isApplyingRemote = false
@@ -41,8 +42,7 @@ object FirebaseSettingsSync {
     fun start(context: Context) {
         if (running) return
         running = true
-        // 초기 업로드
-        uploadAllSettings()
+        // 초기: 상태만 업로드 (설정은 SSE로 Firebase→앱 수신 후 판단)
         uploadStatus()
         // SSE 리스너 시작 (설정 변경 수신)
         connectSettingsSSE()
@@ -55,10 +55,14 @@ object FirebaseSettingsSync {
         sseThread = null
     }
 
-    /** 설정 변경 시 호출 (AdManager setter에서) */
+    /** 설정 변경 시 호출 (AdManager setter에서) — 500ms 디바운스 */
     fun onSettingsChanged() {
         if (isApplyingRemote) return
-        uploadAllSettings()
+        // 연속 호출 시 마지막 1회만 업로드 (applySettings → setXxx 연쇄 방지)
+        settingsUploadTimer?.let { handler.removeCallbacks(it) }
+        val task = Runnable { uploadAllSettings() }
+        settingsUploadTimer = task
+        handler.postDelayed(task, 500)
     }
 
     /** 주문 건수 변경 시 호출 */
@@ -283,8 +287,15 @@ object FirebaseSettingsSync {
         try {
             val wrapper = JSONObject(raw)
             val path = wrapper.optString("path", "/")
-            val data = wrapper.opt("data") ?: return
-            if (data.toString() == "null") return
+            val data = wrapper.opt("data")
+            // Firebase 비어있으면 앱 설정 업로드 (최초 설치)
+            if (data == null || data.toString() == "null") {
+                if (path == "/") {
+                    Log.d(TAG, "Firebase 설정 없음 → 앱 설정 업로드")
+                    uploadAllSettings()
+                }
+                return
+            }
 
             val obj: JSONObject
             if (path == "/") {

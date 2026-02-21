@@ -109,10 +109,13 @@ object AdScheduler {
         return h * 60 + m
     }
 
-    /** 백그라운드에서 주문 건수 변경 시 — Activity로 포워드 (평가는 Activity에서 1회만) */
+    /** 백그라운드에서 주문 건수 변경 시 — 로컬 판단 후 필요시만 Activity 포워드 */
     fun checkFromBackground(context: Context, count: Int) {
         if (!AdManager.isAdEnabled()) return
+        if (!AdManager.isOrderAutoOffEnabled()) return
         if (MainActivity.isInForeground) return  // 포그라운드: LiveData observer가 처리
+        // 스케줄 시간대 밖이면 스킵
+        if (AdManager.isScheduleEnabled() && !isWithinActiveWindow()) return
 
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
@@ -120,6 +123,9 @@ object AdScheduler {
         val lastCount = prefs.getInt("last_bg_count", -1)
         // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
         if (count == lastCount && now - lastCheck < 2 * 60 * 1000) return
+
+        // 로그인 정보 없으면 스킵 (불필요한 화면 전환 방지)
+        if (!AdManager.hasBaeminCredentials() && !AdManager.hasCoupangCredentials()) return
 
         prefs.edit().putLong("last_bg_eval", now).putInt("last_bg_count", count).apply()
         Log.d(TAG, "Background trigger: count=$count → Activity 포워드")
