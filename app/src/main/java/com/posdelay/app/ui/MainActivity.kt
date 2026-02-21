@@ -51,8 +51,8 @@ class MainActivity : AppCompatActivity() {
     private var pendingBackToBackground = false
     private var pendingForceAdOff = false
     @Volatile private var isEvaluating = false
-    private var lastAutoEvalTime = 0L
-    private var lastAutoEvalCount = -1
+    @Volatile private var lastAutoEvalTime = 0L
+    @Volatile private var lastAutoEvalCount = -1
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -295,6 +295,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun executeAdAction(action: AdWebAutomation.Action, amount: Int = AdManager.getBaeminAmount()) {
         if (adWebAutomation?.isRunning() == true) {
+            // 중복 검사: 동일 액션이 이미 큐에 있으면 스킵 (BAEMIN은 금액 업데이트)
+            val existingIdx = adActionQueue.indexOfFirst { it.first == action }
+            if (existingIdx >= 0) {
+                if (action == AdWebAutomation.Action.BAEMIN_SET_AMOUNT) {
+                    adActionQueue[existingIdx] = Pair(action, amount)  // 최신 금액으로 교체
+                }
+                return  // 이미 큐에 있으므로 중복 추가 안 함
+            }
             adActionQueue.addLast(Pair(action, amount))
             Toast.makeText(this, "${actionDisplayName(action, amount)} 대기 ${adActionQueue.size}건", Toast.LENGTH_SHORT).show()
             return
@@ -381,7 +389,7 @@ class MainActivity : AppCompatActivity() {
         val currentBid = AdManager.getBaeminCurrentBid()
         val currentCoupangOn = AdManager.coupangCurrentOn.value
 
-        isEvaluating = true  // Bug 3: guard 시작
+        isEvaluating = true
         // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
         kotlin.concurrent.thread {
             try {
@@ -394,33 +402,38 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (actions.isEmpty()) {
                     lastAutoEvalCount = count
+                    isEvaluating = false  // 액션 없음 → 즉시 해제
                     return@thread
                 }
 
                 lastAutoEvalTime = now
                 lastAutoEvalCount = count
                 runOnUiThread {
-                    if (background) pendingBackToBackground = true
-                    for (action in actions) {
-                        when (action) {
-                            is AdDecisionEngine.AdAction.CoupangOn -> {
-                                DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
-                                executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
-                            }
-                            is AdDecisionEngine.AdAction.CoupangOff -> {
-                                DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
-                                executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
-                            }
-                            is AdDecisionEngine.AdAction.BaeminSetAmount -> {
-                                DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
-                                executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                    try {
+                        if (background) pendingBackToBackground = true
+                        for (action in actions) {
+                            when (action) {
+                                is AdDecisionEngine.AdAction.CoupangOn -> {
+                                    DelayNotificationHelper.showAdProgress(this, "쿠팡 켜기")
+                                    executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+                                }
+                                is AdDecisionEngine.AdAction.CoupangOff -> {
+                                    DelayNotificationHelper.showAdProgress(this, "쿠팡 끄기")
+                                    executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+                                }
+                                is AdDecisionEngine.AdAction.BaeminSetAmount -> {
+                                    DelayNotificationHelper.showAdProgress(this, "배민 ${action.amount}원")
+                                    executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                                }
                             }
                         }
+                        FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
+                    } finally {
+                        isEvaluating = false  // UI스레드에서 큐잉 완료 후 해제
                     }
-                    FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
                 }
-            } finally {
-                isEvaluating = false  // Bug 3: guard 해제
+            } catch (e: Exception) {
+                isEvaluating = false  // 예외 시 해제
             }
         }
     }

@@ -109,10 +109,10 @@ object AdScheduler {
         return h * 60 + m
     }
 
-    /** 백그라운드에서 주문 건수 변경 시 — Firebase 최신 설정 기반 판단 */
+    /** 백그라운드에서 주문 건수 변경 시 — Activity로 포워드 (평가는 Activity에서 1회만) */
     fun checkFromBackground(context: Context, count: Int) {
         if (!AdManager.isAdEnabled()) return
-        if (MainActivity.isInForeground) return
+        if (MainActivity.isInForeground) return  // 포그라운드: LiveData observer가 처리
 
         val prefs = context.getSharedPreferences("ad_scheduler_bg", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
@@ -121,25 +121,9 @@ object AdScheduler {
         // 건수 변동 시 쿨다운 무시, 동일 건수면 2분 쿨다운
         if (count == lastCount && now - lastCheck < 2 * 60 * 1000) return
 
-        // 백그라운드 스레드에서 Firebase 조회 (메인 스레드 네트워크 금지)
-        kotlin.concurrent.thread {
-            try {
-                val actions = AdDecisionEngine.evaluate(
-                    count = count,
-                    currentBaeminBid = AdManager.getBaeminCurrentBid(),
-                    currentCoupangOn = AdManager.coupangCurrentOn.value,
-                    hasBaemin = AdManager.hasBaeminCredentials(),
-                    hasCoupang = AdManager.hasCoupangCredentials()
-                )
-                if (actions.isEmpty()) return@thread
-
-                prefs.edit().putLong("last_bg_eval", now).putInt("last_bg_count", count).apply()
-                Log.d(TAG, "Background trigger: ${actions.size} actions for count=$count")
-                launchAdAction(context, "ad_auto_eval")
-            } catch (e: Exception) {
-                Log.w(TAG, "Background eval failed: ${e.message}")
-            }
-        }
+        prefs.edit().putLong("last_bg_eval", now).putInt("last_bg_count", count).apply()
+        Log.d(TAG, "Background trigger: count=$count → Activity 포워드")
+        launchAdAction(context, "ad_auto_eval")
     }
 
     private fun launchAdAction(context: Context, action: String) {
