@@ -17,6 +17,23 @@ object AdDecisionEngine {
 
     private const val TAG = "AdDecision"
     private const val FIREBASE_BASE = "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app"
+    private const val ACTION_COOLDOWN_MS = 5 * 60 * 1000L  // 5분 쿨다운
+
+    // 액션별 마지막 실행 시간 (반대 액션 차단용)
+    private var lastCoupangOnTime = 0L
+    private var lastCoupangOffTime = 0L
+    private var lastBaeminSetTime = 0L
+    private var lastBaeminAmount = -1
+
+    /** 광고 실행 완료 시 호출 (쿨다운 기록) */
+    fun recordExecution(action: AdAction) {
+        val now = System.currentTimeMillis()
+        when (action) {
+            is AdAction.CoupangOn -> lastCoupangOnTime = now
+            is AdAction.CoupangOff -> lastCoupangOffTime = now
+            is AdAction.BaeminSetAmount -> { lastBaeminSetTime = now; lastBaeminAmount = action.amount }
+        }
+    }
 
     /** 광고 액션 종류 */
     sealed class AdAction {
@@ -72,13 +89,28 @@ object AdDecisionEngine {
 
         val actions = mutableListOf<AdAction>()
         val idx = count.coerceIn(0, 10)
+        val now = System.currentTimeMillis()
 
         // 쿠팡
         if (hasCoupang && settings.coupangAutoEnabled) {
             val cZone = settings.coupangZones.getOrElse(idx) { 0 }
             when {
-                cZone == 2 && currentCoupangOn != false -> actions.add(AdAction.CoupangOff)
-                cZone == 1 && currentCoupangOn == false -> actions.add(AdAction.CoupangOn)
+                cZone == 2 && currentCoupangOn != false -> {
+                    // 쿨다운: ON 실행 후 5분 내 OFF 차단
+                    if (now - lastCoupangOnTime >= ACTION_COOLDOWN_MS) {
+                        actions.add(AdAction.CoupangOff)
+                    } else {
+                        Log.d(TAG, "쿠팡OFF 쿨다운 (ON후 ${(now - lastCoupangOnTime) / 1000}초)")
+                    }
+                }
+                cZone == 1 && currentCoupangOn == false -> {
+                    // 쿨다운: OFF 실행 후 5분 내 ON 차단
+                    if (now - lastCoupangOffTime >= ACTION_COOLDOWN_MS) {
+                        actions.add(AdAction.CoupangOn)
+                    } else {
+                        Log.d(TAG, "쿠팡ON 쿨다운 (OFF후 ${(now - lastCoupangOffTime) / 1000}초)")
+                    }
+                }
             }
         }
 
@@ -91,8 +123,13 @@ object AdDecisionEngine {
                 3 -> settings.baeminReducedAmount
                 else -> null // hold
             }
-            if (targetAmount != null && currentBaeminBid != targetAmount) {  // Bug 10: bid=0(미확인)도 설정 허용
-                actions.add(AdAction.BaeminSetAmount(targetAmount))
+            if (targetAmount != null && currentBaeminBid != targetAmount) {
+                // 쿨다운: 다른 금액으로 변경 후 5분 내 재변경 차단
+                if (now - lastBaeminSetTime >= ACTION_COOLDOWN_MS || lastBaeminAmount == -1) {
+                    actions.add(AdAction.BaeminSetAmount(targetAmount))
+                } else {
+                    Log.d(TAG, "배민금액 쿨다운 (${lastBaeminAmount}원 후 ${(now - lastBaeminSetTime) / 1000}초)")
+                }
             }
         }
 

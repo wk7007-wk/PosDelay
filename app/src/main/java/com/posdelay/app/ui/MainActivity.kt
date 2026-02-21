@@ -521,17 +521,28 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (actions.isEmpty()) {
                     lastAutoEvalCount = count
-                    // Fix 1: UI 스레드에서 해제 (백그라운드 해제 → LiveData 재진입 race 방지)
                     runOnUiThread { isEvaluating = false }
                     return@thread
                 }
 
-                lastAutoEvalTime = now
+                // 10초 안정화 대기: 건수가 변동 없으면 실행, 변동 시 취소
+                android.util.Log.d("AdEval", "액션 ${actions.size}개 대기 (10초 안정화, 건수=$count)")
+                Thread.sleep(10_000L)
+                val confirmedCount = OrderTracker.getOrderCount()
+                if (confirmedCount != count) {
+                    android.util.Log.d("AdEval", "안정화 실패: $count→$confirmedCount, 실행 취소")
+                    FirebaseSettingsSync.uploadLog("[$reason] 안정화실패 ${count}→${confirmedCount} 취소")
+                    runOnUiThread { isEvaluating = false }
+                    return@thread
+                }
+
+                lastAutoEvalTime = System.currentTimeMillis()
                 lastAutoEvalCount = count
                 runOnUiThread {
                     try {
                         if (background) pendingBackToBackground = true
                         for (action in actions) {
+                            AdDecisionEngine.recordExecution(action)
                             when (action) {
                                 is AdDecisionEngine.AdAction.CoupangOn -> {
                                     DelayNotificationHelper.showAdProgress(this, "쿠팡광고 켜기")
@@ -547,9 +558,9 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
-                        FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개")
+                        FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개 (안정화확인)")
                     } finally {
-                        isEvaluating = false  // UI스레드에서 큐잉 완료 후 해제
+                        isEvaluating = false
                     }
                 }
             } catch (e: Exception) {
