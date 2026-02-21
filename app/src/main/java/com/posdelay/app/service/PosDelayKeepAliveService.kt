@@ -66,6 +66,7 @@ class PosDelayKeepAliveService : Service() {
         DelayNotificationHelper.createChannels(this)
         val notification = NotificationCompat.Builder(this, "posdelay_status")
             .setSmallIcon(android.R.drawable.ic_menu_manage)
+            .setContentTitle("")
             .setContentText("PosDelay 모니터링 시작...")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

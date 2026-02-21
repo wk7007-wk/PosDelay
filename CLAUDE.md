@@ -31,7 +31,8 @@
 - KDS건수=`/kds_status.json`, 설정=`/posdelay/settings.json`, 명령=`/posdelay/command.json`, 주문추적=`/posdelay/order_tracking.json`, 이상신호=`/posdelay/alert.json`, 로그=`/posdelay/log.json`
 
 ## 알림 (상태표시줄 + 이어폰 TTS)
-- **원칙**: 제목 없음, 필요 단어만, 중복 금지
+- **원칙**: 제목 없음(`setContentTitle("")` 필수), 필요 단어만, 중복 금지
+- **구현**: 모든 NotificationCompat.Builder에 `.setContentTitle("")` 명시 — 생략 시 Android가 앱 이름을 제목으로 표시함
 - **기능 추가 시마다**: 해당 기능의 알림도 같은 조건으로 함께 추가
 - 예: `배민광고 300원완료`, `쿠팡광고 켜기완료`, `37번 3분 지연완료`, `50번 조리`
 

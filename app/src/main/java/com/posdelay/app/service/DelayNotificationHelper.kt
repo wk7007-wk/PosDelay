@@ -60,6 +60,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
+            .setContentTitle("")
             .setContentText(statusText)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -79,6 +80,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -104,6 +106,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -125,6 +128,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -141,6 +145,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(android.R.drawable.ic_popup_sync)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -163,6 +168,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(if (success) android.R.drawable.ic_dialog_info else android.R.drawable.ic_dialog_alert)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -180,6 +186,7 @@ object DelayNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
