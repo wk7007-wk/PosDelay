@@ -42,6 +42,7 @@ import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.FirebaseSettingsSync
 import com.posdelay.app.service.NativeCookAlertChecker
 import com.posdelay.app.service.PosDelayKeepAliveService
+import androidx.lifecycle.Observer
 
 class MainActivity : AppCompatActivity() {
 
@@ -63,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var lastAutoEvalTime = 0L
     @Volatile private var lastAutoEvalCount = -1
     private var bgTriggerPending = false  // checkFromBackground 이중 트리거 방지
+    private lateinit var countObserver: Observer<Int>  // observeForever용 (백그라운드에서도 동작)
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,12 +90,13 @@ class MainActivity : AppCompatActivity() {
         PosDelayKeepAliveService.start(this)
         DelayNotificationHelper.update(this)
 
-        // 건수 변경 감지 → 광고 자동화 (Firebase에서 최신 설정 조회 후 판단)
-        OrderTracker.orderCount.observe(this) { _ ->
+        // 건수 변경 감지 → 광고 자동화 (observeForever: 백그라운드에서도 동작)
+        countObserver = Observer { _ ->
             DelayNotificationHelper.update(this)
-            if (bgTriggerPending) return@observe  // Fix 2: 백그라운드 Intent가 이미 평가 예정
-            evaluateAndExecute("건수변동", background = false)
+            if (bgTriggerPending) return@Observer
+            evaluateAndExecute("건수변동", background = !isInForeground)
         }
+        OrderTracker.orderCount.observeForever(countObserver)
 
         handleIntent(intent)
     }
@@ -130,6 +133,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        OrderTracker.orderCount.removeObserver(countObserver)
         super.onDestroy()
     }
 
@@ -533,25 +537,50 @@ class MainActivity : AppCompatActivity() {
                     return@thread
                 }
 
-                // 10초 안정화 대기: 건수가 변동 없으면 실행, 변동 시 취소
+                // 10초 안정화 대기 (재시도 1회: 건수 변동 시 새 건수로 재판단)
                 android.util.Log.d("AdEval", "액션 ${actions.size}개 대기 (10초 안정화, 건수=$count)")
                 com.posdelay.app.data.LogFileWriter.append("AD", "10초 안정화 대기 건수=$count 액션=${actions.size}개")
                 Thread.sleep(10_000L)
-                val confirmedCount = OrderTracker.getOrderCount()
+                var confirmedCount = OrderTracker.getOrderCount()
+                var finalActions = actions
                 if (confirmedCount != count) {
-                    android.util.Log.d("AdEval", "안정화 실패: $count→$confirmedCount, 실행 취소")
-                    com.posdelay.app.data.LogFileWriter.append("AD", "안정화실패 ${count}→${confirmedCount} 취소")
-                    FirebaseSettingsSync.uploadLog("[$reason] 안정화실패 ${count}→${confirmedCount} 취소")
-                    runOnUiThread { isEvaluating = false }
-                    return@thread
+                    // 건수 변동 → 새 건수로 재판단 (같은 zone이면 실행)
+                    val retryActions = AdDecisionEngine.evaluate(
+                        count = confirmedCount,
+                        currentBaeminBid = currentBid,
+                        currentCoupangOn = currentCoupangOn,
+                        hasBaemin = hasBaemin,
+                        hasCoupang = hasCoupang
+                    )
+                    if (retryActions.isEmpty()) {
+                        android.util.Log.d("AdEval", "안정화: $count→$confirmedCount, 재판단 액션없음 → 취소")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "안정화 ${count}→${confirmedCount} 재판단→액션없음")
+                        runOnUiThread { isEvaluating = false }
+                        return@thread
+                    }
+                    android.util.Log.d("AdEval", "안정화: $count→$confirmedCount, 재판단 액션=${retryActions.size}개 → 실행")
+                    com.posdelay.app.data.LogFileWriter.append("AD", "안정화 ${count}→${confirmedCount} 재판단→${retryActions.size}개 실행")
+                    finalActions = retryActions
+                    // 5초 추가 대기 후 최종 확인
+                    Thread.sleep(5_000L)
+                    val finalCount = OrderTracker.getOrderCount()
+                    if (finalCount != confirmedCount) {
+                        android.util.Log.d("AdEval", "2차 안정화 실패: $confirmedCount→$finalCount, 취소")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "2차안정화실패 ${confirmedCount}→${finalCount} 취소")
+                        runOnUiThread { isEvaluating = false }
+                        return@thread
+                    }
+                    confirmedCount = finalCount
                 }
 
                 lastAutoEvalTime = System.currentTimeMillis()
-                lastAutoEvalCount = count
+                lastAutoEvalCount = confirmedCount
+                val execActions = finalActions
+                val execCount = confirmedCount
                 runOnUiThread {
                     try {
                         if (background) pendingBackToBackground = true
-                        for (action in actions) {
+                        for (action in execActions) {
                             AdDecisionEngine.recordExecution(action)
                             when (action) {
                                 is AdDecisionEngine.AdAction.CoupangOn -> {
@@ -568,7 +597,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
-                        FirebaseSettingsSync.uploadLog("[$reason] 건수=${count} 액션=${actions.size}개 (안정화확인)")
+                        FirebaseSettingsSync.uploadLog("[$reason] 건수=${execCount} 액션=${execActions.size}개 (안정화확인)")
                     } finally {
                         isEvaluating = false
                     }

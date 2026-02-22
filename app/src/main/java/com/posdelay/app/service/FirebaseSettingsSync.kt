@@ -33,6 +33,8 @@ object FirebaseSettingsSync {
     private var running = false
     private var sseThread: Thread? = null
     private var commandSseThread: Thread? = null
+    @Volatile private var sseConnection: HttpURLConnection? = null
+    @Volatile private var commandSseConnection: HttpURLConnection? = null
     private var appContext: Context? = null
     @Volatile private var settingsVersion = 0L
     private var settingsUploadTimer: Runnable? = null  // 디바운스 타이머
@@ -55,6 +57,11 @@ object FirebaseSettingsSync {
 
     fun stop() {
         running = false
+        settingsUploadTimer?.let { handler.removeCallbacks(it) }  // pending 콜백 제거
+        try { sseConnection?.disconnect() } catch (_: Exception) {}
+        try { commandSseConnection?.disconnect() } catch (_: Exception) {}
+        sseConnection = null
+        commandSseConnection = null
         sseThread?.interrupt()
         sseThread = null
         commandSseThread?.interrupt()
@@ -254,14 +261,17 @@ object FirebaseSettingsSync {
     private fun connectSettingsSSE() {
         if (!running) return
         sseThread = kotlin.concurrent.thread {
+            var conn: HttpURLConnection? = null
             try {
-                val conn = URL("$FIREBASE_BASE/posdelay/ad_settings.json").openConnection() as HttpURLConnection
+                conn = URL("$FIREBASE_BASE/posdelay/ad_settings.json").openConnection() as HttpURLConnection
+                sseConnection = conn
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 2 * 60 * 1000  // Bug 5: 2분 무응답 시 타임아웃 (staleness 방지)
+                conn.readTimeout = 3 * 60 * 1000  // 3분 무응답 시 타임아웃
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
+                    sseConnection = null
                     scheduleReconnect()
                     return@thread
                 }
@@ -271,7 +281,7 @@ object FirebaseSettingsSync {
                 var eventType = ""
 
                 while (running) {
-                    val line = reader.readLine() ?: break  // readTimeout 초과 시 null → 재연결
+                    val line = reader.readLine() ?: break
                     when {
                         line.startsWith("event:") -> eventType = line.substringAfter("event:").trim()
                         line.startsWith("data:") -> {
@@ -285,13 +295,20 @@ object FirebaseSettingsSync {
 
                 reader.close()
                 conn.disconnect()
+                sseConnection = null
                 Log.d(TAG, "설정 SSE 스트림 종료 (재연결)")
             } catch (e: InterruptedException) {
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
-                Log.d(TAG, "설정 SSE 타임아웃 (2분 무응답) → 재연결")
+                Log.d(TAG, "설정 SSE 타임아웃 (3분 무응답) → 재연결")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
             } catch (e: Exception) {
                 Log.w(TAG, "설정 SSE 에러: ${e.message}")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
             }
             scheduleReconnect()
         }
@@ -379,14 +396,17 @@ object FirebaseSettingsSync {
     private fun connectCommandSSE() {
         if (!running) return
         commandSseThread = kotlin.concurrent.thread {
+            var conn: HttpURLConnection? = null
             try {
-                val conn = URL("$FIREBASE_BASE/posdelay/command.json").openConnection() as HttpURLConnection
+                conn = URL("$FIREBASE_BASE/posdelay/command.json").openConnection() as HttpURLConnection
+                commandSseConnection = conn
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
                 conn.readTimeout = 5 * 60 * 1000  // 5분 타임아웃
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
+                    commandSseConnection = null
                     scheduleCommandReconnect()
                     return@thread
                 }
@@ -410,12 +430,19 @@ object FirebaseSettingsSync {
 
                 reader.close()
                 conn.disconnect()
+                commandSseConnection = null
             } catch (e: InterruptedException) {
+                try { conn?.disconnect() } catch (_: Exception) {}
+                commandSseConnection = null
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
                 Log.d(TAG, "명령 SSE 타임아웃 → 재연결")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                commandSseConnection = null
             } catch (e: Exception) {
                 Log.w(TAG, "명령 SSE 에러: ${e.message}")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                commandSseConnection = null
             }
             scheduleCommandReconnect()
         }

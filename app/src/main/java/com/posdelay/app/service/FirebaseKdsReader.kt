@@ -33,6 +33,7 @@ object FirebaseKdsReader {
     private var running = false
     private var appContext: Context? = null
     private var sseThread: Thread? = null
+    @Volatile private var sseConnection: HttpURLConnection? = null  // 강제 disconnect용
     private lateinit var prefs: SharedPreferences
 
     // 주문번호별 최초 등장 시간 추적 (SharedPreferences에 영구 저장)
@@ -133,6 +134,9 @@ object FirebaseKdsReader {
 
     fun stop() {
         running = false
+        handler.removeCallbacksAndMessages(null)  // pending reconnect 콜백 제거
+        try { sseConnection?.disconnect() } catch (_: Exception) {}  // 블로킹 readLine 해제
+        sseConnection = null
         sseThread?.interrupt()
         sseThread = null
     }
@@ -172,15 +176,18 @@ object FirebaseKdsReader {
     private fun connectSSE() {
         if (!running) return
         sseThread = kotlin.concurrent.thread {
+            var conn: HttpURLConnection? = null
             try {
-                val conn = URL(FIREBASE_URL).openConnection() as HttpURLConnection
+                conn = URL(FIREBASE_URL).openConnection() as HttpURLConnection
+                sseConnection = conn  // stop()에서 disconnect 가능하도록 저장
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 2 * 60 * 1000  // Bug 5: 2분 무응답 시 타임아웃 (staleness 방지)
+                conn.readTimeout = 3 * 60 * 1000  // 3분 무응답 시 타임아웃
 
                 if (conn.responseCode != 200) {
                     Log.w(TAG, "SSE 연결 실패: HTTP ${conn.responseCode}")
                     conn.disconnect()
+                    sseConnection = null
                     scheduleReconnect()
                     return@thread
                 }
@@ -192,7 +199,7 @@ object FirebaseKdsReader {
                 var eventType = ""
 
                 while (running) {
-                    val line = reader.readLine() ?: break  // readTimeout 초과 시 null → 재연결
+                    val line = reader.readLine() ?: break
 
                     when {
                         line.startsWith("event:") -> {
@@ -209,14 +216,21 @@ object FirebaseKdsReader {
 
                 reader.close()
                 conn.disconnect()
+                sseConnection = null
                 Log.d(TAG, "SSE 스트림 종료 (재연결)")
             } catch (e: InterruptedException) {
                 Log.d(TAG, "SSE 중단됨")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
-                Log.d(TAG, "SSE 타임아웃 (2분 무응답) → 재연결")
+                Log.d(TAG, "SSE 타임아웃 (3분 무응답) → 재연결")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
             } catch (e: Exception) {
                 Log.w(TAG, "SSE 에러: ${e.message}")
+                try { conn?.disconnect() } catch (_: Exception) {}
+                sseConnection = null
             }
 
             scheduleReconnect()
