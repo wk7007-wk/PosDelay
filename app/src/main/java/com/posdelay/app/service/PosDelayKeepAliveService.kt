@@ -100,6 +100,7 @@ class PosDelayKeepAliveService : Service() {
         // 데이터 수집 서비스 시작
         GistOrderReader.start(this)
         FirebaseKdsReader.start(this)
+        NativeCookAlertChecker.start(this)
 
         // 상태 알림 업데이트 (실제 건수 표시)
         DelayNotificationHelper.update(this)
@@ -122,6 +123,7 @@ class PosDelayKeepAliveService : Service() {
         super.onDestroy()
         isRunning = false
         handler.removeCallbacksAndMessages(null)
+        NativeCookAlertChecker.stop()
         unregisterNetworkCallback()
         releaseWakeLock()
         releaseWifiLock()

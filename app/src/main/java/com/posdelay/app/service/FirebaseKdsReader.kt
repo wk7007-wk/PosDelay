@@ -37,6 +37,9 @@ object FirebaseKdsReader {
 
     // 주문번호별 최초 등장 시간 추적 (SharedPreferences에 영구 저장)
     private val orderFirstSeen = HashMap<Int, Long>()
+    /** 현재 주문별 최초 등장 시간 (네이티브 조리 알림용) */
+    fun getOrderTimestamps(): Map<Int, Long> = synchronized(orderFirstSeen) { HashMap(orderFirstSeen) }
+
     private var lastLoggedCount = -1  // Firebase 로그 중복 방지
     private var lastCountChangeTime = System.currentTimeMillis()  // 30분 강제보정용
     private var lastCountValue = -1

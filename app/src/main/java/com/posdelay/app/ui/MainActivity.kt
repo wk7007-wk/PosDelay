@@ -40,6 +40,7 @@ import com.posdelay.app.service.AdWebAutomation
 import com.posdelay.app.service.DelayNotificationHelper
 import com.posdelay.app.service.FirebaseKdsReader
 import com.posdelay.app.service.FirebaseSettingsSync
+import com.posdelay.app.service.NativeCookAlertChecker
 import com.posdelay.app.service.PosDelayKeepAliveService
 
 class MainActivity : AppCompatActivity() {
@@ -345,7 +346,14 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun speakCook(text: String) {
+            // 백그라운드 복귀 시 밀린 알림 방지 (네이티브 체커가 처리)
+            if (!isInForeground) return
             DelayNotificationHelper.showCookAlert(this@MainActivity, text)
+        }
+
+        @JavascriptInterface
+        fun syncCookSettings(on: Boolean, targetSec: Int, midSec: Int, finishSec: Int) {
+            NativeCookAlertChecker.syncSettings(on, targetSec, midSec, finishSec)
         }
 
         @JavascriptInterface
