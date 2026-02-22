@@ -3,6 +3,10 @@ package com.posdelay.app.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
@@ -49,6 +53,8 @@ class PosDelayKeepAliveService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var pendingReconnect: Runnable? = null
 
     private val reacquireRunnable = object : Runnable {
         override fun run() {
@@ -101,6 +107,9 @@ class PosDelayKeepAliveService : Service() {
         // 주기적 WakeLock 갱신 + 알림 업데이트
         handler.postDelayed(reacquireRunnable, REACQUIRE_INTERVAL)
 
+        // 네트워크 변경 감지 → SSE 즉시 재연결
+        registerNetworkCallback()
+
         Log.d(TAG, "KeepAlive 서비스 시작")
         com.posdelay.app.data.LogFileWriter.append("HB", "서비스 시작")
     }
@@ -113,6 +122,7 @@ class PosDelayKeepAliveService : Service() {
         super.onDestroy()
         isRunning = false
         handler.removeCallbacksAndMessages(null)
+        unregisterNetworkCallback()
         releaseWakeLock()
         releaseWifiLock()
         Log.d(TAG, "KeepAlive 서비스 종료")
@@ -149,5 +159,45 @@ class PosDelayKeepAliveService : Service() {
     private fun releaseWifiLock() {
         try { if (wifiLock?.isHeld == true) wifiLock?.release() } catch (_: Exception) {}
         wifiLock = null
+    }
+
+    // === 네트워크 변경 감지 → SSE 즉시 재연결 ===
+
+    private fun registerNetworkCallback() {
+        try {
+            val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val cb = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    // 네트워크 복구 → 3초 디바운스 후 SSE 재연결
+                    pendingReconnect?.let { handler.removeCallbacks(it) }
+                    val task = Runnable {
+                        Log.d(TAG, "네트워크 변경 감지 → SSE 재연결")
+                        com.posdelay.app.data.LogFileWriter.append("NET", "네트워크 변경 → SSE 재연결")
+                        FirebaseKdsReader.restart()
+                        FirebaseSettingsSync.restart()
+                    }
+                    pendingReconnect = task
+                    handler.postDelayed(task, 3000)
+                }
+            }
+            cm.registerNetworkCallback(request, cb)
+            networkCallback = cb
+            Log.d(TAG, "네트워크 콜백 등록")
+        } catch (e: Exception) {
+            Log.w(TAG, "네트워크 콜백 등록 실패: ${e.message}")
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        try {
+            networkCallback?.let {
+                val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                cm.unregisterNetworkCallback(it)
+            }
+        } catch (_: Exception) {}
+        networkCallback = null
     }
 }

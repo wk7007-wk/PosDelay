@@ -494,47 +494,73 @@ object FirebaseSettingsSync {
         handler.postDelayed({ connectCommandSSE() }, RECONNECT_DELAY)
     }
 
+    private const val MAX_RETRIES = 2
+    private const val RETRY_DELAY_MS = 1000L
+
     private fun firebasePut(url: String, json: String) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.requestMethod = "PUT"
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.doOutput = true
-        OutputStreamWriter(conn.outputStream).use { it.write(json) }
-        val code = conn.responseCode
-        conn.disconnect()
-        if (code !in 200..299) {
-            Log.w(TAG, "Firebase PUT 실패: HTTP $code ($url)")
+        repeat(MAX_RETRIES + 1) { attempt ->
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.requestMethod = "PUT"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                OutputStreamWriter(conn.outputStream).use { it.write(json) }
+                val code = conn.responseCode
+                conn.disconnect()
+                if (code in 200..299) return
+                Log.w(TAG, "Firebase PUT 실패: HTTP $code ($url) 시도${attempt + 1}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase PUT 에러: ${e.message} 시도${attempt + 1}")
+            }
+            if (attempt < MAX_RETRIES) Thread.sleep(RETRY_DELAY_MS)
         }
     }
 
     private fun firebasePatch(url: String, json: String) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.requestMethod = "PATCH"
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.doOutput = true
-        OutputStreamWriter(conn.outputStream).use { it.write(json) }
-        val code = conn.responseCode
-        conn.disconnect()
-        if (code !in 200..299) {
-            Log.w(TAG, "Firebase PATCH 실패: HTTP $code ($url)")
+        repeat(MAX_RETRIES + 1) { attempt ->
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.requestMethod = "PATCH"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                OutputStreamWriter(conn.outputStream).use { it.write(json) }
+                val code = conn.responseCode
+                conn.disconnect()
+                if (code in 200..299) return
+                Log.w(TAG, "Firebase PATCH 실패: HTTP $code ($url) 시도${attempt + 1}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase PATCH 에러: ${e.message} 시도${attempt + 1}")
+            }
+            if (attempt < MAX_RETRIES) Thread.sleep(RETRY_DELAY_MS)
         }
     }
 
     private fun firebaseGet(url: String): String? {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
-        return try {
-            if (conn.responseCode in 200..299) {
-                conn.inputStream.bufferedReader().readText()
-            } else null
-        } finally {
-            conn.disconnect()
+        repeat(MAX_RETRIES + 1) { attempt ->
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                return try {
+                    if (conn.responseCode in 200..299) {
+                        conn.inputStream.bufferedReader().readText()
+                    } else {
+                        Log.w(TAG, "Firebase GET 실패: HTTP ${conn.responseCode} 시도${attempt + 1}")
+                        null
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase GET 에러: ${e.message} 시도${attempt + 1}")
+            }
+            if (attempt < MAX_RETRIES) Thread.sleep(RETRY_DELAY_MS)
         }
+        return null
     }
 }

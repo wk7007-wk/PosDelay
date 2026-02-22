@@ -512,7 +512,11 @@ class DelayAccessibilityService : AccessibilityService() {
     /** 접수시간(오전/오후 HH:MM)이 가장 최신인 주문 노드를 찾기 */
     private fun findNewestOrderNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val timeRegex = Regex("""(오전|오후)\s*(\d{1,2}):(\d{2})""")
-        val timeNodes = mutableListOf<Pair<Int, AccessibilityNodeInfo>>() // minutes, node
+        val timeNodes = mutableListOf<Pair<Int, AccessibilityNodeInfo>>() // agoMinutes, node
+
+        // 현재 시간 (자정 넘김 처리 기준)
+        val now = java.util.Calendar.getInstance()
+        val currentMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
 
         // "오전" / "오후" 포함 노드 수집
         val amNodes = root.findAccessibilityNodeInfosByText("오전") ?: emptyList()
@@ -530,14 +534,16 @@ class DelayAccessibilityService : AccessibilityService() {
             if (ampm == "오후" && hour < 12) hour += 12
             if (ampm == "오전" && hour == 12) hour = 0
 
+            // 자정 넘김 처리: 현재 시간 기준 몇 분 전인지 계산
             val totalMinutes = hour * 60 + minute
-            timeNodes.add(Pair(totalMinutes, node))
+            val agoMinutes = (currentMinutes - totalMinutes + 1440) % 1440
+            timeNodes.add(Pair(agoMinutes, node))
         }
 
         if (timeNodes.isEmpty()) return null
 
-        // 가장 최신(시간이 큰) 노드 반환
-        return timeNodes.maxByOrNull { it.first }?.second
+        // 가장 최신(현재로부터 가장 적게 경과) 노드 반환
+        return timeNodes.minByOrNull { it.first }?.second
     }
 
     /** 스크롤 가능한 뷰를 찾아 맨 아래로 스크롤 (최신 주문 표시) */

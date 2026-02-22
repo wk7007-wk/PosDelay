@@ -5,4 +5,5 @@
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds"
     android:canRetrieveWindowContent="true"
     android:description="@string/kds_accessibility_description"
-    android:notificationTimeout="500" />
+    android:notificationTimeout="500"
+    android:packageNames="com.foodtechkorea.mate_kds" />
