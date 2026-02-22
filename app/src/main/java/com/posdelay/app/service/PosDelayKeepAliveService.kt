@@ -173,16 +173,21 @@ class PosDelayKeepAliveService : Service() {
                 .build()
             val cb = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    // 네트워크 복구 → 3초 디바운스 후 SSE 재연결
+                    // 네트워크 복구 → SSE가 끊긴 경우에만 재연결 (5초 디바운스)
                     pendingReconnect?.let { handler.removeCallbacks(it) }
                     val task = Runnable {
-                        Log.d(TAG, "네트워크 변경 감지 → SSE 재연결")
-                        com.posdelay.app.data.LogFileWriter.append("NET", "네트워크 변경 → SSE 재연결")
-                        FirebaseKdsReader.restart()
-                        FirebaseSettingsSync.restart()
+                        val kdsDown = !FirebaseKdsReader.isConnected()
+                        if (kdsDown) {
+                            Log.d(TAG, "네트워크 변경 + SSE 끊김 → 재연결")
+                            com.posdelay.app.data.LogFileWriter.append("NET", "네트워크 변경 → SSE 재연결")
+                            FirebaseKdsReader.restart()
+                            FirebaseSettingsSync.restart()
+                        } else {
+                            Log.d(TAG, "네트워크 변경 감지 (SSE 정상 → 무시)")
+                        }
                     }
                     pendingReconnect = task
-                    handler.postDelayed(task, 3000)
+                    handler.postDelayed(task, 5000)
                 }
             }
             cm.registerNetworkCallback(request, cb)

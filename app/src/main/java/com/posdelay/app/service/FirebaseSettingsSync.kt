@@ -26,7 +26,7 @@ object FirebaseSettingsSync {
 
     private const val TAG = "FirebaseSettingsSync"
     private const val FIREBASE_BASE = "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app"
-    private const val RECONNECT_DELAY = 10_000L
+    // RECONNECT_DELAY는 MIN/MAX_RECONNECT_MS + 지수 백오프로 대체
 
     private val handler = Handler(Looper.getMainLooper())
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
@@ -35,9 +35,15 @@ object FirebaseSettingsSync {
     private var commandSseThread: Thread? = null
     @Volatile private var sseConnection: HttpURLConnection? = null
     @Volatile private var commandSseConnection: HttpURLConnection? = null
+    @Volatile private var sseEpoch = 0  // restart 레이스 컨디션 방지
+    @Volatile private var cmdEpoch = 0
     private var appContext: Context? = null
     @Volatile private var settingsVersion = 0L
     private var settingsUploadTimer: Runnable? = null  // 디바운스 타이머
+    private var settingsReconnectDelay = 10_000L
+    private var commandReconnectDelay = 10_000L
+    private const val MIN_RECONNECT_MS = 10_000L
+    private const val MAX_RECONNECT_MS = 60_000L
 
     // 원격 적용 중 무한루프 방지 플래그
     @Volatile var isApplyingRemote = false
@@ -47,17 +53,20 @@ object FirebaseSettingsSync {
         if (running) return
         appContext = context.applicationContext
         running = true
-        // 초기: 상태만 업로드 (설정은 SSE로 Firebase→앱 수신 후 판단)
         uploadStatus()
-        // SSE 리스너 시작 (설정 변경 수신 + 웹 명령 수신)
-        connectSettingsSSE()
-        connectCommandSSE()
+        val se = ++sseEpoch
+        val ce = ++cmdEpoch
+        connectSettingsSSE(se)
+        connectCommandSSE(ce)
         Log.d(TAG, "Firebase 설정 동기화 시작")
     }
 
     fun stop() {
         running = false
-        settingsUploadTimer?.let { handler.removeCallbacks(it) }  // pending 콜백 제거
+        sseEpoch++
+        cmdEpoch++
+        settingsUploadTimer?.let { handler.removeCallbacks(it) }
+        handler.removeCallbacksAndMessages(null)
         try { sseConnection?.disconnect() } catch (_: Exception) {}
         try { commandSseConnection?.disconnect() } catch (_: Exception) {}
         sseConnection = null
@@ -72,6 +81,8 @@ object FirebaseSettingsSync {
     fun restart() {
         val ctx = appContext ?: return
         stop()
+        settingsReconnectDelay = MIN_RECONNECT_MS
+        commandReconnectDelay = MIN_RECONNECT_MS
         Log.d(TAG, "강제 재시작")
         start(ctx)
     }
@@ -258,8 +269,8 @@ object FirebaseSettingsSync {
 
     // === SSE: Firebase → 앱 (웹에서 설정 변경 수신) ===
 
-    private fun connectSettingsSSE() {
-        if (!running) return
+    private fun connectSettingsSSE(epoch: Int) {
+        if (!running || epoch != sseEpoch) return
         sseThread = kotlin.concurrent.thread {
             var conn: HttpURLConnection? = null
             try {
@@ -267,20 +278,21 @@ object FirebaseSettingsSync {
                 sseConnection = conn
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 3 * 60 * 1000  // 3분 무응답 시 타임아웃
+                conn.readTimeout = 5 * 60 * 1000  // 5분
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
                     sseConnection = null
-                    scheduleReconnect()
+                    scheduleSettingsReconnect(epoch)
                     return@thread
                 }
 
+                settingsReconnectDelay = MIN_RECONNECT_MS  // 연결 성공 → 백오프 리셋
                 Log.d(TAG, "설정 SSE 연결 성공")
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
                 var eventType = ""
 
-                while (running) {
+                while (running && epoch == sseEpoch) {
                     val line = reader.readLine() ?: break
                     when {
                         line.startsWith("event:") -> eventType = line.substringAfter("event:").trim()
@@ -296,13 +308,12 @@ object FirebaseSettingsSync {
                 reader.close()
                 conn.disconnect()
                 sseConnection = null
-                Log.d(TAG, "설정 SSE 스트림 종료 (재연결)")
             } catch (e: InterruptedException) {
                 try { conn?.disconnect() } catch (_: Exception) {}
                 sseConnection = null
                 return@thread
             } catch (e: java.net.SocketTimeoutException) {
-                Log.d(TAG, "설정 SSE 타임아웃 (3분 무응답) → 재연결")
+                Log.d(TAG, "설정 SSE 타임아웃 → 재연결")
                 try { conn?.disconnect() } catch (_: Exception) {}
                 sseConnection = null
             } catch (e: Exception) {
@@ -310,7 +321,7 @@ object FirebaseSettingsSync {
                 try { conn?.disconnect() } catch (_: Exception) {}
                 sseConnection = null
             }
-            scheduleReconnect()
+            scheduleSettingsReconnect(epoch)
         }
     }
 
@@ -385,16 +396,18 @@ object FirebaseSettingsSync {
         if (obj.has("coupang_delay_threshold")) AdManager.setCoupangDelayThreshold(obj.getInt("coupang_delay_threshold"))
     }
 
-    private fun scheduleReconnect() {
-        if (!running) return
+    private fun scheduleSettingsReconnect(epoch: Int) {
+        if (!running || epoch != sseEpoch) return
         AnomalyDetector.recordSseReconnect("settings")
-        handler.postDelayed({ connectSettingsSSE() }, RECONNECT_DELAY)
+        val delay = settingsReconnectDelay
+        settingsReconnectDelay = (settingsReconnectDelay * 2).coerceAtMost(MAX_RECONNECT_MS)
+        handler.postDelayed({ connectSettingsSSE(epoch) }, delay)
     }
 
     // === 웹 명령 SSE (웹 UI → Firebase → 앱 실행) ===
 
-    private fun connectCommandSSE() {
-        if (!running) return
+    private fun connectCommandSSE(epoch: Int) {
+        if (!running || epoch != cmdEpoch) return
         commandSseThread = kotlin.concurrent.thread {
             var conn: HttpURLConnection? = null
             try {
@@ -402,20 +415,21 @@ object FirebaseSettingsSync {
                 commandSseConnection = conn
                 conn.setRequestProperty("Accept", "text/event-stream")
                 conn.connectTimeout = 15000
-                conn.readTimeout = 5 * 60 * 1000  // 5분 타임아웃
+                conn.readTimeout = 5 * 60 * 1000
 
                 if (conn.responseCode != 200) {
                     conn.disconnect()
                     commandSseConnection = null
-                    scheduleCommandReconnect()
+                    scheduleCommandReconnect(epoch)
                     return@thread
                 }
 
+                commandReconnectDelay = MIN_RECONNECT_MS
                 Log.d(TAG, "명령 SSE 연결 성공")
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
                 var eventType = ""
 
-                while (running) {
+                while (running && epoch == cmdEpoch) {
                     val line = reader.readLine() ?: break
                     when {
                         line.startsWith("event:") -> eventType = line.substringAfter("event:").trim()
@@ -444,7 +458,7 @@ object FirebaseSettingsSync {
                 try { conn?.disconnect() } catch (_: Exception) {}
                 commandSseConnection = null
             }
-            scheduleCommandReconnect()
+            scheduleCommandReconnect(epoch)
         }
     }
 
@@ -515,10 +529,12 @@ object FirebaseSettingsSync {
         }
     }
 
-    private fun scheduleCommandReconnect() {
-        if (!running) return
+    private fun scheduleCommandReconnect(epoch: Int) {
+        if (!running || epoch != cmdEpoch) return
         AnomalyDetector.recordSseReconnect("command")
-        handler.postDelayed({ connectCommandSSE() }, RECONNECT_DELAY)
+        val delay = commandReconnectDelay
+        commandReconnectDelay = (commandReconnectDelay * 2).coerceAtMost(MAX_RECONNECT_MS)
+        handler.postDelayed({ connectCommandSSE(epoch) }, delay)
     }
 
     private const val MAX_RETRIES = 2
