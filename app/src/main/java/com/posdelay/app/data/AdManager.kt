@@ -100,6 +100,19 @@ object AdManager {
     private val _baeminMidAmount = MutableLiveData(100)
     val baeminMidAmount: LiveData<Int> = _baeminMidAmount
 
+    // 로컬 변경 보호: SSE 덮어쓰기 방지 (키별 변경 시각)
+    private val localChangeGuard = mutableMapOf<String, Long>()
+    private const val GUARD_DURATION_MS = 30_000L // 30초간 SSE 덮어쓰기 차단
+
+    fun isGuarded(key: String): Boolean {
+        val ts = localChangeGuard[key] ?: return false
+        return System.currentTimeMillis() - ts < GUARD_DURATION_MS
+    }
+
+    private fun markLocalChange(key: String) {
+        localChangeGuard[key] = System.currentTimeMillis()
+    }
+
     private val _lastAdAction = MutableLiveData("")
     val lastAdAction: LiveData<String> = _lastAdAction
 
@@ -201,9 +214,11 @@ object AdManager {
     }
 
     // Setters
-    fun setAdEnabled(value: Boolean) {
+    fun setAdEnabled(value: Boolean, fromRemote: Boolean = false) {
+        if (fromRemote && isGuarded(KEY_AD_ENABLED)) return
         prefs.edit().putBoolean(KEY_AD_ENABLED, value).apply()
         _adEnabled.postValue(value)
+        if (!fromRemote) markLocalChange(KEY_AD_ENABLED)
         notifySettingsChanged()
     }
 
@@ -239,27 +254,35 @@ object AdManager {
         notifySettingsChanged()
     }
 
-    fun setScheduleEnabled(value: Boolean) {
+    fun setScheduleEnabled(value: Boolean, fromRemote: Boolean = false) {
+        if (fromRemote && isGuarded(KEY_SCHEDULE_ENABLED)) return
         prefs.edit().putBoolean(KEY_SCHEDULE_ENABLED, value).apply()
         _scheduleEnabled.postValue(value)
+        if (!fromRemote) markLocalChange(KEY_SCHEDULE_ENABLED)
         notifySettingsChanged()
     }
 
-    fun setOrderAutoOffEnabled(value: Boolean) {
+    fun setOrderAutoOffEnabled(value: Boolean, fromRemote: Boolean = false) {
+        if (fromRemote && isGuarded(KEY_ORDER_AUTO_OFF_ENABLED)) return
         prefs.edit().putBoolean(KEY_ORDER_AUTO_OFF_ENABLED, value).apply()
         _orderAutoOffEnabled.postValue(value)
+        if (!fromRemote) markLocalChange(KEY_ORDER_AUTO_OFF_ENABLED)
         notifySettingsChanged()
     }
 
-    fun setCoupangAutoEnabled(value: Boolean) {
+    fun setCoupangAutoEnabled(value: Boolean, fromRemote: Boolean = false) {
+        if (fromRemote && isGuarded(KEY_COUPANG_AUTO_ENABLED)) return
         prefs.edit().putBoolean(KEY_COUPANG_AUTO_ENABLED, value).apply()
         _coupangAutoEnabled.postValue(value)
+        if (!fromRemote) markLocalChange(KEY_COUPANG_AUTO_ENABLED)
         notifySettingsChanged()
     }
 
-    fun setBaeminAutoEnabled(value: Boolean) {
+    fun setBaeminAutoEnabled(value: Boolean, fromRemote: Boolean = false) {
+        if (fromRemote && isGuarded(KEY_BAEMIN_AUTO_ENABLED)) return
         prefs.edit().putBoolean(KEY_BAEMIN_AUTO_ENABLED, value).apply()
         _baeminAutoEnabled.postValue(value)
+        if (!fromRemote) markLocalChange(KEY_BAEMIN_AUTO_ENABLED)
         notifySettingsChanged()
     }
 
