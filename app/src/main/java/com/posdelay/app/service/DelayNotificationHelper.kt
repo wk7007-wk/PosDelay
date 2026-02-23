@@ -180,8 +180,8 @@ object DelayNotificationHelper {
         manager.notify(NOTIFICATION_AD_ALERT_ID, notification)
     }
 
-    /** 조리모드 알림 (광고 알림과 별도 ID) */
-    fun showCookAlert(context: Context, message: String) {
+    /** 조리모드 알림 (주문번호별 고유 ID → 덮어쓰기 방지) */
+    fun showCookAlert(context: Context, message: String, orderNum: Int = 0) {
         createChannels(context)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ALERT)
@@ -193,7 +193,9 @@ object DelayNotificationHelper {
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_COOK_ALERT_ID, notification)
+        // 주문번호별 고유 ID (3000+주문번호), 0이면 기존 공용 ID
+        val notifId = if (orderNum > 0) 3000 + (orderNum % 1000) else NOTIFICATION_COOK_ALERT_ID
+        manager.notify(notifId, notification)
     }
 
     fun dismiss(context: Context) {

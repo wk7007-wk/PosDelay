@@ -76,27 +76,40 @@ object NativeCookAlertChecker {
         // 사라진 주문의 알림 추적 정리
         firedAlerts.keys.retainAll(activeOrders)
 
+        var alertCount = 0  // 한 사이클 최대 2개 제한 (몰림 방지)
+
         for ((orderNum, firstSeen) in orders) {
+            if (alertCount >= 2) break
+
             val elMs = now - firstSeen
             val fired = firedAlerts.getOrPut(orderNum) { mutableSetOf() }
 
             // 60분 초과 → 무시
             if (elMs > 3600000) continue
 
-            if (elMs >= cookStartMs && "cook" !in fired) {
-                fired.add("cook")
-                DelayNotificationHelper.showCookAlert(ctx, "${orderNum}번 조리")
-                Log.d(TAG, "${orderNum}번 조리 알림 (네이티브)")
-            }
-            if (elMs >= pkgStartMs && "pkg" !in fired) {
-                fired.add("pkg")
-                DelayNotificationHelper.showCookAlert(ctx, "${orderNum}번 포장")
-                Log.d(TAG, "${orderNum}번 포장 알림 (네이티브)")
-            }
-            if (elMs >= tgtMs && "over" !in fired) {
-                fired.add("over")
-                DelayNotificationHelper.showCookAlert(ctx, "${orderNum}번 시간초과")
-                Log.d(TAG, "${orderNum}번 시간초과 알림 (네이티브)")
+            // 현재 단계 판단 (가장 진행된 단계만 알림, 지나간 단계는 무음 처리)
+            val currentStage = when {
+                elMs >= tgtMs -> "over"
+                elMs >= pkgStartMs -> "pkg"
+                elMs >= cookStartMs -> "cook"
+                else -> null
+            } ?: continue
+
+            // 이전 단계들은 무음으로 기록만 (SSE 재연결 후 몰림 방지)
+            if (currentStage == "over" || currentStage == "pkg") fired.add("cook")
+            if (currentStage == "over") fired.add("pkg")
+
+            if (currentStage !in fired) {
+                fired.add(currentStage)
+                val label = when (currentStage) {
+                    "cook" -> "조리"
+                    "pkg" -> "포장"
+                    "over" -> "시간초과"
+                    else -> currentStage
+                }
+                DelayNotificationHelper.showCookAlert(ctx, "${orderNum}번 $label", orderNum)
+                Log.d(TAG, "${orderNum}번 $label 알림 (네이티브)")
+                alertCount++
             }
         }
     }

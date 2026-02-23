@@ -1,9 +1,7 @@
 package com.posdelay.app.service
 
 import android.util.Log
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import com.posdelay.app.data.AdManager
 
 /**
  * 광고 자동화 의사결정 엔진 (Single Source of Truth = Firebase).
@@ -16,7 +14,6 @@ import java.net.URL
 object AdDecisionEngine {
 
     private const val TAG = "AdDecision"
-    private const val FIREBASE_BASE = "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app"
     private const val ACTION_COOLDOWN_MS = 5 * 60 * 1000L  // 5분 쿨다운
 
     // 액션별 마지막 실행 시간 (반대 액션 차단용)
@@ -76,10 +73,7 @@ object AdDecisionEngine {
         hasBaemin: Boolean,
         hasCoupang: Boolean
     ): List<AdAction> {
-        val settings = fetchSettings() ?: run {
-            Log.w(TAG, "Firebase 설정 조회 실패 — 액션 없음")
-            return emptyList()
-        }
+        val settings = fetchSettings()
 
         if (!settings.adEnabled) return emptyList()
         if (!settings.orderAutoOffEnabled) return emptyList()
@@ -157,47 +151,22 @@ object AdDecisionEngine {
         }
     }
 
-    /** Firebase에서 ad_settings.json GET */
-    fun fetchSettings(): Settings? {
-        return try {
-            val conn = URL("$FIREBASE_BASE/posdelay/ad_settings.json").openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            if (conn.responseCode != 200) {
-                conn.disconnect()
-                return null
-            }
-            val body = conn.inputStream.bufferedReader().readText()
-            conn.disconnect()
-            parseSettings(body)
-        } catch (e: Exception) {
-            Log.w(TAG, "설정 조회 실패: ${e.message}")
-            null
-        }
-    }
-
-    private fun parseSettings(json: String): Settings? {
-        if (json == "null" || json.isBlank()) return null
-        val obj = JSONObject(json)
+    /** SharedPreferences(AdManager)에서 직접 읽기 — Firebase 조회 제거 (로컬 최우선) */
+    fun fetchSettings(): Settings {
         return Settings(
-            adEnabled = obj.optBoolean("ad_enabled", false),
-            scheduleEnabled = obj.optBoolean("schedule_enabled", false),
-            adOnTime = obj.optString("ad_on_time", "08:00"),
-            adOffTime = obj.optString("ad_off_time", "22:00"),
-            orderAutoOffEnabled = obj.optBoolean("order_auto_off_enabled", false),
-            coupangAutoEnabled = obj.optBoolean("coupang_auto_enabled", false),
-            baeminAutoEnabled = obj.optBoolean("baemin_auto_enabled", false),
-            baeminAmount = obj.optInt("baemin_amount", 200),
-            baeminMidAmount = obj.optInt("baemin_mid_amount", 100),
-            baeminReducedAmount = obj.optInt("baemin_reduced_amount", 50),
-            coupangZones = parseZones(obj, "coupang_zones", intArrayOf(1,1,1,0,0,2,2,2,2,2,2)),
-            baeminZones = parseZones(obj, "baemin_zones", intArrayOf(1,1,1,0,2,2,0,3,3,3,3))
+            adEnabled = AdManager.isAdEnabled(),
+            scheduleEnabled = AdManager.isScheduleEnabled(),
+            adOnTime = AdManager.getAdOnTime(),
+            adOffTime = AdManager.getAdOffTime(),
+            orderAutoOffEnabled = AdManager.isOrderAutoOffEnabled(),
+            coupangAutoEnabled = AdManager.isCoupangAutoEnabled(),
+            baeminAutoEnabled = AdManager.isBaeminAutoEnabled(),
+            baeminAmount = AdManager.getBaeminAmount(),
+            baeminMidAmount = AdManager.getBaeminMidAmount(),
+            baeminReducedAmount = AdManager.getBaeminReducedAmount(),
+            coupangZones = AdManager.getZones("coupang"),
+            baeminZones = AdManager.getZones("baemin")
         )
-    }
-
-    private fun parseZones(obj: JSONObject, key: String, default: IntArray): IntArray {
-        val arr = obj.optJSONArray(key) ?: return default.copyOf()
-        return IntArray(11) { i -> if (i < arr.length()) arr.optInt(i, 0) else 0 }
     }
 
     private fun isWithinWindow(onTime: String, offTime: String): Boolean {
