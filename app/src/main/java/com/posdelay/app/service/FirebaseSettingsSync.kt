@@ -293,16 +293,8 @@ object FirebaseSettingsSync {
             if (data == null || data.toString() == "null") return
 
             if (path == "/") {
-                // SSE 초기 로드 → Firebase 전체 설정을 로컬에 적용
-                val obj = if (data is JSONObject) data else JSONObject(data.toString())
-                val remoteVersion = obj.optLong("_version", 0)
-                if (remoteVersion > 0) settingsVersion = remoteVersion
-                Log.d(TAG, "SSE 초기 로드 → Firebase 설정 적용 (버전=$settingsVersion)")
-                isApplyingRemote = true
-                handler.post {
-                    applySettings(obj)
-                    handler.postDelayed({ isApplyingRemote = false }, 1000)
-                }
+                // SSE 초기 로드 → 무시 (로컬이 최우선, 과거 데이터 덮어쓰기 방지)
+                Log.d(TAG, "SSE 초기 로드 → 무시 (로컬 우선)")
                 return
             }
 
