@@ -358,6 +358,62 @@ class MainActivity : AppCompatActivity() {
             NativeCookAlertChecker.syncSettings(on, targetSec, midSec, finishSec)
         }
 
+        /** 설정 전체 JSON 반환 (웹 UI 표시용) */
+        @JavascriptInterface
+        fun getSettings(): String {
+            return org.json.JSONObject().apply {
+                put("ad_enabled", AdManager.isAdEnabled())
+                put("baemin_amount", AdManager.getBaeminAmount())
+                put("baemin_reduced_amount", AdManager.getBaeminReducedAmount())
+                put("baemin_mid_amount", AdManager.getBaeminMidAmount())
+                put("coupang_ad_on", AdManager.isCoupangAdOn())
+                put("schedule_enabled", AdManager.isScheduleEnabled())
+                put("ad_off_time", AdManager.getAdOffTime())
+                put("ad_on_time", AdManager.getAdOnTime())
+                put("order_auto_off_enabled", AdManager.isOrderAutoOffEnabled())
+                put("coupang_auto_enabled", AdManager.isCoupangAutoEnabled())
+                put("baemin_auto_enabled", AdManager.isBaeminAutoEnabled())
+                put("coupang_zones", AdManager.getZonesJson("coupang"))
+                put("baemin_zones", AdManager.getZonesJson("baemin"))
+                put("delay_minutes", OrderTracker.getDelayMinutes())
+                put("baemin_target_time", AdManager.getBaeminTargetTime())
+                put("baemin_fixed_cook_time", AdManager.getBaeminFixedCookTime())
+                put("baemin_delay_threshold", AdManager.getBaeminDelayThreshold())
+                put("coupang_target_time", AdManager.getCoupangTargetTime())
+                put("coupang_fixed_cook_time", AdManager.getCoupangFixedCookTime())
+                put("coupang_delay_threshold", AdManager.getCoupangDelayThreshold())
+            }.toString()
+        }
+
+        /** 설정 개별 저장 (웹 UI → SharedPreferences 직접) */
+        @JavascriptInterface
+        fun setSetting(key: String, value: String) {
+            runOnUiThread {
+                when (key) {
+                    "ad_enabled" -> AdManager.setAdEnabled(value.toBoolean())
+                    "baemin_amount" -> AdManager.setBaeminAmount(value.toInt())
+                    "baemin_reduced_amount" -> AdManager.setBaeminReducedAmount(value.toInt())
+                    "baemin_mid_amount" -> AdManager.setBaeminMidAmount(value.toInt())
+                    "coupang_ad_on" -> AdManager.setCoupangAdOn(value.toBoolean())
+                    "schedule_enabled" -> AdManager.setScheduleEnabled(value.toBoolean())
+                    "ad_off_time" -> AdManager.setAdOffTime(value)
+                    "ad_on_time" -> AdManager.setAdOnTime(value)
+                    "order_auto_off_enabled" -> AdManager.setOrderAutoOffEnabled(value.toBoolean())
+                    "coupang_auto_enabled" -> AdManager.setCoupangAutoEnabled(value.toBoolean())
+                    "baemin_auto_enabled" -> AdManager.setBaeminAutoEnabled(value.toBoolean())
+                    "delay_minutes" -> OrderTracker.setDelayMinutes(value.toInt())
+                    "baemin_target_time" -> AdManager.setBaeminTargetTime(value.toInt())
+                    "baemin_fixed_cook_time" -> AdManager.setBaeminFixedCookTime(value.toInt())
+                    "baemin_delay_threshold" -> AdManager.setBaeminDelayThreshold(value.toInt())
+                    "coupang_target_time" -> AdManager.setCoupangTargetTime(value.toInt())
+                    "coupang_fixed_cook_time" -> AdManager.setCoupangFixedCookTime(value.toInt())
+                    "coupang_delay_threshold" -> AdManager.setCoupangDelayThreshold(value.toInt())
+                    "coupang_zones" -> AdManager.setZonesFromJson("coupang", org.json.JSONArray(value))
+                    "baemin_zones" -> AdManager.setZonesFromJson("baemin", org.json.JSONArray(value))
+                }
+            }
+        }
+
         @JavascriptInterface
         fun getSourceStatus(): String {
             return """{"kds_paused":${OrderTracker.isKdsPaused()},"mate_paused":${OrderTracker.isMatePaused()},"pc_paused":${OrderTracker.isPcPaused()},"kds_sync":${OrderTracker.getLastKdsSyncTime()},"mate_sync":${OrderTracker.getLastSyncTime()},"pc_sync":${OrderTracker.getLastPcSyncTime()}}"""
