@@ -72,17 +72,20 @@
 - **원칙**: 제목 없음(`setContentTitle("")` 필수), 필요 단어만, 중복 금지
 - **구현**: 모든 NotificationCompat.Builder에 `.setContentTitle("")` 명시 — 생략 시 Android가 앱 이름을 제목으로 표시함
 - **기능 추가 시마다**: 해당 기능의 알림도 같은 조건으로 함께 추가
+- **조리 알림 몰림 방지**: 현재 단계만 알림 (지난 단계 무음 기록), 사이클당 최대 2건, 주문별 고유 알림 ID (3000+번호)
 - 예: `배민광고 300원완료`, `쿠팡광고 켜기완료`, `37번 3분 지연완료`, `50번 조리`
 
-## 설정 동기화 (로컬 최우선 + 웹 명시적 변경만 적용)
+## 설정 아키텍처 (SharedPreferences = Single Source of Truth)
 - **핵심 원칙**: 로컬(SharedPreferences)이 항상 최우선. Firebase/웹의 과거 데이터로 로컬을 덮어쓰기 절대 금지
-- **SSE 초기 로드(path="/")**: 무시. 전체 데이터 적용하면 과거값이 현재 로컬을 덮어씀
-- **SSE 부분 업데이트(path="/key")**: 적용. 웹에서 사용자가 명시적으로 바꾼 개별 설정만
+- **설정 읽기**: 웹 UI → `NativeBridge.getSettings()` → SharedPreferences 직접 읽기
+- **설정 쓰기**: 웹 UI → `NativeBridge.setSetting(key, value)` → SharedPreferences 직접 저장
+- **AdDecisionEngine**: SharedPreferences(AdManager)에서 직접 읽기 — Firebase GET 금지 (과거값 문제)
 - **앱→Firebase 설정 업로드 금지**: `uploadAllSettings()` 삭제됨 — 재생성 금지
 - **앱→Firebase 업로드 허용 대상**: 광고 상태(`ad_state`), 주문 상태(`status`), KDS, 로그만
+- **SSE ad_settings 구독 제거됨**: 웹에서 Firebase 설정 SSE 사용 안 함
 
 ## 데이터 저장 구조
-- **설정(토글/금액/게이지)**: Firebase만 (웹이 쓰고, 앱이 읽음)
+- **설정(토글/금액/게이지)**: SharedPreferences만 (NativeBridge로 웹↔앱 직접 통신)
 - **조리모드 큐(ckQ)**: 웹 localStorage만 (실시간 카운트다운, Firebase에 넣으면 과다호출)
 - **조리모드 설정(시간)**: 웹 localStorage + NativeBridge (웹 UI + 앱 TTS용)
 - **섹션 접기**: 웹 localStorage (UI 상태)
