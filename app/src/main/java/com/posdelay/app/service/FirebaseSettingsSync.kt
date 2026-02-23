@@ -39,7 +39,6 @@ object FirebaseSettingsSync {
     @Volatile private var cmdEpoch = 0
     private var appContext: Context? = null
     @Volatile private var settingsVersion = 0L
-    private var settingsUploadTimer: Runnable? = null  // 디바운스 타이머
     private var settingsReconnectDelay = 10_000L
     private var commandReconnectDelay = 10_000L
     private const val MIN_RECONNECT_MS = 10_000L
@@ -65,7 +64,6 @@ object FirebaseSettingsSync {
         running = false
         sseEpoch++
         cmdEpoch++
-        settingsUploadTimer?.let { handler.removeCallbacks(it) }
         handler.removeCallbacksAndMessages(null)
         try { sseConnection?.disconnect() } catch (_: Exception) {}
         try { commandSseConnection?.disconnect() } catch (_: Exception) {}
@@ -87,14 +85,10 @@ object FirebaseSettingsSync {
         start(ctx)
     }
 
-    /** 설정 변경 시 호출 (AdManager setter에서) — 500ms 디바운스 */
+    /** 설정 변경 시 호출 (AdManager setter에서) — Firebase 업로드 안 함
+     *  설정은 웹→Firebase→SSE→앱 단방향. 앱은 읽기만. */
     fun onSettingsChanged() {
-        if (isApplyingRemote) return
-        // 연속 호출 시 마지막 1회만 업로드 (applySettings → setXxx 연쇄 방지)
-        settingsUploadTimer?.let { handler.removeCallbacks(it) }
-        val task = Runnable { uploadAllSettings() }
-        settingsUploadTimer = task
-        handler.postDelayed(task, 500)
+        // 업로드 안 함 — 설정은 웹에서만 Firebase에 저장
     }
 
     /** 주문 건수 변경 시 호출 */
@@ -127,42 +121,6 @@ object FirebaseSettingsSync {
                 firebasePut("$FIREBASE_BASE/posdelay/logs.json", arr.toString())
             } catch (e: Exception) {
                 Log.w(TAG, "로그 업로드 에러: ${e.message}")
-            }
-        }
-    }
-
-    private fun uploadAllSettings() {
-        kotlin.concurrent.thread {
-            try {
-                settingsVersion++
-                val json = JSONObject().apply {
-                    put("ad_enabled", AdManager.isAdEnabled())
-                    put("baemin_amount", AdManager.getBaeminAmount())
-                    put("baemin_reduced_amount", AdManager.getBaeminReducedAmount())
-                    put("baemin_mid_amount", AdManager.getBaeminMidAmount())
-                    put("coupang_ad_on", AdManager.isCoupangAdOn())
-                    put("schedule_enabled", AdManager.isScheduleEnabled())
-                    put("ad_off_time", AdManager.getAdOffTime())
-                    put("ad_on_time", AdManager.getAdOnTime())
-                    put("order_auto_off_enabled", AdManager.isOrderAutoOffEnabled())
-                    put("coupang_auto_enabled", AdManager.isCoupangAutoEnabled())
-                    put("baemin_auto_enabled", AdManager.isBaeminAutoEnabled())
-                    put("coupang_zones", AdManager.getZonesJson("coupang"))
-                    put("baemin_zones", AdManager.getZonesJson("baemin"))
-                    put("delay_minutes", OrderTracker.getDelayMinutes())
-                    put("baemin_target_time", AdManager.getBaeminTargetTime())
-                    put("baemin_fixed_cook_time", AdManager.getBaeminFixedCookTime())
-                    put("baemin_delay_threshold", AdManager.getBaeminDelayThreshold())
-                    put("coupang_target_time", AdManager.getCoupangTargetTime())
-                    put("coupang_fixed_cook_time", AdManager.getCoupangFixedCookTime())
-                    put("coupang_delay_threshold", AdManager.getCoupangDelayThreshold())
-                    put("_version", settingsVersion)
-                    put("_updated_by", "app")
-                    put("_updated_at", dateFormat.format(Date()))
-                }.toString()
-                firebasePatch("$FIREBASE_BASE/posdelay/ad_settings.json", json)
-            } catch (e: Exception) {
-                Log.w(TAG, "설정 업로드 에러: ${e.message}")
             }
         }
     }
@@ -331,36 +289,19 @@ object FirebaseSettingsSync {
             val path = wrapper.optString("path", "/")
             val data = wrapper.opt("data")
 
-            // Firebase 비어있으면 앱 설정 업로드
-            if (data == null || data.toString() == "null") {
-                if (path == "/") {
-                    Log.d(TAG, "Firebase 설정 없음 → 앱 설정 업로드")
-                    uploadAllSettings()
-                }
-                return
-            }
+            // Firebase 비어있으면 무시
+            if (data == null || data.toString() == "null") return
 
             if (path == "/") {
+                // SSE 초기 로드 → Firebase 전체 설정을 로컬에 적용
                 val obj = if (data is JSONObject) data else JSONObject(data.toString())
                 val remoteVersion = obj.optLong("_version", 0)
                 if (remoteVersion > 0) settingsVersion = remoteVersion
-
-                if (!AdManager.hasStoredSettings()) {
-                    // ★ 로컬 비어있음 (초기설치/업데이트 직후) → Firebase 값 적용
-                    Log.d(TAG, "SSE 초기 로드 → 로컬 비어있음, Firebase 값 적용")
-                    appendLog("[Settings] 초기 로드: 로컬 비어있음 → Firebase 적용")
-                    isApplyingRemote = true
-                    handler.post {
-                        try {
-                            applySettings(obj)
-                        } finally {
-                            isApplyingRemote = false
-                        }
-                    }
-                } else {
-                    // ★ 로컬에 값 있음 → 아무것도 안 함 (버전만 추적)
-                    // 로컬 변경 시 onSettingsChanged()에서 업로드하므로 재연결 시 덮어쓰기 불필요
-                    Log.d(TAG, "SSE 초기 로드 → 로컬 있음, 버전=${settingsVersion} (업로드 안함)")
+                Log.d(TAG, "SSE 초기 로드 → Firebase 설정 적용 (버전=$settingsVersion)")
+                isApplyingRemote = true
+                handler.post {
+                    applySettings(obj)
+                    handler.postDelayed({ isApplyingRemote = false }, 1000)
                 }
                 return
             }
@@ -378,12 +319,10 @@ object FirebaseSettingsSync {
 
             isApplyingRemote = true
             handler.post {
-                try {
-                    applySettings(obj)
-                    Log.d(TAG, "웹 설정 적용: $key")
-                } finally {
-                    isApplyingRemote = false
-                }
+                applySettings(obj)
+                Log.d(TAG, "웹 설정 적용: $key")
+                // 500ms 디바운스 + 여유 → 1초 뒤 플래그 해제 (재업로드 방지)
+                handler.postDelayed({ isApplyingRemote = false }, 1000)
             }
         } catch (e: Exception) {
             Log.w(TAG, "원격 설정 파싱 실패: ${e.message}")
