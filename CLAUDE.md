@@ -74,12 +74,26 @@
 - **기능 추가 시마다**: 해당 기능의 알림도 같은 조건으로 함께 추가
 - 예: `배민광고 300원완료`, `쿠팡광고 켜기완료`, `37번 3분 지연완료`, `50번 조리`
 
+## 설정 동기화 (단방향: 웹→Firebase→앱)
+- **원칙**: 설정은 웹에서만 Firebase에 저장. 앱은 읽기만 (Firebase에 설정 쓰기 금지)
+- **이유**: 양방향 동기화 시 앱이 SSE 수신 후 전체 설정을 다시 업로드하면서 웹 변경을 덮어쓰는 문제 반복 발생. 단방향으로 단순화하여 해결
+- **흐름**: 웹 UI 변경 → Firebase PATCH → SSE → 앱 SharedPreferences 적용
+- **앱→Firebase 업로드 대상**: 광고 상태(`ad_state`), 주문 상태(`status`), KDS, 로그만. 설정(`ad_settings`)은 업로드 금지
+- **`uploadAllSettings()` 삭제됨** — 재생성 금지
+
+## 데이터 저장 구조
+- **설정(토글/금액/게이지)**: Firebase만 (웹이 쓰고, 앱이 읽음)
+- **조리모드 큐(ckQ)**: 웹 localStorage만 (실시간 카운트다운, Firebase에 넣으면 과다호출)
+- **조리모드 설정(시간)**: 웹 localStorage + NativeBridge (웹 UI + 앱 TTS용)
+- **섹션 접기**: 웹 localStorage (UI 상태)
+- **광고 상태**: 앱→Firebase (현재 입찰/ON/OFF 표시용)
+- **WebView clearCache 금지**: localStorage 날아감. 새로고침은 URL 재로드만
+
 ## WebView 로딩 관리
 - **DashboardWebViewClient**: 로딩 시작/완료/실패를 Firebase 로그에 기록 (`[WebView] 로딩 완료: 1200ms` 형태)
 - **서버 다운 fallback**: 마지막 성공 페이지를 `dashboard_cache.html`에 로컬 저장 → 로딩 실패 시 캐시에서 로드 + "오프라인 모드" 표시
 - **캐시 없을 때**: "서버 연결 실패" 안내 + 새로고침 버튼 표시
-- **로그 분석**: Firebase `/posdelay/logs.json`에서 `[WebView]` 태그로 로딩 성공률/속도/실패 원인 분석 가능
-- **새로고침(↻) 버튼**: `clearCache` + 원본 URL 재로드 → 서버 복구 시 즉시 최신 페이지 로드
+- **새로고침(↻) 버튼**: URL 재로드만 (`clearCache` 사용 금지 — localStorage 보존)
 
 ## 이상신호 감지 (AnomalyDetector)
 - 중복실행, 과다호출, 연속실패, SSE빈번재연결 → Firebase alert + 웹 표시
