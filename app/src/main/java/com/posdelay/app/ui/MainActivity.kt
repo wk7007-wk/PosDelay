@@ -78,7 +78,15 @@ class MainActivity : AppCompatActivity() {
         webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         webView.addJavascriptInterface(NativeBridge(), "NativeBridge")
         webView.webViewClient = DashboardWebViewClient()
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(msg: android.webkit.ConsoleMessage?): Boolean {
+                val m = msg ?: return super.onConsoleMessage(msg)
+                if (m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                    FirebaseSettingsSync.uploadLog("[JS에러] ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                }
+                return super.onConsoleMessage(msg)
+            }
+        }
         webView.setBackgroundColor(0xFF121225.toInt())
         webView.loadUrl(DASHBOARD_URL)
 
