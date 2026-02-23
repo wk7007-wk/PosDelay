@@ -330,7 +330,8 @@ object FirebaseSettingsSync {
             val wrapper = JSONObject(raw)
             val path = wrapper.optString("path", "/")
             val data = wrapper.opt("data")
-            // Firebase 비어있으면 앱 설정 업로드 (최초 설치)
+
+            // Firebase 비어있으면 앱 설정 업로드
             if (data == null || data.toString() == "null") {
                 if (path == "/") {
                     Log.d(TAG, "Firebase 설정 없음 → 앱 설정 업로드")
@@ -339,37 +340,47 @@ object FirebaseSettingsSync {
                 return
             }
 
-            val obj: JSONObject
             if (path == "/") {
-                // 전체 설정 (초기 로드 또는 전체 PUT)
-                obj = if (data is JSONObject) data else JSONObject(data.toString())
-            } else {
-                // 부분 업데이트 (PATCH) — path="/baemin_amount" 등
-                obj = JSONObject()
-                val key = path.removePrefix("/")
-                obj.put(key, data)
-            }
-
-            val updatedBy = obj.optString("_updated_by", "app")
-            val remoteVersion = obj.optLong("_version", 0)
-
-            if (updatedBy == "app") {
-                // 앱이 업로드한 설정 에코 → 스킵
+                val obj = if (data is JSONObject) data else JSONObject(data.toString())
+                val remoteVersion = obj.optLong("_version", 0)
                 if (remoteVersion > 0) settingsVersion = remoteVersion
+
+                if (!AdManager.hasStoredSettings()) {
+                    // ★ 로컬 비어있음 (초기설치/업데이트 직후) → Firebase 값 적용
+                    Log.d(TAG, "SSE 초기 로드 → 로컬 비어있음, Firebase 값 적용")
+                    appendLog("[Settings] 초기 로드: 로컬 비어있음 → Firebase 적용")
+                    isApplyingRemote = true
+                    handler.post {
+                        try {
+                            applySettings(obj)
+                        } finally {
+                            isApplyingRemote = false
+                        }
+                    }
+                } else {
+                    // ★ 로컬에 값 있음 → 로컬 우선, Firebase에 업로드
+                    Log.d(TAG, "SSE 초기 로드 → 로컬 우선, Firebase에 로컬값 업로드")
+                    uploadAllSettings()
+                }
                 return
             }
 
-            if (path == "/" && remoteVersion <= settingsVersion) return
+            // ★ 부분 업데이트 (path="/baemin_amount" 등) → 웹에서 명시적 변경만 적용
+            val obj = JSONObject()
+            val key = path.removePrefix("/")
+            obj.put(key, data)
 
-            Log.d(TAG, "웹에서 설정 변경 수신 (path=$path, by=$updatedBy)")
-            appendLog("[Settings] 웹 설정 수신: path=$path")
+            // 메타 키(_version, _updated_by 등)는 무시
+            if (key.startsWith("_")) return
+
+            Log.d(TAG, "웹에서 설정 변경: $key=$data")
+            appendLog("[Settings] 웹 변경: $key=$data")
 
             isApplyingRemote = true
             handler.post {
                 try {
                     applySettings(obj)
-                    if (remoteVersion > 0) settingsVersion = remoteVersion
-                    Log.d(TAG, "웹 설정 적용 완료")
+                    Log.d(TAG, "웹 설정 적용: $key")
                 } finally {
                     isApplyingRemote = false
                 }

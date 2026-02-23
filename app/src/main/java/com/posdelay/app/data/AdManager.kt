@@ -186,6 +186,9 @@ object AdManager {
         _coupangDelayThreshold.postValue(prefs.getInt(KEY_COUPANG_DELAY_THRESHOLD, 5))
     }
 
+    /** SharedPreferences에 설정이 저장된 적 있는지 (초기 설치/업데이트 후 비어있으면 false) */
+    fun hasStoredSettings(): Boolean = prefs.contains(KEY_BAEMIN_AMOUNT)
+
     // Getters
     fun isAdEnabled(): Boolean = prefs.getBoolean(KEY_AD_ENABLED, false)
     fun getBaeminAmount(): Int = prefs.getInt(KEY_BAEMIN_AMOUNT, 200)
