@@ -351,14 +351,20 @@ object FirebaseSettingsSync {
             }
 
             val updatedBy = obj.optString("_updated_by", "app")
-            if (updatedBy == "app") return
-
             val remoteVersion = obj.optLong("_version", 0)
+
+            if (updatedBy == "app") {
+                // 앱이 업로드한 설정 에코 → 스킵
+                if (remoteVersion > 0) settingsVersion = remoteVersion
+                return
+            }
+
             if (path == "/" && remoteVersion <= settingsVersion) return
 
-            Log.d(TAG, "웹에서 설정 변경 수신 (path=$path)")
+            Log.d(TAG, "웹에서 설정 변경 수신 (path=$path, by=$updatedBy)")
+            appendLog("[Settings] 웹 설정 수신: path=$path")
 
-            isApplyingRemote = true  // Bug 2: SSE 스레드에서 즉시 설정 (handler.post 대기 간극 제거)
+            isApplyingRemote = true
             handler.post {
                 try {
                     applySettings(obj)
@@ -383,7 +389,12 @@ object FirebaseSettingsSync {
         if (obj.has("ad_on_time")) AdManager.setAdOnTime(obj.getString("ad_on_time"))
         if (obj.has("order_auto_off_enabled")) AdManager.setOrderAutoOffEnabled(obj.getBoolean("order_auto_off_enabled"), fromRemote = true)
         if (obj.has("coupang_auto_enabled")) AdManager.setCoupangAutoEnabled(obj.getBoolean("coupang_auto_enabled"), fromRemote = true)
-        if (obj.has("baemin_auto_enabled")) AdManager.setBaeminAutoEnabled(obj.getBoolean("baemin_auto_enabled"), fromRemote = true)
+        if (obj.has("baemin_auto_enabled")) {
+            val remote = obj.getBoolean("baemin_auto_enabled")
+            val local = AdManager.isBaeminAutoEnabled()
+            if (remote != local) appendLog("[Settings] baemin_auto: 원격=$remote 로컬=$local guarded=${AdManager.isGuarded("baemin_auto_enabled")}")
+            AdManager.setBaeminAutoEnabled(remote, fromRemote = true)
+        }
         if (obj.has("coupang_zones")) AdManager.setZonesFromJson("coupang", obj.getJSONArray("coupang_zones"))
         if (obj.has("baemin_zones")) AdManager.setZonesFromJson("baemin", obj.getJSONArray("baemin_zones"))
         if (obj.has("ad_enabled")) AdManager.setAdEnabled(obj.getBoolean("ad_enabled"), fromRemote = true)
@@ -605,5 +616,26 @@ object FirebaseSettingsSync {
             if (attempt < MAX_RETRIES) Thread.sleep(RETRY_DELAY_MS)
         }
         return null
+    }
+
+    private fun appendLog(msg: String) {
+        Log.d(TAG, msg)
+        kotlin.concurrent.thread {
+            try {
+                val obj = JSONObject()
+                obj.put("msg", msg)
+                obj.put("time", dateFormat.format(Date()))
+                obj.put("ts", System.currentTimeMillis())
+                val conn = URL("$FIREBASE_BASE/posdelay/logs.json").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                OutputStreamWriter(conn.outputStream).use { it.write(obj.toString()) }
+                conn.responseCode
+                conn.disconnect()
+            } catch (_: Exception) {}
+        }
     }
 }
