@@ -75,8 +75,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
-        webView.clearCache(true)
-        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
         webView.addJavascriptInterface(NativeBridge(), "NativeBridge")
         webView.webViewClient = DashboardWebViewClient()
         webView.webChromeClient = WebChromeClient()
@@ -316,7 +315,6 @@ class MainActivity : AppCompatActivity() {
                 FirebaseSettingsSync.restart()
                 FirebaseKdsReader.fetchOnce()
                 DelayNotificationHelper.update(this@MainActivity)
-                webView.clearCache(true)
                 webView.loadUrl(DASHBOARD_URL)
             }
         }
