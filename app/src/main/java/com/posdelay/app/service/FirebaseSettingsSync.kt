@@ -358,9 +358,9 @@ object FirebaseSettingsSync {
                         }
                     }
                 } else {
-                    // ★ 로컬에 값 있음 → 로컬 우선, Firebase에 업로드
-                    Log.d(TAG, "SSE 초기 로드 → 로컬 우선, Firebase에 로컬값 업로드")
-                    uploadAllSettings()
+                    // ★ 로컬에 값 있음 → 아무것도 안 함 (버전만 추적)
+                    // 로컬 변경 시 onSettingsChanged()에서 업로드하므로 재연결 시 덮어쓰기 불필요
+                    Log.d(TAG, "SSE 초기 로드 → 로컬 있음, 버전=${settingsVersion} (업로드 안함)")
                 }
                 return
             }
