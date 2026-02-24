@@ -24,6 +24,8 @@ object NativeCookAlertChecker {
 
     // 알림 발생 추적 (주문번호 → 발생한 알림 타입)
     private val firedAlerts = HashMap<Int, MutableSet<String>>()  // "cook", "pkg", "over"
+    // 주문 사라진 시각 (SSE 플래핑 시 즉시 삭제 방지)
+    private val orderGoneTime = HashMap<Int, Long>()
 
     private val checkRunnable = object : Runnable {
         override fun run() {
@@ -73,8 +75,19 @@ object NativeCookAlertChecker {
         // 현재 KDS에 있는 주문번호 (orders 배열)
         val activeOrders = orders.keys
 
-        // 사라진 주문의 알림 추적 정리
-        firedAlerts.keys.retainAll(activeOrders)
+        // 사라진 주문: 즉시 삭제하지 않고 5분 유예 (SSE 플래핑 방지)
+        val goneExpiry = 5 * 60 * 1000L
+        for (id in firedAlerts.keys.toSet()) {
+            if (id in activeOrders) {
+                orderGoneTime.remove(id)
+            } else {
+                val gone = orderGoneTime.getOrPut(id) { now }
+                if (now - gone > goneExpiry) {
+                    firedAlerts.remove(id)
+                    orderGoneTime.remove(id)
+                }
+            }
+        }
 
         var alertCount = 0  // 한 사이클 최대 2개 제한 (몰림 방지)
 
