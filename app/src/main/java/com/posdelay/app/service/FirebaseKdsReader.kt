@@ -289,8 +289,9 @@ object FirebaseKdsReader {
                 saveOrderTracking()
                 filtered
             } else if (count > 0 && ordersArr != null && ordersArr.length() == 0) {
-                Log.d(TAG, "KDS 교차검증: count=$count, orders=[] → 0건 보정")
-                0
+                // 탭 건수(조리중 N) 신뢰 — 주문번호 추출 실패(rootInActiveWindow 문제)일 수 있음
+                Log.d(TAG, "KDS count=$count, orders=[] → 탭건수 신뢰 (주문번호 추출 실패 가능)")
+                count
             } else {
                 if (count != lastCountValue) {
                     lastCountValue = count

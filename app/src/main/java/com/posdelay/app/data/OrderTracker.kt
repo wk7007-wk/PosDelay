@@ -12,7 +12,7 @@ object OrderTracker {
     private val kdsHandler = Handler(Looper.getMainLooper())
     private var kdsStabilizeRunnable: Runnable? = null
     private var kdsLastRawCount = -1
-    private const val KDS_STABILIZE_MS = 10_000L  // 10초 안정화
+    private const val KDS_STABILIZE_MS = 90_000L  // 90초 안정화 (하트비트 3회분)
 
     // Gist KDS 교차 보정용
     @Volatile var gistKdsCount = -1       // Gist에서 읽은 KDS 건수
@@ -172,7 +172,7 @@ object OrderTracker {
 
     /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스
      *  교차 보정: Firebase 값과 Gist 값 비교 → 한쪽이라도 양수면 양수 신뢰
-     *  안정화: 보정 후에도 양수→즉시, 0→30초 대기 */
+     *  안정화: 보정 후에도 양수→즉시, 0→90초 대기 (하트비트 3회분) */
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
         val now = System.currentTimeMillis()
         // KDS sync 시간은 항상 업데이트 (stale 판정용)
@@ -239,15 +239,15 @@ object OrderTracker {
                 if (kdsLastRawCount == 0 && (gistKdsCount <= 0 || System.currentTimeMillis() - gistKdsTime > 120_000L)) {
                     setOrderCount(0)
                     android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영 (Gist도 0 확인)")
-                    LogFileWriter.append("SYNC", "건수=0 (30초안정화+Gist확인)")
+                    LogFileWriter.append("SYNC", "건수=0 (90초안정화+Gist확인)")
                 } else if (kdsLastRawCount == 0 && gistKdsCount > 0) {
                     // 30초 후에도 Gist가 양수 → Gist 값 사용
                     setOrderCount(gistKdsCount)
                     android.util.Log.d("OrderTracker", "KDS 0 대기중 Gist=$gistKdsCount → Gist값 반영")
-                    LogFileWriter.append("SYNC", "건수=Gist $gistKdsCount (30초후 Gist양수)")
+                    LogFileWriter.append("SYNC", "건수=Gist $gistKdsCount (90초후 Gist양수)")
                 }
             }
-            kdsHandler.postDelayed(kdsStabilizeRunnable!!, 30_000L)
+            kdsHandler.postDelayed(kdsStabilizeRunnable!!, KDS_STABILIZE_MS)
         }
     }
 
