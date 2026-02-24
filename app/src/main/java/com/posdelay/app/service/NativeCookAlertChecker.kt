@@ -122,6 +122,7 @@ object NativeCookAlertChecker {
                 }
                 DelayNotificationHelper.showCookAlert(ctx, "${orderNum}번 $label", orderNum)
                 Log.d(TAG, "${orderNum}번 $label 알림 (네이티브)")
+                com.posdelay.app.data.LogFileWriter.append("조리", "${orderNum}번 $label (${elMs/60000}분)")
                 alertCount++
             }
         }
