@@ -418,6 +418,7 @@ class MainActivity : AppCompatActivity() {
                     "coupang_delay_threshold" -> AdManager.setCoupangDelayThreshold(value.toInt())
                     "coupang_zones" -> AdManager.setZonesFromJson("coupang", org.json.JSONArray(value))
                     "baemin_zones" -> AdManager.setZonesFromJson("baemin", org.json.JSONArray(value))
+                    "kds_paused" -> OrderTracker.setKdsPaused(value.toBoolean())
                 }
             }
         }
