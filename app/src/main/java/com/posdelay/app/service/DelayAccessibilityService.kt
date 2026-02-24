@@ -175,7 +175,7 @@ class DelayAccessibilityService : AccessibilityService() {
 
     private fun findProcessingCount(root: AccessibilityNodeInfo): Int? {
         val nodes = root.findAccessibilityNodeInfosByText("처리중")
-        if (nodes != null) {
+        if (nodes != null && nodes.isNotEmpty()) {
             for (node in nodes) {
                 val text = node.text?.toString() ?: continue
                 val match = Regex("""처리중\s*(\d+)""").find(text)
@@ -183,6 +183,8 @@ class DelayAccessibilityService : AccessibilityService() {
                     return match.groupValues[1].toIntOrNull()
                 }
             }
+            // "처리중" 텍스트는 있지만 숫자 없음 → 0건 (MATE앱은 0일 때 숫자 미표시)
+            return 0
         }
         return findCountInTree(root)
     }
@@ -204,6 +206,8 @@ class DelayAccessibilityService : AccessibilityService() {
                     if (num != null) return num
                 }
             }
+            // "처리중" 있지만 숫자 없음 → 0건
+            return 0
         }
 
         for (i in 0 until node.childCount) {

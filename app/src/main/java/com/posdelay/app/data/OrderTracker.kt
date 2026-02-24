@@ -18,6 +18,10 @@ object OrderTracker {
     @Volatile var gistKdsCount = -1       // Gist에서 읽은 KDS 건수
     @Volatile var gistKdsTime = 0L        // Gist KDS 데이터 시간
 
+    // 비-KDS 소스(알림/MATE) 마지막 업데이트 시간 — KDS 0 덮어쓰기 방지용
+    @Volatile private var lastNonKdsUpdateTime = 0L
+    private const val NON_KDS_PROTECT_MS = 10 * 60 * 1000L  // 10분간 보호
+
     private const val PREFS_NAME = "pos_delay_prefs"
     private lateinit var appContext: android.content.Context
     private const val KEY_ORDER_COUNT = "order_count"
@@ -142,6 +146,7 @@ object OrderTracker {
     fun syncOrderCount(count: Int) {
         setOrderCount(count)
         val now = System.currentTimeMillis()
+        if (count > 0) lastNonKdsUpdateTime = now
         prefs.edit().putLong(KEY_LAST_SYNC_TIME, now).apply()
         _lastSyncTime.postValue(now)
     }
@@ -210,9 +215,27 @@ object OrderTracker {
             android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $corrected")
             LogFileWriter.append("SYNC", "건수=$corrected (즉시반영)")
         } else {
+            // KDS 0인데, 최근 알림/MATE에서 양수 건수 → KDS 0 무시 (주방폰 화면잠김 등)
+            val currentCount = getOrderCount()
+            val nonKdsAge = now - lastNonKdsUpdateTime
+            if (currentCount > 0 && lastNonKdsUpdateTime > 0 && nonKdsAge < NON_KDS_PROTECT_MS) {
+                android.util.Log.d("OrderTracker", "KDS 0 무시: 알림/MATE 건수=$currentCount (${nonKdsAge/1000}초전)")
+                LogFileWriter.append("SYNC", "KDS 0 무시: 알림건수=$currentCount (${nonKdsAge/1000}초전)")
+                kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
+                kdsStabilizeRunnable = null
+                return
+            }
             // 0 → Gist도 0인지 재확인, 30초 대기 후 반영
             kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
             kdsStabilizeRunnable = Runnable {
+                // 안정화 시점에도 비-KDS 보호 재확인
+                val curCount = getOrderCount()
+                val nkAge = System.currentTimeMillis() - lastNonKdsUpdateTime
+                if (curCount > 0 && lastNonKdsUpdateTime > 0 && nkAge < NON_KDS_PROTECT_MS) {
+                    android.util.Log.d("OrderTracker", "KDS 0 안정화 취소: 알림건수=$curCount")
+                    LogFileWriter.append("SYNC", "KDS 0 안정화취소: 알림건수=$curCount")
+                    return@Runnable
+                }
                 if (kdsLastRawCount == 0 && (gistKdsCount <= 0 || System.currentTimeMillis() - gistKdsTime > 120_000L)) {
                     setOrderCount(0)
                     android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영 (Gist도 0 확인)")
@@ -231,6 +254,7 @@ object OrderTracker {
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
 
     fun incrementOrder() {
+        lastNonKdsUpdateTime = System.currentTimeMillis()
         setOrderCount(getOrderCount() + 1)
     }
 

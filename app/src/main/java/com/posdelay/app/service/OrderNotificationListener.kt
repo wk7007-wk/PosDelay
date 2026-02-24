@@ -32,7 +32,7 @@ class OrderNotificationListener : NotificationListenerService() {
 
         val content = "$title $text"
 
-        // 처리중 건수 파싱 시도 (예: "처리중 8건")
+        // 처리중 건수 파싱 시도 (예: "처리중 8건" 또는 "처리중"만 있으면 0건)
         val countRegex = Regex("""처리중\s*(\d+)""")
         val countMatch = countRegex.find(content)
         if (countMatch != null) {
@@ -42,6 +42,11 @@ class OrderNotificationListener : NotificationListenerService() {
                 DelayNotificationHelper.update(applicationContext)
                 return
             }
+        } else if (content.contains("처리중")) {
+            // "처리중" 텍스트만 있고 숫자 없음 → 0건
+            OrderTracker.syncOrderCount(0)
+            DelayNotificationHelper.update(applicationContext)
+            return
         }
 
         // 새 주문 알림 → +1 (배차/배달 키워드로는 감소하지 않음 — 부정확하므로)
