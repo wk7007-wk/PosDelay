@@ -14,7 +14,7 @@ import com.posdelay.app.data.AdManager
 object AdDecisionEngine {
 
     private const val TAG = "AdDecision"
-    private const val ACTION_COOLDOWN_MS = 5 * 60 * 1000L  // 5분 쿨다운
+    private const val ACTION_COOLDOWN_MS = 1 * 60 * 1000L  // 1분 쿨다운
 
     // 액션별 마지막 실행 시간 (반대 액션 차단용)
     private var lastCoupangOnTime = 0L
