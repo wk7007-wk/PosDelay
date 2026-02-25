@@ -342,8 +342,6 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 when (source) {
                     "kds" -> OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
-                    "mate" -> OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
-                    "pc" -> OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
                 }
                 FirebaseSettingsSync.onOrderCountChanged()
             }
@@ -425,7 +423,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun getSourceStatus(): String {
-            return """{"kds_paused":${OrderTracker.isKdsPaused()},"mate_paused":${OrderTracker.isMatePaused()},"pc_paused":${OrderTracker.isPcPaused()},"kds_sync":${OrderTracker.getLastKdsSyncTime()},"mate_sync":${OrderTracker.getLastSyncTime()},"pc_sync":${OrderTracker.getLastPcSyncTime()}}"""
+            return """{"kds_paused":${OrderTracker.isKdsPaused()},"kds_sync":${OrderTracker.getLastKdsSyncTime()}}"""
         }
     }
 

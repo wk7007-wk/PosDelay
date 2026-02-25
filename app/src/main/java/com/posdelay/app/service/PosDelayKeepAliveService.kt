@@ -69,12 +69,10 @@ class PosDelayKeepAliveService : Service() {
         val fg = com.posdelay.app.ui.MainActivity.isInForeground
         val count = OrderTracker.getOrderCount()
         val kdsAge = (System.currentTimeMillis() - OrderTracker.getLastKdsSyncTime()) / 1000
-        val pcAge = (System.currentTimeMillis() - OrderTracker.getLastPcSyncTime()) / 1000
-        val gistKds = OrderTracker.gistKdsCount
         val wake = wakeLock?.isHeld == true
         val wifi = wifiLock?.isHeld == true
         com.posdelay.app.data.LogFileWriter.append("HB",
-            "${if (fg) "포그라운드" else "백그라운드"} 건수=$count KDS=${kdsAge}초전 PC=${pcAge}초전 Gist=$gistKds WL=$wake WF=$wifi")
+            "${if (fg) "포그라운드" else "백그라운드"} 건수=$count KDS=${kdsAge}초전 WL=$wake WF=$wifi")
     }
 
     override fun onCreate() {

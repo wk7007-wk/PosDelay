@@ -3,7 +3,6 @@ package com.posdelay.app.service
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.posdelay.app.data.NotificationLog
-import com.posdelay.app.data.OrderTracker
 
 class OrderNotificationListener : NotificationListenerService() {
 
@@ -19,75 +18,12 @@ class OrderNotificationListener : NotificationListenerService() {
         val title = extras.getString("android.title") ?: ""
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
 
-        // MATE 알림 로그 기록 (배차 알림은 너무 많으므로 제외)
+        // MATE 알림 로그 기록만 (건수 동기화 비활성화 — KDS 단일 소스)
         if (packageName == MATE_PACKAGE) {
             val combined = "$title $text"
             if (!combined.contains("배차") && !combined.contains("라이더")) {
                 NotificationLog.add(packageName, title, text)
             }
         }
-
-        if (packageName != MATE_PACKAGE) return
-        if (!OrderTracker.isEnabled()) return
-
-        val content = "$title $text"
-
-        // 처리중 건수 파싱 시도 (예: "처리중 8건" 또는 "처리중"만 있으면 0건)
-        val countRegex = Regex("""처리중\s*(\d+)""")
-        val countMatch = countRegex.find(content)
-        if (countMatch != null) {
-            val count = countMatch.groupValues[1].toIntOrNull()
-            if (count != null) {
-                OrderTracker.syncOrderCount(count)
-                DelayNotificationHelper.update(applicationContext)
-                return
-            }
-        } else if (content.contains("처리중")) {
-            // "처리중" 텍스트만 있고 숫자 없음 → 0건
-            OrderTracker.syncOrderCount(0)
-            DelayNotificationHelper.update(applicationContext)
-            return
-        }
-
-        // 새 주문 알림 → +1 (배차/배달 키워드로는 감소하지 않음 — 부정확하므로)
-        // 정확한 건수는 MATE 화면 열 때 AccessibilityService가 동기화
-        if (isNewOrderNotification(content)) {
-            OrderTracker.incrementOrder()
-            DelayNotificationHelper.update(applicationContext)
-            checkDelayForNewOrder()
-        }
-    }
-
-    private fun checkDelayForNewOrder() {
-        if (OrderTracker.shouldDelayCoupang()) {
-            if (OrderTracker.isAutoMode()) {
-                DelayNotificationHelper.notifyDelayTriggered(
-                    applicationContext, "쿠팡이츠", auto = true
-                )
-                DelayAccessibilityService.triggerCoupangDelay(applicationContext)
-            } else {
-                DelayNotificationHelper.notifyDelayTriggered(
-                    applicationContext, "쿠팡이츠", auto = false
-                )
-            }
-        }
-
-        if (OrderTracker.shouldDelayBaemin()) {
-            if (OrderTracker.isAutoMode()) {
-                DelayNotificationHelper.notifyDelayTriggered(
-                    applicationContext, "배달의민족", auto = true
-                )
-                DelayAccessibilityService.triggerBaeminDelay(applicationContext)
-            } else {
-                DelayNotificationHelper.notifyDelayTriggered(
-                    applicationContext, "배달의민족", auto = false
-                )
-            }
-        }
-    }
-
-    private fun isNewOrderNotification(content: String): Boolean {
-        val keywords = listOf("새로운 주문이 도착", "새 주문", "신규 주문", "주문 접수", "주문이 들어왔", "새주문", "신규주문")
-        return keywords.any { content.contains(it) }
     }
 }

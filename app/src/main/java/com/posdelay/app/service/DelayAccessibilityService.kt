@@ -124,14 +124,11 @@ class DelayAccessibilityService : AccessibilityService() {
 
     // ===== MATE 사장님: 처리중 건수 읽기 =====
 
+    // MATE 건수 읽기 비활성화 (M보정 삭제 — KDS 단일 소스)
     private fun readMateOrderCount() {
+        return
+        @Suppress("UNREACHABLE_CODE")
         if (pendingBaeminDelay) return
-        if (OrderTracker.isMatePaused()) return
-        // KDS가 활성 + 최근 5분 이내 데이터면 MATE 읽기 스킵 (KDS 우선)
-        if (!OrderTracker.isKdsPaused()) {
-            val kdsAge = System.currentTimeMillis() - OrderTracker.getLastKdsSyncTime()
-            if (kdsAge < 5 * 60 * 1000L && OrderTracker.getLastKdsSyncTime() > 0) return
-        }
 
         val rootNode = rootInActiveWindow ?: return
 
@@ -139,9 +136,6 @@ class DelayAccessibilityService : AccessibilityService() {
             val count = findProcessingCount(rootNode)
             if (count != null) {
                 val current = OrderTracker.getOrderCount()
-                // MATE 건수 읽힘 → 동기화 시간 갱신 + 자동 복귀 트리거
-                OrderTracker.syncOrderCount(count)
-                GistOrderReader.onMateDataRead()
                 if (count != current) {
                     log(Code.INFO_COUNT, "MATE", "처리중 건수 변경: $current → $count")
                     DelayNotificationHelper.update(applicationContext)

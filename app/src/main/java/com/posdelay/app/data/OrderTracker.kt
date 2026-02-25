@@ -14,14 +14,6 @@ object OrderTracker {
     private var kdsLastRawCount = -1
     private const val KDS_STABILIZE_MS = 90_000L  // 90초 안정화 (하트비트 3회분)
 
-    // Gist KDS 교차 보정용
-    @Volatile var gistKdsCount = -1       // Gist에서 읽은 KDS 건수
-    @Volatile var gistKdsTime = 0L        // Gist KDS 데이터 시간
-
-    // 비-KDS 소스(알림/MATE) 마지막 업데이트 시간 — KDS 0 덮어쓰기 방지용
-    @Volatile private var lastNonKdsUpdateTime = 0L
-    private const val NON_KDS_PROTECT_MS = 10 * 60 * 1000L  // 10분간 보호
-
     private const val PREFS_NAME = "pos_delay_prefs"
     private lateinit var appContext: android.content.Context
     private const val KEY_ORDER_COUNT = "order_count"
@@ -31,20 +23,10 @@ object OrderTracker {
     private const val KEY_ENABLED = "enabled"
     private const val KEY_AUTO_MODE = "auto_mode"
     private const val KEY_LAST_SYNC_TIME = "last_sync_time"
-    private const val KEY_LAST_PC_SYNC_TIME = "last_pc_sync_time"
-    private const val KEY_MATE_PAUSED = "mate_paused"
-    private const val KEY_PC_PAUSED = "pc_paused"
-    private const val KEY_MATE_AUTO_MANAGED = "mate_auto_managed"
     private const val KEY_LAST_KDS_SYNC_TIME = "last_kds_sync_time"
     private const val KEY_KDS_PAUSED = "kds_paused"
 
     private lateinit var prefs: SharedPreferences
-
-    private val _matePaused = MutableLiveData(false)
-    val matePaused: LiveData<Boolean> = _matePaused
-
-    private val _pcPaused = MutableLiveData(false)
-    val pcPaused: LiveData<Boolean> = _pcPaused
 
     private val _kdsPaused = MutableLiveData(false)
     val kdsPaused: LiveData<Boolean> = _kdsPaused
@@ -70,9 +52,6 @@ object OrderTracker {
     private val _lastSyncTime = MutableLiveData(0L)
     val lastSyncTime: LiveData<Long> = _lastSyncTime
 
-    private val _lastPcSyncTime = MutableLiveData(0L)
-    val lastPcSyncTime: LiveData<Long> = _lastPcSyncTime
-
     private val _lastKdsSyncTime = MutableLiveData(0L)
     val lastKdsSyncTime: LiveData<Long> = _lastKdsSyncTime
 
@@ -86,9 +65,6 @@ object OrderTracker {
         _enabled.postValue(prefs.getBoolean(KEY_ENABLED, true))
         _autoMode.postValue(prefs.getBoolean(KEY_AUTO_MODE, false))
         _lastSyncTime.postValue(prefs.getLong(KEY_LAST_SYNC_TIME, 0L))
-        _lastPcSyncTime.postValue(prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L))
-        _matePaused.postValue(prefs.getBoolean(KEY_MATE_PAUSED, true))  // MATE 기본 꺼짐 (보조역할)
-        _pcPaused.postValue(prefs.getBoolean(KEY_PC_PAUSED, false))
         _kdsPaused.postValue(prefs.getBoolean(KEY_KDS_PAUSED, false))
         _lastKdsSyncTime.postValue(prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L))
     }
@@ -101,25 +77,6 @@ object OrderTracker {
     fun isAutoMode(): Boolean = prefs.getBoolean(KEY_AUTO_MODE, false)
     fun getLastSyncTime(): Long = prefs.getLong(KEY_LAST_SYNC_TIME, 0L)
 
-    fun isMatePaused(): Boolean = prefs.getBoolean(KEY_MATE_PAUSED, true)
-    fun setMatePaused(paused: Boolean) {
-        prefs.edit().putBoolean(KEY_MATE_PAUSED, paused).apply()
-        _matePaused.postValue(paused)
-    }
-
-    fun isMateAutoManaged(): Boolean = prefs.getBoolean(KEY_MATE_AUTO_MANAGED, false)
-    fun setMateAutoManaged(value: Boolean) {
-        prefs.edit().putBoolean(KEY_MATE_AUTO_MANAGED, value).apply()
-    }
-
-    fun getLastPcSyncTime(): Long = prefs.getLong(KEY_LAST_PC_SYNC_TIME, 0L)
-
-    fun isPcPaused(): Boolean = prefs.getBoolean(KEY_PC_PAUSED, false)
-    fun setPcPaused(paused: Boolean) {
-        prefs.edit().putBoolean(KEY_PC_PAUSED, paused).apply()
-        _pcPaused.postValue(paused)
-    }
-
     fun isKdsPaused(): Boolean = prefs.getBoolean(KEY_KDS_PAUSED, false)
     fun setKdsPaused(paused: Boolean) {
         prefs.edit().putBoolean(KEY_KDS_PAUSED, paused).apply()
@@ -130,52 +87,18 @@ object OrderTracker {
         val value = maxOf(0, count)
         prefs.edit().putInt(KEY_ORDER_COUNT, value).apply()
         _orderCount.postValue(value)
-        // 포그라운드에서만 광고 판단 (LiveData observer)
-        // 백그라운드 화면 강제 전환 제거 — 스케줄 알람만 화면 전환
-        // Firebase 상태 업로드
         try {
             com.posdelay.app.service.FirebaseSettingsSync.onOrderCountChanged()
         } catch (_: Exception) {}
-        // 알림 체크
         try {
             com.posdelay.app.service.DelayAlertManager.onCountChanged(value)
         } catch (_: Exception) {}
     }
 
-    /** MATE 화면에서 읽은 정확한 건수로 동기화 (시간 기록) */
-    fun syncOrderCount(count: Int) {
-        setOrderCount(count)
-        val now = System.currentTimeMillis()
-        if (count > 0) lastNonKdsUpdateTime = now
-        prefs.edit().putLong(KEY_LAST_SYNC_TIME, now).apply()
-        _lastSyncTime.postValue(now)
-    }
-
-    /** PC (Gist)에서 읽은 건수로 동기화 — PC 시간 기록 */
-    fun syncPcOrderCount(count: Int, pcTime: Long) {
-        setOrderCount(count)
-        val now = System.currentTimeMillis()
-        // Bug 6: sync time = 수신 시각(now) 사용 (stale 판정 일관성)
-        prefs.edit()
-            .putLong(KEY_LAST_SYNC_TIME, now)
-            .putLong(KEY_LAST_PC_SYNC_TIME, now)
-            .apply()
-        _lastSyncTime.postValue(now)
-        _lastPcSyncTime.postValue(now)
-    }
-
-    /** PC 동기화 시간만 업데이트 (오래된 데이터용 — 건수는 변경 안 함) */
-    fun updatePcSyncTime(pcTime: Long) {
-        prefs.edit().putLong(KEY_LAST_PC_SYNC_TIME, pcTime).apply()
-        _lastPcSyncTime.postValue(pcTime)
-    }
-
-    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 최우선 소스
-     *  교차 보정: Firebase 값과 Gist 값 비교 → 한쪽이라도 양수면 양수 신뢰
-     *  안정화: 보정 후에도 양수→즉시, 0→90초 대기 (하트비트 3회분) */
+    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 유일한 소스
+     *  안정화: 양수→즉시, 0→90초 대기 (하트비트 3회분) */
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
         val now = System.currentTimeMillis()
-        // KDS sync 시간은 항상 업데이트 (stale 판정용)
         prefs.edit()
             .putLong(KEY_LAST_SYNC_TIME, now)
             .putLong(KEY_LAST_KDS_SYNC_TIME, now)
@@ -183,68 +106,31 @@ object OrderTracker {
         _lastSyncTime.postValue(now)
         _lastKdsSyncTime.postValue(now)
 
-        // 교차 보정: Firebase 0 + Gist 양수 → Gist 값 신뢰
-        val gistAge = now - gistKdsTime
-        val corrected = if (count == 0 && gistKdsCount > 0 && gistAge < 120_000L) {
-            // Firebase가 0인데 Gist에 2분 이내 양수 → Gist 값 사용
-            android.util.Log.d("OrderTracker", "교차보정: Firebase=0, Gist=$gistKdsCount → $gistKdsCount 사용")
-            LogFileWriter.append("SYNC", "교차보정 FB=0→Gist=$gistKdsCount")
-            gistKdsCount
-        } else if (count > 0 && gistKdsCount == 0 && gistAge < 120_000L) {
-            // Firebase 양수, Gist 0 → Firebase 값 신뢰 (Gist 업데이트 지연)
-            count
-        } else {
-            count
-        }
-
         // 건수가 현재와 동일하면 무시
-        if (corrected == getOrderCount()) {
-            kdsLastRawCount = corrected
+        if (count == getOrderCount()) {
+            kdsLastRawCount = count
             kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
             kdsStabilizeRunnable = null
             return
         }
 
-        kdsLastRawCount = corrected
+        kdsLastRawCount = count
 
-        if (corrected > 0) {
+        if (count > 0) {
             // 양수 → 즉시 반영 (0 대기 취소)
             kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
             kdsStabilizeRunnable = null
-            setOrderCount(corrected)
-            android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $corrected")
-            LogFileWriter.append("SYNC", "건수=$corrected (즉시반영)")
+            setOrderCount(count)
+            android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $count")
+            LogFileWriter.append("SYNC", "건수=$count (즉시반영)")
         } else {
-            // KDS 0인데, 최근 알림/MATE에서 양수 건수 → KDS 0 무시 (주방폰 화면잠김 등)
-            val currentCount = getOrderCount()
-            val nonKdsAge = now - lastNonKdsUpdateTime
-            if (currentCount > 0 && lastNonKdsUpdateTime > 0 && nonKdsAge < NON_KDS_PROTECT_MS) {
-                android.util.Log.d("OrderTracker", "KDS 0 무시: 알림/MATE 건수=$currentCount (${nonKdsAge/1000}초전)")
-                LogFileWriter.append("SYNC", "KDS 0 무시: 알림건수=$currentCount (${nonKdsAge/1000}초전)")
-                kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
-                kdsStabilizeRunnable = null
-                return
-            }
-            // 0 → Gist도 0인지 재확인, 30초 대기 후 반영
+            // 0 → 90초 대기 후 반영 (KDS 화면잠김 등 오탐 방지)
             kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
             kdsStabilizeRunnable = Runnable {
-                // 안정화 시점에도 비-KDS 보호 재확인
-                val curCount = getOrderCount()
-                val nkAge = System.currentTimeMillis() - lastNonKdsUpdateTime
-                if (curCount > 0 && lastNonKdsUpdateTime > 0 && nkAge < NON_KDS_PROTECT_MS) {
-                    android.util.Log.d("OrderTracker", "KDS 0 안정화 취소: 알림건수=$curCount")
-                    LogFileWriter.append("SYNC", "KDS 0 안정화취소: 알림건수=$curCount")
-                    return@Runnable
-                }
-                if (kdsLastRawCount == 0 && (gistKdsCount <= 0 || System.currentTimeMillis() - gistKdsTime > 120_000L)) {
+                if (kdsLastRawCount == 0) {
                     setOrderCount(0)
-                    android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영 (Gist도 0 확인)")
-                    LogFileWriter.append("SYNC", "건수=0 (90초안정화+Gist확인)")
-                } else if (kdsLastRawCount == 0 && gistKdsCount > 0) {
-                    // 30초 후에도 Gist가 양수 → Gist 값 사용
-                    setOrderCount(gistKdsCount)
-                    android.util.Log.d("OrderTracker", "KDS 0 대기중 Gist=$gistKdsCount → Gist값 반영")
-                    LogFileWriter.append("SYNC", "건수=Gist $gistKdsCount (90초후 Gist양수)")
+                    android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영")
+                    LogFileWriter.append("SYNC", "건수=0 (90초안정화)")
                 }
             }
             kdsHandler.postDelayed(kdsStabilizeRunnable!!, KDS_STABILIZE_MS)
@@ -254,7 +140,6 @@ object OrderTracker {
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
 
     fun incrementOrder() {
-        lastNonKdsUpdateTime = System.currentTimeMillis()
         setOrderCount(getOrderCount() + 1)
     }
 
@@ -287,7 +172,10 @@ object OrderTracker {
     }
 
     fun resetCount() {
-        syncOrderCount(0)
+        setOrderCount(0)
+        val now = System.currentTimeMillis()
+        prefs.edit().putLong(KEY_LAST_SYNC_TIME, now).apply()
+        _lastSyncTime.postValue(now)
     }
 
     fun shouldDelayCoupang(): Boolean {

@@ -1,21 +1,17 @@
 package com.posdelay.app.service
 
-import android.app.KeyguardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.util.Log
 import com.posdelay.app.data.OrderTracker
-import com.posdelay.app.ui.MainActivity
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * GitHub Gist에서 PC 주문 건수를 주기적으로 읽어옴 (보조 소스).
- * KDS는 Firebase 실시간으로 별도 수신 (FirebaseKdsReader).
+ * GitHub Gist에서 KDS 건수를 주기적으로 읽어옴 (모니터링/로깅 전용).
+ * KDS는 Firebase SSE로 별도 수신 (FirebaseKdsReader).
  */
 object GistOrderReader {
 
@@ -25,17 +21,11 @@ object GistOrderReader {
     private const val INTERVAL_NORMAL = 60_000L
     private const val INTERVAL_SLOW = 120_000L
 
-    private const val ALL_STALE_MS = 8 * 60 * 1000L         // KDS+PC 둘 다 8분 미갱신 → MATE 열기
-    private const val MATE_COOLDOWN_MS = 5 * 60 * 1000L
-    private const val MATE_PACKAGE = "com.foodtechkorea.posboss"
-
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var appContext: Context? = null
     private var consecutiveErrors = 0
     private var currentInterval = INTERVAL_NORMAL
-    private var lastMateAttempt = 0L
-    private var pendingReturnHome = false
     var nextFetchTime = 0L
         private set
 
@@ -45,7 +35,7 @@ object GistOrderReader {
         running = true
         currentInterval = INTERVAL_NORMAL
         handler.post(fetchRunnable)
-        Log.d(TAG, "Gist PC 모니터링 시작")
+        Log.d(TAG, "Gist 모니터링 시작")
         com.posdelay.app.data.LogFileWriter.append("GIST", "폴링 시작 (${currentInterval/1000}초 간격)")
     }
 
@@ -54,17 +44,10 @@ object GistOrderReader {
         handler.removeCallbacks(fetchRunnable)
     }
 
-    fun onMateDataRead() {
-        if (!pendingReturnHome) return
-        pendingReturnHome = false
-        handler.postDelayed({ goHome() }, 2000)
-    }
-
     private val fetchRunnable = object : Runnable {
         override fun run() {
             Log.d(TAG, "fetchRunnable 실행")
             fetchGist()
-            handler.post { checkStaleAndRefresh() }
             if (running) {
                 nextFetchTime = System.currentTimeMillis() + currentInterval
                 handler.postDelayed(this, currentInterval)
@@ -77,8 +60,6 @@ object GistOrderReader {
             com.posdelay.app.data.LogFileWriter.append("GIST", "스킵: disabled")
             return
         }
-        // PC일시정지여도 KDS 교차 보정을 위해 Gist는 항상 읽음
-        val pcPaused = OrderTracker.isPcPaused()
         kotlin.concurrent.thread {
             try {
                 val url = URL(GIST_API_URL)
@@ -124,7 +105,7 @@ object GistOrderReader {
                 val now = System.currentTimeMillis()
                 val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
 
-                // KDS 보조 데이터 (Firebase 교차 보정용)
+                // KDS 데이터 로깅 (모니터링 전용)
                 if (files.has("kds_status.json")) {
                     try {
                         val kdsContent = files.getJSONObject("kds_status.json").getString("content")
@@ -135,47 +116,10 @@ object GistOrderReader {
                             try { sdf.parse(kdsTimeStr)?.time ?: 0L } catch (_: Exception) { 0L }
                         } else 0L
                         val kdsAge = if (kdsTime > 0) (now - kdsTime) / 1000 else -1L
-                        // 2분 이내 데이터만 교차 보정용으로 저장
-                        if (kdsTime > 0 && kdsAge < 120) {
-                            OrderTracker.gistKdsCount = kdsCount
-                            OrderTracker.gistKdsTime = kdsTime
-                        }
                         Log.d(TAG, "Gist KDS: count=$kdsCount, age=${kdsAge}초")
-                        com.posdelay.app.data.LogFileWriter.append("GIST", "KDS=$kdsCount PC=${if (files.has("order_status.json")) "있음" else "없음"} age=${kdsAge}초")
+                        com.posdelay.app.data.LogFileWriter.append("GIST", "KDS=$kdsCount age=${kdsAge}초")
                     } catch (e: Exception) {
                         Log.w(TAG, "Gist KDS 파싱 실패: ${e.message}")
-                    }
-                }
-
-                // PC 데이터 (PC일시정지면 스킵)
-                if (!pcPaused && files.has("order_status.json")) {
-                    try {
-                        val pcContent = files.getJSONObject("order_status.json").getString("content")
-                        val pcObj = JSONObject(pcContent)
-                        val pcCount = pcObj.getInt("count")
-                        val pcTimeStr = pcObj.optString("time", "")
-                        val pcTime = if (pcTimeStr.isNotEmpty()) {
-                            try { sdf.parse(pcTimeStr)?.time ?: 0L } catch (_: Exception) { 0L }
-                        } else 0L
-
-                        val pcAge = if (pcTime > 0) (now - pcTime) / 1000 else -1L
-                        Log.d(TAG, "PC(보조): count=$pcCount, age=${pcAge}초")
-
-                        // Bug 3: KDS 활성 판정 1분으로 단축 (5분 경계 타이밍 이슈 방지)
-                        val kdsSyncTime = OrderTracker.getLastKdsSyncTime()
-                        val kdsAge = now - kdsSyncTime
-                        val kdsActive = !OrderTracker.isKdsPaused() && kdsAge < 60_000L && kdsSyncTime > 0
-
-                        if (pcTime > 0 && pcAge < 600 && !kdsActive) {
-                            OrderTracker.syncPcOrderCount(pcCount, pcTime)
-                            appContext?.let { ctx ->
-                                handler.post { DelayNotificationHelper.update(ctx) }
-                            }
-                        } else if (pcTime > 0) {
-                            OrderTracker.updatePcSyncTime(pcTime)
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "PC 파싱 실패: ${e.message}")
                     }
                 }
 
@@ -184,75 +128,5 @@ object GistOrderReader {
                 Log.w(TAG, "Gist 읽기 실패 (${consecutiveErrors}회): ${e.message}")
             }
         }
-    }
-
-    /** KDS+PC 둘 다 미갱신 → MATE 앱 열기 (최후 수단) */
-    private fun checkStaleAndRefresh() {
-        val ctx = appContext ?: return
-        if (!OrderTracker.isEnabled()) return
-
-        val now = System.currentTimeMillis()
-        val lastKds = OrderTracker.getLastKdsSyncTime()
-        val lastPc = OrderTracker.getLastPcSyncTime()
-        val lastAny = maxOf(lastKds, lastPc)
-
-        if (lastAny == 0L) return
-
-        val allStale = now - lastAny >= ALL_STALE_MS
-
-        // KDS+PC 둘 다 미갱신 → MATE 자동 활성화
-        if (allStale && OrderTracker.isMatePaused()) {
-            OrderTracker.setMatePaused(false)
-            OrderTracker.setMateAutoManaged(true)
-            val staleMin = (now - lastAny) / 60000
-            Log.d(TAG, "KDS+PC ${staleMin}분 미갱신 → MATE 자동 활성화")
-            DelayNotificationHelper.showAdAlert(ctx, "KDS+PC ${staleMin}분미갱신 M활성화")
-        }
-
-        if (!allStale) return
-        if (now - lastMateAttempt < MATE_COOLDOWN_MS) return
-
-        lastMateAttempt = now
-        val staleMin = (now - lastAny) / 60000
-
-        val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        if (!pm.isInteractive || km.isKeyguardLocked) {
-            DelayNotificationHelper.showAdAlert(ctx, "${staleMin}분갱신없음 확인필요")
-            return
-        }
-
-        Log.d(TAG, "데이터 ${staleMin}분 경과 → MATE 자동 실행")
-        DelayNotificationHelper.showAdProgress(ctx, "${staleMin}분갱신없음 MATE확인")
-
-        try {
-            val launchIntent = ctx.packageManager.getLaunchIntentForPackage(MATE_PACKAGE)
-            if (launchIntent != null) {
-                launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                ctx.startActivity(launchIntent)
-                pendingReturnHome = true
-                handler.postDelayed({ forceReturn() }, 8000)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "MATE 실행 실패: ${e.message}")
-        }
-    }
-
-    private fun forceReturn() {
-        if (!pendingReturnHome) return
-        pendingReturnHome = false
-        goHome()
-    }
-
-    private fun goHome() {
-        val ctx = appContext ?: return
-        try {
-            if (DelayAccessibilityService.isAvailable()) {
-                val intent = Intent(ctx, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                }
-                ctx.startActivity(intent)
-            }
-        } catch (_: Exception) {}
     }
 }

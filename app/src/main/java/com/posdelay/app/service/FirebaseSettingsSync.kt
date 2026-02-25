@@ -132,12 +132,8 @@ object FirebaseSettingsSync {
                     put("order_count", OrderTracker.getOrderCount())
                     put("enabled", OrderTracker.isEnabled())
                     put("auto_mode", OrderTracker.isAutoMode())
-                    put("mate_paused", OrderTracker.isMatePaused())
-                    put("pc_paused", OrderTracker.isPcPaused())
                     put("kds_paused", OrderTracker.isKdsPaused())
                     put("kds_sync", OrderTracker.getLastKdsSyncTime())
-                    put("mate_sync", OrderTracker.getLastSyncTime())
-                    put("pc_sync", OrderTracker.getLastPcSyncTime())
                     put("time", dateFormat.format(Date()))
                 }.toString()
                 firebasePut("$FIREBASE_BASE/posdelay/status.json", json)
@@ -444,14 +440,6 @@ object FirebaseSettingsSync {
             when (action) {
                 "TOGGLE_KDS" -> handler.post {
                     OrderTracker.setKdsPaused(!OrderTracker.isKdsPaused())
-                    onOrderCountChanged()
-                }
-                "TOGGLE_MATE" -> handler.post {
-                    OrderTracker.setMatePaused(!OrderTracker.isMatePaused())
-                    onOrderCountChanged()
-                }
-                "TOGGLE_PC" -> handler.post {
-                    OrderTracker.setPcPaused(!OrderTracker.isPcPaused())
                     onOrderCountChanged()
                 }
                 else -> {
