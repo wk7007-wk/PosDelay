@@ -2,17 +2,12 @@ package com.posdelay.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Handler
-import android.os.Looper
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 
 object OrderTracker {
 
-    private val kdsHandler = Handler(Looper.getMainLooper())
-    private var kdsStabilizeRunnable: Runnable? = null
     private var kdsLastRawCount = -1
-    private const val KDS_STABILIZE_MS = 90_000L  // 90초 안정화 (하트비트 3회분)
 
     private const val PREFS_NAME = "pos_delay_prefs"
     private lateinit var appContext: android.content.Context
@@ -95,8 +90,7 @@ object OrderTracker {
         } catch (_: Exception) {}
     }
 
-    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 유일한 소스
-     *  안정화: 양수→즉시, 0→90초 대기 (하트비트 3회분) */
+    /** KDS (주방 디스플레이)에서 읽은 건수로 동기화 — 유일한 소스, 즉시 반영 */
     fun syncKdsOrderCount(count: Int, kdsTime: Long) {
         val now = System.currentTimeMillis()
         prefs.edit()
@@ -106,35 +100,15 @@ object OrderTracker {
         _lastSyncTime.postValue(now)
         _lastKdsSyncTime.postValue(now)
 
-        // 건수가 현재와 동일하면 무시
         if (count == getOrderCount()) {
             kdsLastRawCount = count
-            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
-            kdsStabilizeRunnable = null
             return
         }
 
         kdsLastRawCount = count
-
-        if (count > 0) {
-            // 양수 → 즉시 반영 (0 대기 취소)
-            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
-            kdsStabilizeRunnable = null
-            setOrderCount(count)
-            android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $count")
-            LogFileWriter.append("SYNC", "건수=$count (즉시반영)")
-        } else {
-            // 0 → 90초 대기 후 반영 (KDS 화면잠김 등 오탐 방지)
-            kdsStabilizeRunnable?.let { kdsHandler.removeCallbacks(it) }
-            kdsStabilizeRunnable = Runnable {
-                if (kdsLastRawCount == 0) {
-                    setOrderCount(0)
-                    android.util.Log.d("OrderTracker", "KDS 건수 0 안정화 반영")
-                    LogFileWriter.append("SYNC", "건수=0 (90초안정화)")
-                }
-            }
-            kdsHandler.postDelayed(kdsStabilizeRunnable!!, KDS_STABILIZE_MS)
-        }
+        setOrderCount(count)
+        android.util.Log.d("OrderTracker", "KDS 건수 즉시 반영: $count")
+        LogFileWriter.append("SYNC", "건수=$count (즉시반영)")
     }
 
     fun getLastKdsSyncTime(): Long = prefs.getLong(KEY_LAST_KDS_SYNC_TIME, 0L)
