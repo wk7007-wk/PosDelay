@@ -169,6 +169,14 @@ object AdDecisionEngine {
         )
     }
 
+    /** 쿨다운 종료 절대 타임스탬프 반환 (웹 게이지용) */
+    fun getEndTimestamps(): Triple<Long, Long, Long> {
+        val coupangOnEnd = if (lastCoupangOnTime > 0) lastCoupangOnTime + ACTION_COOLDOWN_MS else 0L
+        val coupangOffEnd = if (lastCoupangOffTime > 0) lastCoupangOffTime + ACTION_COOLDOWN_MS else 0L
+        val baeminEnd = if (lastBaeminSetTime > 0) lastBaeminSetTime + ACTION_COOLDOWN_MS else 0L
+        return Triple(coupangOnEnd, coupangOffEnd, baeminEnd)
+    }
+
     private fun isWithinWindow(onTime: String, offTime: String): Boolean {
         val onMin = timeToMin(onTime) ?: return true
         val offMin = timeToMin(offTime) ?: return true

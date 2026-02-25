@@ -146,11 +146,15 @@ object FirebaseSettingsSync {
     private fun uploadAdState() {
         kotlin.concurrent.thread {
             try {
+                val (cdCoupangOn, cdCoupangOff, cdBaemin) = AdDecisionEngine.getEndTimestamps()
                 val json = JSONObject().apply {
                     put("baemin_current_bid", AdManager.getBaeminCurrentBid())
                     put("coupang_current_on", AdManager.coupangCurrentOn.value)
                     put("last_ad_action", AdManager.lastAdAction.value ?: "")
                     put("time", dateFormat.format(Date()))
+                    put("cooldown_end_coupang_on", cdCoupangOn)
+                    put("cooldown_end_coupang_off", cdCoupangOff)
+                    put("cooldown_end_baemin", cdBaemin)
                 }.toString()
                 firebasePut("$FIREBASE_BASE/posdelay/ad_state.json", json)
             } catch (e: Exception) {
