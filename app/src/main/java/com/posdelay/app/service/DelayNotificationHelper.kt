@@ -190,6 +190,7 @@ object DelayNotificationHelper {
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true) // 같은 주문 ID로 업데이트 시 소리/진동 반복 방지
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
