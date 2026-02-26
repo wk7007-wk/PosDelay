@@ -22,6 +22,10 @@ object AdDecisionEngine {
     private var lastBaeminSetTime = 0L
     private var lastBaeminAmount = -1
 
+    // 쿨다운 대기열: 쿨타임 차단된 액션을 큐에 보관, 쿨타임 후 실행
+    private data class PendingAction(val action: AdAction, val executeAfter: Long)
+    private val pendingQueue = mutableListOf<PendingAction>()
+
     /** 광고 실행 완료 시 호출 (쿨다운 기록) */
     fun recordExecution(action: AdAction) {
         val now = System.currentTimeMillis()
@@ -94,8 +98,10 @@ object AdDecisionEngine {
                     if (now - lastCoupangOnTime >= ACTION_COOLDOWN_MS) {
                         actions.add(AdAction.CoupangOff)
                     } else {
-                        Log.d(TAG, "쿠팡OFF 쿨다운 (ON후 ${(now - lastCoupangOnTime) / 1000}초)")
-                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡OFF 쿨다운차단 (${(now - lastCoupangOnTime) / 1000}초)")
+                        val executeAfter = lastCoupangOnTime + ACTION_COOLDOWN_MS
+                        enqueuePending(AdAction.CoupangOff, executeAfter)
+                        Log.d(TAG, "쿠팡OFF 대기열 (ON후 ${(now - lastCoupangOnTime) / 1000}초, ${(executeAfter - now) / 1000}초 후 실행)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡OFF→대기열 (${(executeAfter - now) / 1000}초 후)")
                     }
                 }
                 cZone == 1 && currentCoupangOn == false -> {
@@ -103,8 +109,10 @@ object AdDecisionEngine {
                     if (now - lastCoupangOffTime >= ACTION_COOLDOWN_MS) {
                         actions.add(AdAction.CoupangOn)
                     } else {
-                        Log.d(TAG, "쿠팡ON 쿨다운 (OFF후 ${(now - lastCoupangOffTime) / 1000}초)")
-                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡ON 쿨다운차단 (${(now - lastCoupangOffTime) / 1000}초)")
+                        val executeAfter = lastCoupangOffTime + ACTION_COOLDOWN_MS
+                        enqueuePending(AdAction.CoupangOn, executeAfter)
+                        Log.d(TAG, "쿠팡ON 대기열 (OFF후 ${(now - lastCoupangOffTime) / 1000}초, ${(executeAfter - now) / 1000}초 후 실행)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "쿠팡ON→대기열 (${(executeAfter - now) / 1000}초 후)")
                     }
                 }
             }
@@ -124,8 +132,10 @@ object AdDecisionEngine {
                 if (now - lastBaeminSetTime >= ACTION_COOLDOWN_MS || lastBaeminAmount == -1) {
                     actions.add(AdAction.BaeminSetAmount(targetAmount))
                 } else {
-                    Log.d(TAG, "배민금액 쿨다운 (${lastBaeminAmount}원 후 ${(now - lastBaeminSetTime) / 1000}초)")
-                    com.posdelay.app.data.LogFileWriter.append("AD", "배민금액 쿨다운차단 (${lastBaeminAmount}원 ${(now - lastBaeminSetTime) / 1000}초)")
+                    val executeAfter = lastBaeminSetTime + ACTION_COOLDOWN_MS
+                    enqueuePending(AdAction.BaeminSetAmount(targetAmount), executeAfter)
+                    Log.d(TAG, "배민${targetAmount}원 대기열 (${lastBaeminAmount}원 후 ${(now - lastBaeminSetTime) / 1000}초, ${(executeAfter - now) / 1000}초 후)")
+                    com.posdelay.app.data.LogFileWriter.append("AD", "배민${targetAmount}원→대기열 (${(executeAfter - now) / 1000}초 후)")
                 }
             }
         }
@@ -135,6 +145,104 @@ object AdDecisionEngine {
         }
         return actions
     }
+
+    /** 대기열에 액션 추가 (동일 타입 중복 제거) */
+    private fun enqueuePending(action: AdAction, executeAfter: Long) {
+        // 동일 타입 기존 항목 제거 (최신 것만 유지)
+        pendingQueue.removeAll { isSameActionType(it.action, action) }
+        pendingQueue.add(PendingAction(action, executeAfter))
+    }
+
+    private fun isSameActionType(a: AdAction, b: AdAction): Boolean = when {
+        a is AdAction.CoupangOn && b is AdAction.CoupangOn -> true
+        a is AdAction.CoupangOff && b is AdAction.CoupangOff -> true
+        a is AdAction.BaeminSetAmount && b is AdAction.BaeminSetAmount -> true
+        else -> false
+    }
+
+    /**
+     * 대기열에서 실행 시간이 된 액션 꺼내기.
+     * 현재 설정과 상태에 맞는지 재검증 후 반환.
+     */
+    fun drainPendingQueue(
+        count: Int,
+        currentBaeminBid: Int,
+        currentCoupangOn: Boolean?,
+        hasBaemin: Boolean,
+        hasCoupang: Boolean
+    ): List<AdAction> {
+        val now = System.currentTimeMillis()
+        val ready = pendingQueue.filter { it.executeAfter <= now }
+        if (ready.isEmpty()) return emptyList()
+
+        pendingQueue.removeAll(ready)
+
+        // 현재 설정으로 재검증
+        val settings = fetchSettings()
+        if (!settings.adEnabled || !settings.orderAutoOffEnabled) return emptyList()
+        if (settings.scheduleEnabled && !isWithinWindow(settings.adOnTime, settings.adOffTime)) return emptyList()
+
+        val idx = count.coerceIn(0, 10)
+        val valid = mutableListOf<AdAction>()
+
+        for (pa in ready) {
+            when (pa.action) {
+                is AdAction.CoupangOff -> {
+                    if (!hasCoupang || !settings.coupangAutoEnabled) continue
+                    val cZone = settings.coupangZones.getOrElse(idx) { 0 }
+                    if (cZone == 2 && currentCoupangOn != false) {
+                        valid.add(pa.action)
+                        Log.d(TAG, "대기열→쿠팡OFF 실행 (재검증OK, zone=$cZone)")
+                    } else {
+                        Log.d(TAG, "대기열→쿠팡OFF 무효 (zone=$cZone, on=$currentCoupangOn)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "대기열→쿠팡OFF 무효화 (zone=$cZone)")
+                    }
+                }
+                is AdAction.CoupangOn -> {
+                    if (!hasCoupang || !settings.coupangAutoEnabled) continue
+                    val cZone = settings.coupangZones.getOrElse(idx) { 0 }
+                    if (cZone == 1 && currentCoupangOn == false) {
+                        valid.add(pa.action)
+                        Log.d(TAG, "대기열→쿠팡ON 실행 (재검증OK, zone=$cZone)")
+                    } else {
+                        Log.d(TAG, "대기열→쿠팡ON 무효 (zone=$cZone, on=$currentCoupangOn)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "대기열→쿠팡ON 무효화 (zone=$cZone)")
+                    }
+                }
+                is AdAction.BaeminSetAmount -> {
+                    if (!hasBaemin || !settings.baeminAutoEnabled) continue
+                    val bZone = settings.baeminZones.getOrElse(idx) { 0 }
+                    val targetAmount = when (bZone) {
+                        1 -> settings.baeminAmount
+                        2 -> settings.baeminMidAmount
+                        3 -> settings.baeminReducedAmount
+                        else -> null
+                    }
+                    if (targetAmount != null && currentBaeminBid != targetAmount) {
+                        valid.add(AdAction.BaeminSetAmount(targetAmount))
+                        Log.d(TAG, "대기열→배민${targetAmount}원 실행 (재검증OK, zone=$bZone)")
+                    } else {
+                        Log.d(TAG, "대기열→배민 무효 (zone=$bZone, target=$targetAmount, bid=$currentBaeminBid)")
+                        com.posdelay.app.data.LogFileWriter.append("AD", "대기열→배민 무효화 (zone=$bZone)")
+                    }
+                }
+            }
+        }
+        return valid
+    }
+
+    /** 대기열에서 가장 빠른 실행 시각 (스케줄링용). 없으면 0 */
+    fun getNextPendingTime(): Long {
+        return pendingQueue.minOfOrNull { it.executeAfter } ?: 0L
+    }
+
+    /** 대기열 비우기 (앱 상태 변경 시) */
+    fun clearPendingQueue() {
+        pendingQueue.clear()
+    }
+
+    /** 대기열 크기 */
+    fun pendingCount(): Int = pendingQueue.size
 
     /**
      * 건수 기반 즉각 판단 (게이지 탭 등 수동 실행용).

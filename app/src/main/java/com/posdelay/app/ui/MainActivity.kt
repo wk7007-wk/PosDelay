@@ -585,6 +585,49 @@ class MainActivity : AppCompatActivity() {
         // 백그라운드 스레드에서 Firebase 조회 후 UI 스레드에서 실행
         kotlin.concurrent.thread {
             try {
+                // 1) 대기열에서 실행 가능한 액션 먼저 드레인
+                val pendingActions = AdDecisionEngine.drainPendingQueue(
+                    count = count,
+                    currentBaeminBid = currentBid,
+                    currentCoupangOn = currentCoupangOn,
+                    hasBaemin = hasBaemin,
+                    hasCoupang = hasCoupang
+                )
+                if (pendingActions.isNotEmpty()) {
+                    android.util.Log.d("AdEval", "대기열 드레인: ${pendingActions.size}개 실행")
+                    com.posdelay.app.data.LogFileWriter.append("AD", "대기열 드레인 ${pendingActions.size}개 실행")
+                    lastAutoEvalTime = System.currentTimeMillis()
+                    lastAutoEvalCount = count
+                    runOnUiThread {
+                        try {
+                            if (background) pendingBackToBackground = true
+                            for (action in pendingActions) {
+                                AdDecisionEngine.recordExecution(action)
+                                when (action) {
+                                    is AdDecisionEngine.AdAction.CoupangOn -> {
+                                        DelayNotificationHelper.showAdProgress(this, "쿠팡광고 켜기(대기열)")
+                                        executeAdAction(AdWebAutomation.Action.COUPANG_AD_ON)
+                                    }
+                                    is AdDecisionEngine.AdAction.CoupangOff -> {
+                                        DelayNotificationHelper.showAdProgress(this, "쿠팡광고 끄기(대기열)")
+                                        executeAdAction(AdWebAutomation.Action.COUPANG_AD_OFF)
+                                    }
+                                    is AdDecisionEngine.AdAction.BaeminSetAmount -> {
+                                        DelayNotificationHelper.showAdProgress(this, "배민광고 ${action.amount}원(대기열)")
+                                        executeAdAction(AdWebAutomation.Action.BAEMIN_SET_AMOUNT, action.amount)
+                                    }
+                                }
+                            }
+                            FirebaseSettingsSync.uploadLog("[$reason] 대기열드레인 건수=$count 액션=${pendingActions.size}개")
+                        } finally {
+                            isEvaluating = false
+                            schedulePendingQueueCheck()
+                        }
+                    }
+                    return@thread
+                }
+
+                // 2) 새로운 액션 평가
                 val actions = AdDecisionEngine.evaluate(
                     count = count,
                     currentBaeminBid = currentBid,
@@ -594,7 +637,10 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (actions.isEmpty()) {
                     lastAutoEvalCount = count
-                    runOnUiThread { isEvaluating = false }
+                    runOnUiThread {
+                        isEvaluating = false
+                        schedulePendingQueueCheck()  // 대기열에 항목 추가됐을 수 있음
+                    }
                     return@thread
                 }
 
@@ -661,12 +707,39 @@ class MainActivity : AppCompatActivity() {
                         FirebaseSettingsSync.uploadLog("[$reason] 건수=${execCount} 액션=${execActions.size}개 (안정화확인)")
                     } finally {
                         isEvaluating = false
+                        schedulePendingQueueCheck()
                     }
                 }
             } catch (e: Exception) {
                 runOnUiThread { isEvaluating = false }  // Fix 1: 예외도 UI 스레드에서 해제
             }
         }
+    }
+
+    // 대기열 체크 스케줄러
+    private val pendingQueueHandler = Handler(Looper.getMainLooper())
+    private var pendingQueueRunnable: Runnable? = null
+
+    /** 대기열에 항목이 있으면 실행 시각에 맞춰 재평가 스케줄링 */
+    private fun schedulePendingQueueCheck() {
+        // 기존 스케줄 취소
+        pendingQueueRunnable?.let { pendingQueueHandler.removeCallbacks(it) }
+
+        val nextTime = AdDecisionEngine.getNextPendingTime()
+        if (nextTime <= 0L) return  // 대기열 비어있음
+
+        val delay = (nextTime - System.currentTimeMillis()).coerceAtLeast(1000L)
+        android.util.Log.d("AdEval", "대기열 스케줄: ${delay / 1000}초 후 재평가 (${AdDecisionEngine.pendingCount()}개 대기)")
+        com.posdelay.app.data.LogFileWriter.append("AD", "대기열 ${delay / 1000}초 후 재평가 예약 (${AdDecisionEngine.pendingCount()}개)")
+
+        val runnable = Runnable {
+            android.util.Log.d("AdEval", "대기열 스케줄 트리거 → evaluateAndExecute")
+            // 2분 쿨다운 우회: lastAutoEvalTime 리셋
+            lastAutoEvalTime = 0
+            evaluateAndExecute("대기열", background = false)
+        }
+        pendingQueueRunnable = runnable
+        pendingQueueHandler.postDelayed(runnable, delay)
     }
 
     /** 웹 UI에서 Firebase 경유로 수신한 원격 명령 실행 */
