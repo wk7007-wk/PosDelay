@@ -249,9 +249,6 @@ object FirebaseKdsReader {
 
     private fun handleData(raw: String) {
         try {
-            if (!OrderTracker.isEnabled()) return
-            if (OrderTracker.isKdsPaused()) return
-
             val wrapper = JSONObject(raw)
             val data = wrapper.opt("data") ?: return
             if (data.toString() == "null") return
@@ -262,35 +259,54 @@ object FirebaseKdsReader {
 
             if (count < 0) return
 
+            // orders 배열 파싱
+            val ordersArr = obj.optJSONArray("orders")
+            val orders = if (ordersArr != null) {
+                (0 until ordersArr.length()).map { ordersArr.optInt(it) }
+            } else emptyList()
+
+            processKdsCount(count, orders, timeStr, "sse")
+        } catch (e: Exception) {
+            Log.w(TAG, "데이터 파싱 실패: ${e.message}")
+        }
+    }
+
+    /**
+     * KDS 건수 처리 공통 로직. SSE/FCM 모두 이 메서드를 호출.
+     * 25분 필터, 30분 강제보정, 로깅, OrderTracker 반영.
+     */
+    fun processKdsCount(count: Int, orders: List<Int>, timeStr: String, source: String = "sse") {
+        try {
+            if (!OrderTracker.isEnabled()) return
+            if (OrderTracker.isKdsPaused()) return
+
             val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
             val kdsTime = if (timeStr.isNotEmpty()) {
                 try { sdf.parse(timeStr)?.time ?: System.currentTimeMillis() }
                 catch (_: Exception) { System.currentTimeMillis() }
             } else System.currentTimeMillis()
 
-            // orders 배열 파싱 → 25분 초과 주문 제외
-            val ordersArr = obj.optJSONArray("orders")
-            val adjustedCount = if (ordersArr != null && ordersArr.length() > 0) {
+            // orders → 25분 초과 주문 제외
+            val adjustedCount = if (orders.isNotEmpty()) {
                 val now = System.currentTimeMillis()
-                val currentOrders = HashSet<Int>()
-                for (i in 0 until ordersArr.length()) {
-                    currentOrders.add(ordersArr.optInt(i))
+                val currentOrders = HashSet(orders)
+                synchronized(orderFirstSeen) {
+                    orderFirstSeen.keys.retainAll(currentOrders)
+                    for (orderId in currentOrders) {
+                        orderFirstSeen.putIfAbsent(orderId, now)
+                    }
+                    val staleCount = orderFirstSeen.count { now - it.value > STALE_ORDER_MS }
+                    val filtered = maxOf(0, currentOrders.size - staleCount)
+                    if (staleCount > 0) {
+                        val staleOrders = orderFirstSeen.filter { now - it.value > STALE_ORDER_MS }.keys
+                        Log.d(TAG, "[$source] 25분초과 제외: ${staleOrders} → 건수 $count→$filtered")
+                    }
+                    saveOrderTracking()
+                    filtered
                 }
-                orderFirstSeen.keys.retainAll(currentOrders)
-                for (orderId in currentOrders) {
-                    orderFirstSeen.putIfAbsent(orderId, now)
-                }
-                val staleCount = orderFirstSeen.count { now - it.value > STALE_ORDER_MS }
-                val filtered = maxOf(0, currentOrders.size - staleCount)
-                if (staleCount > 0) {
-                    val staleOrders = orderFirstSeen.filter { now - it.value > STALE_ORDER_MS }.keys
-                    Log.d(TAG, "KDS 25분초과 제외: ${staleOrders} → 건수 $count→$filtered")
-                }
-                saveOrderTracking()
-                filtered
-            } else if (count > 0 && ordersArr != null && ordersArr.length() == 0) {
+            } else if (count > 0 && orders.isEmpty()) {
                 // 탭 건수(조리중 N) 신뢰 — 주문번호 추출 실패(rootInActiveWindow 문제)일 수 있음
-                Log.d(TAG, "KDS count=$count, orders=[] → 탭건수 신뢰 (주문번호 추출 실패 가능)")
+                Log.d(TAG, "[$source] count=$count, orders=[] → 탭건수 신뢰")
                 count
             } else {
                 if (count != lastCountValue) {
@@ -298,7 +314,7 @@ object FirebaseKdsReader {
                     lastCountChangeTime = System.currentTimeMillis()
                 }
                 if (count > 0 && System.currentTimeMillis() - lastCountChangeTime >= FORCE_ZERO_MS) {
-                    Log.d(TAG, "KDS 30분 강제보정: count=$count → 0 (변동 없음 ${(System.currentTimeMillis() - lastCountChangeTime) / 60000}분)")
+                    Log.d(TAG, "[$source] 30분 강제보정: count=$count → 0 (변동 없음 ${(System.currentTimeMillis() - lastCountChangeTime) / 60000}분)")
                     lastCountValue = 0
                     lastCountChangeTime = System.currentTimeMillis()
                     0
@@ -307,20 +323,16 @@ object FirebaseKdsReader {
                 }
             }
 
-            Log.d(TAG, "KDS 실시간: count=$count, adjusted=$adjustedCount, time=$timeStr")
+            Log.d(TAG, "[$source] KDS: count=$count, adjusted=$adjustedCount, time=$timeStr")
 
             // 건수 변동 시에만 로그 (과다호출 방지)
             if (adjustedCount != lastLoggedCount) {
-                com.posdelay.app.data.LogFileWriter.append("KDS", "건수=$adjustedCount" + if (count != adjustedCount) " (원본=$count 보정)" else "")
-                val ordersStr = if (ordersArr != null && ordersArr.length() > 0) {
-                    val list = mutableListOf<Int>()
-                    for (i in 0 until ordersArr.length()) list.add(ordersArr.optInt(i))
-                    list.toString()
-                } else "[]"
+                com.posdelay.app.data.LogFileWriter.append("KDS", "[$source] 건수=$adjustedCount" + if (count != adjustedCount) " (원본=$count 보정)" else "")
+                val ordersStr = if (orders.isNotEmpty()) orders.toString() else "[]"
                 val msg = if (count != adjustedCount) {
-                    "[KDS] 건수 $count→$adjustedCount (보정) orders=$ordersStr"
+                    "[KDS/$source] 건수 $count→$adjustedCount (보정) orders=$ordersStr"
                 } else {
-                    "[KDS] 건수=$adjustedCount orders=$ordersStr"
+                    "[KDS/$source] 건수=$adjustedCount orders=$ordersStr"
                 }
                 lastLoggedCount = adjustedCount
                 appContext?.let { FirebaseSettingsSync.uploadLog(msg) }
@@ -331,7 +343,7 @@ object FirebaseKdsReader {
                 appContext?.let { DelayNotificationHelper.update(it) }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "데이터 파싱 실패: ${e.message}")
+            Log.w(TAG, "[$source] 건수 처리 실패: ${e.message}")
         }
     }
 
