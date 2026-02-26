@@ -2,14 +2,12 @@ package com.posdelay.app.service
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 
 /**
  * 네이티브 조리모드 알림 체커.
  * WebView JS가 백그라운드에서 일시정지되어도 포그라운드 서비스에서 동작.
- * 10초 간격으로 주문별 조리/포장/초과 시점 확인 → 알림 발생.
+ * 독립 스레드에서 10초 간격 루프 (Handler 대신 Thread.sleep — Doze 지연 방지).
  */
 object NativeCookAlertChecker {
 
@@ -17,35 +15,40 @@ object NativeCookAlertChecker {
     private const val PREFS_NAME = "cook_mode_settings"
     private const val CHECK_INTERVAL = 10_000L  // 10초
 
-    private val handler = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
-    private var running = false
+    @Volatile private var running = false
     private lateinit var prefs: SharedPreferences
+    private var checkerThread: Thread? = null
 
     // 알림 발생 추적 (주문번호 → 발생한 알림 타입)
     private val firedAlerts = HashMap<Int, MutableSet<String>>()  // "cook", "pkg", "over"
     // 주문 사라진 시각 (SSE 플래핑 시 즉시 삭제 방지)
     private val orderGoneTime = HashMap<Int, Long>()
 
-    private val checkRunnable = object : Runnable {
-        override fun run() {
-            checkAlerts()
-            if (running) handler.postDelayed(this, CHECK_INTERVAL)
-        }
-    }
-
     fun start(context: Context) {
         if (running) return
         appContext = context.applicationContext
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         running = true
-        handler.postDelayed(checkRunnable, CHECK_INTERVAL)
-        Log.d(TAG, "네이티브 조리 알림 시작")
+        checkerThread = kotlin.concurrent.thread(name = "CookAlertChecker") {
+            Log.d(TAG, "네이티브 조리 알림 시작 (독립 스레드)")
+            while (running) {
+                try {
+                    Thread.sleep(CHECK_INTERVAL)
+                    if (running) checkAlerts()
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    Log.w(TAG, "체크 오류: ${e.message}")
+                }
+            }
+        }
     }
 
     fun stop() {
         running = false
-        handler.removeCallbacks(checkRunnable)
+        checkerThread?.interrupt()
+        checkerThread = null
     }
 
     /** WebView JS에서 조리모드 설정 동기화 */
