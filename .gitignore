@@ -13,3 +13,4 @@ local.properties
 *.ap_
 *.aab
 pc/config.json
+firebase-debug.log

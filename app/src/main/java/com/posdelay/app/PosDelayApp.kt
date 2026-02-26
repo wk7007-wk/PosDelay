@@ -10,6 +10,7 @@ import com.posdelay.app.service.AdScheduler
 import com.posdelay.app.service.DelayNotificationHelper
 import com.posdelay.app.service.DelayAlertManager
 import com.posdelay.app.service.FirebaseSettingsSync
+import com.google.firebase.messaging.FirebaseMessaging
 
 class PosDelayApp : Application() {
     override fun onCreate() {
@@ -24,5 +25,10 @@ class PosDelayApp : Application() {
         FirebaseSettingsSync.start(this)
         DelayAlertManager.init(this)
         DelayAlertManager.startPeriodicCheck()
+
+        // FCM topic 구독 (KDS push 수신)
+        FirebaseMessaging.getInstance().subscribeToTopic("kds_push")
+            .addOnSuccessListener { android.util.Log.d("PosDelayApp", "FCM kds_push 구독 완료") }
+            .addOnFailureListener { android.util.Log.w("PosDelayApp", "FCM 구독 실패: ${it.message}") }
     }
 }

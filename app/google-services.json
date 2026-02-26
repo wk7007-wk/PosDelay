@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "965064583329",
+    "firebase_url": "https://poskds-4ba60-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "poskds-4ba60",
+    "storage_bucket": "poskds-4ba60.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965064583329:android:ada8ee0bfd4b5f1e34e8e0",
+        "android_client_info": {
+          "package_name": "com.posdelay.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD05xrtbFto4f-f5hE0ux48IGaHH1l1mNA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965064583329:android:bd8caa93cacf4fe034e8e0",
+        "android_client_info": {
+          "package_name": "com.poskds.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD05xrtbFto4f-f5hE0ux48IGaHH1l1mNA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

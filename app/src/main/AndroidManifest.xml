@@ -83,6 +83,15 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- FCM push 수신 (KDS 건수 변경) -->
+        <service
+            android:name=".service.FcmKdsReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- 광고 스케줄 알람 수신기 -->
         <receiver
             android:name=".service.AdAlarmReceiver"
