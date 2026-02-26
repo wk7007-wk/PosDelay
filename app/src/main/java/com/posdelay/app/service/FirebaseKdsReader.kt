@@ -309,6 +309,15 @@ object FirebaseKdsReader {
                 Log.d(TAG, "[$source] count=$count, orders=[] → 탭건수 신뢰")
                 count
             } else {
+                // count=0 + orders=[] → 주문 추적 맵 정리
+                if (count == 0) {
+                    synchronized(orderFirstSeen) {
+                        if (orderFirstSeen.isNotEmpty()) {
+                            orderFirstSeen.clear()
+                            saveOrderTracking()
+                        }
+                    }
+                }
                 if (count != lastCountValue) {
                     lastCountValue = count
                     lastCountChangeTime = System.currentTimeMillis()
