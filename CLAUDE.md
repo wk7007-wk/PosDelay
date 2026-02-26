@@ -5,6 +5,7 @@
 
 ## 개발 방침
 - **백그라운드 실행 필수**: 모든 기능은 백그라운드에서도 동작해야 함. 앱 열릴 때만 적용되면 의미 없음. LiveData `observe(this)` 사용 금지 → `observeForever` + onDestroy에서 remove. WebView JS 타이머 의존 금지 → 네이티브 포그라운드 서비스에서 처리
+- **백그라운드 타이머 규칙**: `Handler(Looper.getMainLooper()).postDelayed`는 Doze 모드에서 콜백 지연됨 → 포그라운드 복귀 시 몰림. **정확한 간격 필요 시 독립 스레드 + Thread.sleep 루프 사용** (예: NativeCookAlertChecker). SSE/네트워크 I/O 스레드는 Doze 영향 적음
 - **웹 로그 분석 → 개선이 핵심 역할**: 웹 대시보드에서 로그를 분석하여 자동화 로직을 개선하는 구조 우선
 - **네이티브 최소화, 웹 동기화 우선**: 네이티브 코드는 최대한 줄이고, 웹으로 동기화(Firebase)되는 방식 위주로 코딩
 - **안정성 + 리미트 최우선**: Firebase 호출 횟수, API rate limit 등 리미트 관리와 안정성을 항상 최우선. 기능보다 안정성 우선
