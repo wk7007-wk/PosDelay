@@ -4,7 +4,8 @@
 배민/쿠팡 광고 자동화 + 주문 지연처리. 주문 건수에 따라 광고 입찰/ON/OFF 자동 조절.
 
 ## 개발 방침
-- **백그라운드 실행 필수**: 모든 기능은 백그라운드에서도 동작해야 함. 앱 열릴 때만 적용되면 의미 없음. LiveData `observe(this)` 사용 금지 → `observeForever` + onDestroy에서 remove. WebView JS 타이머 의존 금지 → 네이티브 포그라운드 서비스에서 처리
+- **앱 화면 = 확인/설정 전용, 자동화 = 백그라운드 독립**: 메인 앱 화면(WebView)은 상태 모니터링 + 설정값 변경이 주목적. 광고 실행, 조리알림, KDS 건수 카운트, 조리상태 완료 감지 등 모든 자동화는 포그라운드 서비스에서 독립 실행. 앱 화면 열림/닫힘과 무관하게 동작해야 함
+- **백그라운드 실행 필수**: LiveData `observe(this)` 사용 금지 → `observeForever` + onDestroy에서 remove. WebView JS 타이머 의존 금지 → 네이티브 포그라운드 서비스에서 처리
 - **백그라운드 타이머 규칙**: `Handler(Looper.getMainLooper()).postDelayed`는 Doze 모드에서 콜백 지연됨 → 포그라운드 복귀 시 몰림. **정확한 간격 필요 시 독립 스레드 + Thread.sleep 루프 사용** (예: NativeCookAlertChecker). SSE/네트워크 I/O 스레드는 Doze 영향 적음
 - **웹 로그 분석 → 개선이 핵심 역할**: 웹 대시보드에서 로그를 분석하여 자동화 로직을 개선하는 구조 우선
 - **네이티브 최소화, 웹 동기화 우선**: 네이티브 코드는 최대한 줄이고, 웹으로 동기화(Firebase)되는 방식 위주로 코딩
