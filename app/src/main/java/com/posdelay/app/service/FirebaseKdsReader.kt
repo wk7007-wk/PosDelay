@@ -2,8 +2,6 @@ package com.posdelay.app.service
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import com.posdelay.app.data.OrderTracker
 import org.json.JSONObject
@@ -30,7 +28,6 @@ object FirebaseKdsReader {
     private const val MIN_RECONNECT_MS = 5_000L
     private const val MAX_RECONNECT_MS = 60_000L
 
-    private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var appContext: Context? = null
     private var sseThread: Thread? = null
@@ -138,7 +135,6 @@ object FirebaseKdsReader {
     fun stop() {
         running = false
         sseEpoch++  // 이전 epoch의 reconnect 무효화
-        handler.removeCallbacksAndMessages(null)
         try { sseConnection?.disconnect() } catch (_: Exception) {}
         sseConnection = null
         sseThread?.interrupt()
@@ -347,10 +343,9 @@ object FirebaseKdsReader {
                 appContext?.let { FirebaseSettingsSync.uploadLog(msg) }
             }
 
-            handler.post {
-                OrderTracker.syncKdsOrderCount(adjustedCount, kdsTime)
-                appContext?.let { DelayNotificationHelper.update(it) }
-            }
+            // handler.post 사용 금지 — Doze에서 밀리고 복귀 시 몰림
+            OrderTracker.syncKdsOrderCount(adjustedCount, kdsTime)
+            appContext?.let { DelayNotificationHelper.update(it) }
         } catch (e: Exception) {
             Log.w(TAG, "[$source] 건수 처리 실패: ${e.message}")
         }
@@ -363,6 +358,10 @@ object FirebaseKdsReader {
         Log.d(TAG, "SSE 재연결 ${reconnectDelay / 1000}초 후...")
         val delay = reconnectDelay
         reconnectDelay = (reconnectDelay * 2).coerceAtMost(MAX_RECONNECT_MS)  // 지수 백오프
-        handler.postDelayed({ connectSSE(epoch) }, delay)
+        // handler.postDelayed 대신 독립 스레드 — Doze에서 밀리지 않음
+        kotlin.concurrent.thread {
+            try { Thread.sleep(delay) } catch (_: InterruptedException) { return@thread }
+            if (running && epoch == sseEpoch) connectSSE(epoch)
+        }
     }
 }
