@@ -430,8 +430,11 @@ class MainActivity : AppCompatActivity() {
         fun captureScreen() {
             runOnUiThread {
                 try {
+                    val scale = webView.scale
+                    val fullHeight = (webView.contentHeight * scale).toInt()
+                    val height = maxOf(webView.height, fullHeight)
                     val bitmap = android.graphics.Bitmap.createBitmap(
-                        webView.width, webView.height, android.graphics.Bitmap.Config.ARGB_8888
+                        webView.width, height, android.graphics.Bitmap.Config.ARGB_8888
                     )
                     val canvas = android.graphics.Canvas(bitmap)
                     webView.draw(canvas)
