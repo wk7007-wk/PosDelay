@@ -24,6 +24,16 @@
 6. 사용자에게 "설치하세요" 안내
 7. **설치 확인**: 사용자가 설치 완료 응답할 때까지 대기 후 다음 작업 진행
 
+## KDS 함께 변경 시 — 주방폰 원격 배포 추가
+1. KDS 빌드: `cd /root/PosKDS && ./gradlew assembleDebug`
+2. APK 복사: `cp app/build/outputs/apk/debug/app-debug.apk /sdcard/Download/PosKDS.apk`
+3. GitHub Release: `gh release create "v${VER}" /sdcard/Download/PosKDS.apk --repo wk7007-wk/PosKDS`
+4. **Firebase URL 갱신** (필수 — 이거 해야 주방폰 자동 감지):
+   ```
+   curl -X PUT .../app_update/poskds.json -d '{"version":"VER","url":"RELEASE_URL","time":"NOW"}'
+   ```
+5. 주방폰이 자동 감지 → 다운로드 → 설치 화면 표시
+
 ## 컬러 팔레트 (11색, 이 외 사용 금지)
 배경=#1A1A30→#121225, 카드=#242444→#1A1A35+테두리#2E2E52, 중립=#2A2A45, 텍스트1=#E0E0EC, 텍스트2=#9090A8, 텍스트3=#707088, 배민=#2AC1BC, 쿠팡=#FFD700, ON=#2ECC71, OFF=#E74C3C, 중간=#E67E22, 수치=#FFFFFF
 
@@ -53,7 +63,7 @@
   - 현재 구간만 색상 밝게, 나머지 반투명(55)
 - **색상 우선순위**: 조리(주황)는 항상 밝게, 전체(초록)는 항상 반투명, 포장(빨강)은 해당 구간만 밝게
 - **리스트**: 한줄에 한 주문 (주문번호 | 접수시간 | 상태 | 전체 | 조리 | 포장)
-- **리스트 삭제**: 탭 → 5초 뒤 삭제 (재탭 시 취소), 60분 경과 시 자동 삭제
+- **리스트 삭제**: 탭 → 2초 뒤 삭제 (재탭 시 취소), 완료 후 25분 자동 삭제, 미완료 60분 안전장치
 - **접수시간**: Firebase order_tracking 시간 우선, 없으면 Date.now() (oT SSE 도착 시 업데이트)
 - **구버전 호환**: localStorage 값 < 100이면 분단위로 간주 → ×60 자동변환
 
@@ -61,11 +71,14 @@
 - 건수 >= 임계값: 배민 금액축소 + 쿠팡 OFF
 - 건수 < 임계값: 배민 금액원복 + 쿠팡 ON
 
-## KDS 데이터 구조 (단일 소스)
+## KDS 데이터 구조 (단일 소스 + FCM 보조)
 - **KDS가 유일한 건수 소스**: MATE/PC 보정 삭제됨 — KDS SSE만 사용
 - **KDS 건수 즉시 반영**: 안정화 지연 없음 (`syncKdsOrderCount` → `setOrderCount` 직접)
 - **kds_status 필드**: `count`(조리중), `completed`(완료탭), `orders[]`, `time`, `source`
 - **completed 추출**: KDS 앱이 완료탭 카운트를 트리탐색 fallback으로 추출 → Firebase 업로드
+- **FCM Push (보조 채널)**: KDS→FCM→PosDelay OS 레벨 push. SSE가 1차, FCM이 2차 (중복 자동 무시)
+  - `FcmKdsReceiver.kt`: 토픽 `kds_push` 구독, SSE보다 먼저 도착하면 즉시 반영
+  - KDS `FcmSender.kt`: 건수 변동 시 FCM v1 API로 data message 전송 (서비스 계정 JWT)
 
 ## KDS 데이터 보정 (수신 측에서 처리)
 - **원칙**: KDS 주방폰은 물리적으로 원격 (업데이트 최소화) → 보정은 항상 PosDelay/웹에서
