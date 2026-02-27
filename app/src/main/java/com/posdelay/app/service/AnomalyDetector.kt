@@ -53,22 +53,22 @@ object AnomalyDetector {
         checkFrequentReconnects(sseType, now)
     }
 
-    /** 1. 동일 액션 30초 내 반복 */
+    /** 1. 동일 액션 15초 내 3회 이상 반복 (바쁜 시간대 정상 변동 허용) */
     private fun checkDuplicateAction(action: String, now: Long) {
         synchronized(execHistory) {
-            val recent = execHistory.filter { it.action == action && now - it.time < 30_000 }
-            if (recent.size >= 2) {
+            val recent = execHistory.filter { it.action == action && now - it.time < 15_000 }
+            if (recent.size >= 3) {
                 alert("duplicate_action",
-                    "동일 액션 반복: $action ${recent.size}회/30초")
+                    "동일 액션 반복: $action ${recent.size}회/15초")
             }
         }
     }
 
-    /** 2. 5분 내 과다 실행 */
+    /** 2. 5분 내 15회 이상 과다 실행 (바쁜 시간대 정상 변동 허용) */
     private fun checkExcessiveExecution(now: Long) {
         synchronized(execHistory) {
             val recent = execHistory.filter { now - it.time < 5 * 60 * 1000L }
-            if (recent.size >= 5) {
+            if (recent.size >= 15) {
                 val actions = recent.groupBy { it.action }.map { "${it.key}=${it.value.size}" }
                 alert("excessive_exec",
                     "과다 실행: ${recent.size}회/5분 [${actions.joinToString(", ")}]")
