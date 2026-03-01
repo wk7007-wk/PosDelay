@@ -289,7 +289,7 @@ object FirebaseKdsReader {
                 synchronized(orderFirstSeen) {
                     orderFirstSeen.keys.retainAll(currentOrders)
                     for (orderId in currentOrders) {
-                        orderFirstSeen.putIfAbsent(orderId, now)
+                        orderFirstSeen.putIfAbsent(orderId, kdsTime)
                     }
                     val staleCount = orderFirstSeen.count { now - it.value > STALE_ORDER_MS }
                     val filtered = maxOf(0, currentOrders.size - staleCount)
